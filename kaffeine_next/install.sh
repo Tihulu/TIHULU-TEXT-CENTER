@@ -18,67 +18,68 @@ fi
 MODE=--no-ai
 WITH_DAB=0
 WITH_ANALOG=0
+DRY_RUN=0
+ROLLBACK=0
 for argument in "$@"; do
   case "$argument" in
     --no-ai) MODE=--no-ai ;;
     --with-ai) MODE=--with-ai ;;
     --with-dab) WITH_DAB=1 ;;
     --with-analog) WITH_ANALOG=1 ;;
-    *) echo "Usage: bash install.sh [--no-ai|--with-ai] [--with-dab] [--with-analog]" >&2; exit 2 ;;
+    --dry-run) DRY_RUN=1 ;;
+    --rollback) ROLLBACK=1 ;;
+    *) echo "Usage: bash install.sh [--no-ai|--with-ai] [--with-dab] [--with-analog] [--dry-run|--rollback]" >&2; exit 2 ;;
   esac
 done
-# Require a complete, SHA-pinned Media source checkout; never clone Text.
+# Do not trust git HEAD alone: the guard rejects staged/unstaged/untracked
+# source changes, foreign launcher aliases and unverified prior releases.
 MEDIA_SOURCE_DIR="${TIHULU_MEDIA_SOURCE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-if [[ ! -f "$MEDIA_SOURCE_DIR/tv_center/__main__.py" ||
-      ! -f "$MEDIA_SOURCE_DIR/kaffeine_next/patch_upstream.py" ]]; then
-  echo "Incomplete Media source; refusing standalone install." >&2; exit 1
-fi
-ACTUAL_MEDIA_SHA="$(git -C "$MEDIA_SOURCE_DIR" rev-parse HEAD 2>/dev/null || true)"
 EXPECTED_MEDIA_SHA="${TIHULU_MEDIA_SOURCE_SHA:-}"
-if [[ ! "$EXPECTED_MEDIA_SHA" =~ ^[0-9a-f]{40}$ ||
-      "$EXPECTED_MEDIA_SHA" != "$ACTUAL_MEDIA_SHA" ]]; then
-  echo "Set TIHULU_MEDIA_SOURCE_SHA to the exact reviewed Media commit." >&2
-  exit 1
+GUARD="$MEDIA_SOURCE_DIR/kaffeine_next/media_install_guard.py"
+if [[ ! "$EXPECTED_MEDIA_SHA" =~ ^[0-9a-f]{40}$ || ! -f "$GUARD" ]]; then
+  echo "A clean, complete, reviewed Media source SHA is required." >&2; exit 1
 fi
+ACTUAL_MEDIA_SHA="$EXPECTED_MEDIA_SHA"
 MEDIA_REVISION="${ACTUAL_MEDIA_SHA:0:12}"
-# A pre-existing legacy installation is not ours to overwrite.
-# A future migration must have an owner-approved backup/ownership manifest.
-OWNED_LAUNCHER_MARKER="$HOME/.local/share/tihulu-media-center/native/.tihulu-owned-launcher"
-for existing in "$HOME/.local/bin/tihulu-kaffeine" \
-                "$HOME/.local/bin/tihulu-media-center" \
-                "$HOME/.local/share/applications/tihulu-media-center.desktop"; do
-  if [[ -e "$existing" || -L "$existing" ]]; then
-    if [[ ! -f "$OWNED_LAUNCHER_MARKER" ]]; then
-      echo "Existing Media/legacy launcher found; preserving it. Manual migration review required." >&2
-      exit 1
-    fi
-  fi
-done
-# Verify both previously installed byte hashes before any replacement.
-# A customized/foreign launcher or desktop is never overwritten.
-OWNED_DESKTOP="$HOME/.local/share/applications/tihulu-media-center.desktop"
-OWNED_DESKTOP_MARKER="$HOME/.local/share/tihulu-media-center/native/.tihulu-owned-desktop"
-if [[ -L "$OWNED_LAUNCHER_MARKER" || -L "$OWNED_DESKTOP_MARKER" ]]; then
-  echo "Symlinked ownership marker; refusing." >&2; exit 1
+APPROOT="$HOME/.local/share/tihulu-media-center/native"
+SOURCE="$APPROOT/upstream-v2.0.19"
+PREFIX="$HOME/.local/opt/tihulu-media-center/releases/$MEDIA_REVISION"
+BUILD="$APPROOT/build-$MEDIA_REVISION"
+LOGDIR="$APPROOT/logs"
+GUARD_OPTS=()
+if [[ "$MODE" == --with-ai ]]; then GUARD_OPTS+=(--with-ai); fi
+if (( WITH_DAB == 1 )); then GUARD_OPTS+=(--with-dab); fi
+if (( WITH_ANALOG == 1 )); then GUARD_OPTS+=(--with-analog); fi
+media_rollback() {
+  local plan action prior
+  plan="$(python3 "$GUARD" rollback-plan --sha "$ACTUAL_MEDIA_SHA")" || return 1
+  action="$(printf '%s' "$plan" | python3 -c 'import json,sys; print(json.load(sys.stdin)["package_action"])')"
+  prior="$(printf '%s' "$plan" | python3 -c 'import json,sys; print(json.load(sys.stdin)["previous_deb"])')"
+  case "$action" in
+    restore) [[ -f "$prior" ]] || return 1
+             sudo apt-get install -y --reinstall "$prior" || return 1 ;;
+    remove) sudo apt-get remove -y --no-auto-remove tihulu-media-center-ai || return 1 ;;
+    *) return 1 ;;
+  esac
+  python3 "$GUARD" rollback-files --sha "$ACTUAL_MEDIA_SHA" >/dev/null
+}
+if (( ROLLBACK == 1 )); then
+  media_rollback
+  echo "Restored verified Media-owned release and companion only."
+  exit 0
 fi
-if [[ -e "$HOME/.local/bin/tihulu-kaffeine" ]]; then
-  KNOWN_HASH="$(cat "$OWNED_LAUNCHER_MARKER" 2>/dev/null || true)"
-  CURRENT_HASH="$(sha256sum "$HOME/.local/bin/tihulu-kaffeine" | awk '{print $1}')"
-  if [[ ! "$KNOWN_HASH" =~ ^[0-9a-f]{64}$ || "$KNOWN_HASH" != "$CURRENT_HASH" ]]; then
-    echo "Media launcher modified or unowned; preserve and review manually." >&2; exit 1
-  fi
+# Dry-run is a complete install plan with zero APT/git clone/filesystem
+# writes. Exactly the same owner/source preflight precedes real install.
+if (( DRY_RUN == 1 )); then
+  python3 "$GUARD" dry-run --source "$MEDIA_SOURCE_DIR" \
+    --sha "$ACTUAL_MEDIA_SHA" "${GUARD_OPTS[@]}"
+  exit $?
 fi
-if [[ -e "$OWNED_DESKTOP" ]]; then
-  KNOWN_DESKTOP="$(cat "$OWNED_DESKTOP_MARKER" 2>/dev/null || true)"
-  CURRENT_DESKTOP="$(sha256sum "$OWNED_DESKTOP" | awk '{print $1}')"
-  if [[ ! "$KNOWN_DESKTOP" =~ ^[0-9a-f]{64}$ || "$KNOWN_DESKTOP" != "$CURRENT_DESKTOP" ]]; then
-    echo "Media desktop entry modified or unowned; preserving." >&2; exit 1
-  fi
-fi
-if [[ -L "$HOME/.local/bin/tihulu-media-center" &&
-      "$(readlink "$HOME/.local/bin/tihulu-media-center")" != tihulu-kaffeine ]]; then
-  echo "Media launcher symlink has another owner; preserve." >&2; exit 1
-fi
+python3 "$GUARD" preflight --source "$MEDIA_SOURCE_DIR" \
+  --sha "$ACTUAL_MEDIA_SHA" "${GUARD_OPTS[@]}" >/dev/null
+TRANSACTION_STARTED=0
+TRANSACTION_COMPLETE=0
+
 echo "Building a separate GPL-compatible Kaffeine v2.0.19 fork."
 echo "This preserves system Kaffeine, channel lists, other SDR programs and AI models."
 sudo apt-get update
@@ -96,11 +97,6 @@ if (( WITH_ANALOG == 1 )); then
   sudo apt-get install -y --no-install-recommends rtl-sdr alsa-utils
 fi
 
-APPROOT="$HOME/.local/share/tihulu-media-center/native"
-SOURCE="$APPROOT/upstream-v2.0.19"
-PREFIX="$HOME/.local/opt/tihulu-media-center/releases/$MEDIA_REVISION"
-BUILD="$APPROOT/build-$MEDIA_REVISION"
-LOGDIR="$APPROOT/logs"
 mkdir -p "$APPROOT" "$LOGDIR" "$HOME/.local/bin" "$HOME/.local/share/applications"
 # Migrate existing tuner/channel definitions ONCE into a distinct TIHULU
 # data directory. Never alter the system Kaffeine instance's own files.
@@ -151,10 +147,19 @@ qt_link_diagnostics() {
 temp="$(mktemp -d)"
 BUILDSRC=""
 cleanup() {
+  local prior_status=$?
+  trap - EXIT
+  if (( TRANSACTION_STARTED == 1 && TRANSACTION_COMPLETE == 0 )); then
+    if ! media_rollback; then
+      echo "MEDIA_INSTALL_HOLD: automatic owned rollback incomplete; keep the transaction journal." >&2
+      prior_status=1
+    fi
+  fi
   if [[ -n "$BUILDSRC" && -e "$BUILDSRC/.git" && -d "$SOURCE/.git" ]]; then
     git -C "$SOURCE" worktree remove --force "$BUILDSRC" >/dev/null 2>&1 || true
   fi
   rm -rf "$temp"
+  return "$prior_status"
 }
 trap cleanup EXIT
 
@@ -254,26 +259,23 @@ if [[ -f "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" &
 fi
 
 TIHULU_KAFFEINE_PRIMARY=1 bash "$MEDIA_SOURCE_DIR/tv_center/packaging/build-deb.sh" "$temp/debs"
-# A separate Media package must never overwrite the existing TV/Text package.
-sudo apt-get install -y "$temp/debs/tihulu-media-center-ai_0.1.0~dev2_all.deb"
-# Switch only a proven Media-owned current symlink after version is installed.
-BASE_PREFIX="$HOME/.local/opt/tihulu-media-center"
-CURRENT_LINK="$BASE_PREFIX/current"
-mkdir -p "$BASE_PREFIX/releases"
+COMPANION="$temp/debs/tihulu-media-center-ai_0.1.0~dev2_all.deb"
+test -s "$COMPANION"
+# Fail before package/file activation if the optional user-selected
+# localhost welle.io backend cannot be built.
+if (( WITH_DAB == 1 )); then
+  bash "$APPROOT/install_welle.sh"
+fi
+# This SHA names only a new release prefix; prior versions stay intact.
 printf '%s\n' "$ACTUAL_MEDIA_SHA" > "$PREFIX/.tihulu-media-owned-release"
-if [[ -e "$CURRENT_LINK" && ! -L "$CURRENT_LINK" ]]; then
-  echo "Refusing a non-symlink Media current path." >&2; exit 1
-fi
-if [[ -L "$CURRENT_LINK" ]]; then
-  OLD_LINK="$(readlink -f "$CURRENT_LINK")"
-  case "$OLD_LINK" in "$BASE_PREFIX"/releases/*) ;; *) echo "Foreign current link; refusing." >&2; exit 1;; esac
-  test -f "$OLD_LINK/.tihulu-media-owned-release" ||
-    { echo "Existing Media release is not verified as owned." >&2; exit 1; }
-fi
-ln -s "$PREFIX" "$CURRENT_LINK.next.${BASHPID}"
-mv -T "$CURRENT_LINK.next.${BASHPID}" "$CURRENT_LINK"
+# Snapshot the previously installed Media release, per-file hashes and the
+# previous signed package BEFORE the first companion package replacement.
+python3 "$GUARD" snapshot --source "$MEDIA_SOURCE_DIR" \
+  --sha "$ACTUAL_MEDIA_SHA" >/dev/null
+TRANSACTION_STARTED=1
+sudo apt-get install -y --reinstall "$COMPANION"
 
-cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
+cat > "$temp/tihulu-kaffeine" <<'LAUNCH'
 #!/bin/sh
 # XWayland avoids the broken NVIDIA / COSMIC embedded surface path.
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then export QT_QPA_PLATFORM=xcb; fi
@@ -313,9 +315,8 @@ exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
   "$HOME/.local/opt/tihulu-media-center/current/bin/tihulu-media-center" "$@"
 LAUNCH
-chmod 755 "$HOME/.local/bin/tihulu-kaffeine"
-ln -sfn tihulu-kaffeine "$HOME/.local/bin/tihulu-media-center"
-cat > "$HOME/.local/share/applications/tihulu-media-center.desktop" <<DESKTOP
+chmod 755 "$temp/tihulu-kaffeine"
+cat > "$temp/tihulu-media-center.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=TIHULU Media Center
@@ -329,10 +330,13 @@ Terminal=false
 Categories=AudioVideo;Video;TV;Audio;Player;
 DESKTOP
 
-# Store the exact bytes of launcher created by this installer for future
-# collision/upgrade review; do not migrate another application's launcher.
-sha256sum "$HOME/.local/bin/tihulu-kaffeine" | awk '{print $1}' > "$OWNED_LAUNCHER_MARKER"
-sha256sum "$OWNED_DESKTOP" | awk '{print $1}' > "$OWNED_DESKTOP_MARKER"
+# Publish from staged files only after guard verifies per-file ownership.
+# No cat > on a foreign launcher; no ln -sfn on a foreign regular file.
+python3 "$GUARD" activate --sha "$ACTUAL_MEDIA_SHA" \
+  --launcher "$temp/tihulu-kaffeine" \
+  --desktop "$temp/tihulu-media-center.desktop" \
+  --release "$PREFIX" --companion "$COMPANION" >/dev/null
+TRANSACTION_COMPLETE=1
 
 if [[ "$MODE" != --no-ai ]]; then
   echo "Installing baseline offline models for the device: Whisper Tiny,"
@@ -355,7 +359,4 @@ echo "Set DVB-T2 Source in Configure Television before the first channel scan."
 echo "FM/MW/LW requires a suitable SDR; optional tools: bash install.sh --with-analog"
 echo "DAB+ Radio is a native tab. Optional welle.io backend (separate SDR):"
 echo "  bash $APPROOT/install_welle.sh"
-if (( WITH_DAB == 1 )); then
-  echo "User explicitly selected --with-dab: building pinned localhost-only welle-cli."
-  bash "$APPROOT/install_welle.sh"
-fi
+

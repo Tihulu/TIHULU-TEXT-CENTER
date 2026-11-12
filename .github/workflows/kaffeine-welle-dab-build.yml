@@ -6,12 +6,16 @@ on:
       - architecture/kaffeine-core-tv-2026-11-07
     paths:
       - kaffeine_next/install_welle.sh
+      - kaffeine_next/install.sh
+      - kaffeine_next/media_install_guard.py
       - kaffeine_next/native_radio_tab.h
       - kaffeine_next/patch_upstream.py
       - .github/workflows/kaffeine-welle-dab-build.yml
   pull_request:
     paths:
       - kaffeine_next/install_welle.sh
+      - kaffeine_next/install.sh
+      - kaffeine_next/media_install_guard.py
       - kaffeine_next/native_radio_tab.h
       - kaffeine_next/patch_upstream.py
       - .github/workflows/kaffeine-welle-dab-build.yml

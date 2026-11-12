@@ -21,14 +21,39 @@ def _base(env_name: str, fallback: Path) -> Path:
             else fallback).resolve(strict=False)
 
 
+def validate_storage_directory(raw: str | Path) -> Path:
+    """Reject root, relative paths, symlinked leaves or ancestors, without writes.
+
+    A separately chosen external SSD mount may be used by path, but this
+    validation never assigns ownership or grants model deletion permission.
+    """
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute() or candidate == Path(candidate.anchor):
+        raise ValueError("Choose an absolute, non-root user storage directory")
+    current = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        current = current / part
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise ValueError("Storage directory cannot be inspected safely") from exc
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError("Refusing a symlink in the selected directory or parent")
+        if not stat.S_ISDIR(info.st_mode):
+            raise ValueError("Storage path contains a non-directory ancestor")
+    return candidate
+
+
 def _override(env_name: str, default: Path) -> Path:
     raw = os.environ.get(env_name, "").strip()
     if not raw:
         return default
-    candidate = Path(raw).expanduser()
-    if not candidate.is_absolute():
-        raise ValueError(env_name + " must be an absolute path")
-    return candidate
+    try:
+        return validate_storage_directory(raw)
+    except ValueError as exc:
+        raise ValueError(env_name + ": " + str(exc)) from exc
 
 
 @dataclass(frozen=True)

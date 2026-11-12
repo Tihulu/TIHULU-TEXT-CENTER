@@ -87,6 +87,9 @@ class TranscriptStore:
             result=translate_offline(row["original_text"],original,target,backend=backend)
         else:
             result=translator(row["original_text"],original,target)
+        # Match the original Text Center normalization contract for delayed
+        # translations as well as initial captured and exported subtitles.
+        result = clean_text(result, 12000)
         with self.store.connect() as db:
             db.execute("""UPDATE captions SET translated_language=?,translated_text=?,
                  translator_engine=? WHERE id=?""",
