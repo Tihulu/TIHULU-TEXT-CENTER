@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase5_flight_safe_exit_source_fix_draft_pr15_ci_in_progress_17_release_gates_open",
+  "stage": "phase5_flight_draft_pr15_all_software_CI_success_17_acceptance_gates_open",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Flight P0 safety correction in separate Draft #15 with only controller and two legacy/one new tests changed; CI in progress. No merge, real systemd/SDR use, migration or release; 17 global gates remain open, implementation acceptance ETA unknown.",
+    "reason": "Flight safety correction PR #15 is open/draft, isolated unit tests and four platform preview CI jobs succeeded (Ubuntu 84 passed), Pi ARM64 preview succeeded. Real systemd/readsb/tar1090 mixed ownership, receiver hardware, installer and release acceptance remain unverified; 17 global gates OPEN, no merges/migrations. ETA unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -730,7 +730,7 @@
     "branch": "fix/exit-preserve-external-readsb-tar1090-2026-11-12",
     "base_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
     "head_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
-    "status": "DRAFT_SOURCE_PATCH_CI_IN_PROGRESS",
+    "status": "DRAFT_SOURCE_PATCH_CI_SUCCESS_NO_MERGE_NO_DEVICE_ACCEPTANCE",
     "changed_paths": [
       "tihulu_flight_radar/control.py",
       "tests/test_control.py",
@@ -748,7 +748,7 @@
       "cause": "Two legacy tests expected unsafe external service Stop or simulated Stop failure from unowned services; assertions updated to owner-specific cases."
     },
     "ci_current_cross_platform_run": 43147050908,
-    "ci_current_conclusion": "in_progress_at_checkpoint_ubuntu_debian_unit_steps_passed",
+    "ci_current_conclusion": "success",
     "pi_arm64_run": 43147050916,
     "pi_arm64_conclusion": "success",
     "real_host_service_or_hardware_executed": false,
@@ -759,6 +759,16 @@
       "Manual explicit Stop still paired and can stop external services when intentionally invoked",
       "No process identity provenance or real cross-app radio validation",
       "Original test-only PR #14 has strict baseline XFAIL that will XPASS on fixed source if merged unchanged"
-    ]
+    ],
+    "ci_current_jobs": {
+      "debian_12_x64": "success",
+      "ubuntu_24_04_x64": "success",
+      "windows_2025_x64": "success",
+      "macos_15_apple_silicon": "success"
+    },
+    "ubuntu_test_count_passed": 84,
+    "ubuntu_failed": 0,
+    "source_diff_verified_only_four_paths": true,
+    "remaining_release_gate_closed": false
   }
 }
