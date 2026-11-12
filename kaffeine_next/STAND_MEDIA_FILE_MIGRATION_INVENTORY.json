@@ -1,0 +1,1679 @@
+{
+  "schema": "tihulu.stand_media.file_inventory.v1",
+  "audited_at": "2026-11-12",
+  "purpose": "PRE-FLIGHT ONLY; no files copied or migrated, no source edits",
+  "origin": {
+    "repository": "Tihulu/TIHULU-TEXT-CENTER",
+    "feature_pr": 67,
+    "branch": "feat/media-unified-recording-export-2026-11-11",
+    "commit": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+    "tree_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+    "tree_truncated": false
+  },
+  "contract": "apps/_coordination/STANDALONE_APPLICATION_ACCEPTANCE.md STAND-01..12 (coordination branch)",
+  "destination": "Tihulu/tihulu-media-center (EMPTY; no first commit authorized)",
+  "source_counts": {
+    "tv_center": 80,
+    "kaffeine_next": 35,
+    "textcenter_excluded_or_refactor": 20,
+    "tests_reviewed": 111,
+    "media_candidate_test_paths": 92,
+    "records": 246
+  },
+  "policy": {
+    "candidate_media_source": "review exactly 80 tv_center files; package namespacing/refactor required before install; no automatic move",
+    "candidate_native": "review exactly 35 kaffeine_next files including the SVG and live patch of separate KDE Kaffeine source; keep KDE LGPL/GPL licenses",
+    "textcenter": "DO NOT COPY textcenter/ package wholesale into Media; extract/version tested Media-owned API compatibility for compute, speech, transcripts and transitive core. Preserve canonical Text source and history.",
+    "tests": "select and adapt Media-related tests only from all 111 test blobs; original tests and PR branches remain intact",
+    "configuration": "copy+verify+non-destructive migration only after explicit owner decision; never remove existing models, user data, foreign files or cross-app services",
+    "stacks": "PRs #91, #96, #99 are separate unmerged variants of #67; reconcile source changes in owner-approved order, do not pick one branch as automatically complete"
+  },
+  "required_external_source": {
+    "name": "KDE Kaffeine",
+    "tag": "v2.0.19",
+    "full_commit": "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c",
+    "integration": "patch_upstream.py; no Kaffeine upstream source vendored in origin snapshot"
+  },
+  "optional_receiver_source": {
+    "name": "welle.io native DAB CLI",
+    "pinned_commit": "512558d1f8ac4c524d3c63e97510ea36c1bd7a70",
+    "installer": "kaffeine_next/install_welle.sh",
+    "policy": "opt-in; localhost-only; no requirement for local file player"
+  },
+  "known_cross_import_api": [
+    "from textcenter.compute import LANGUAGES/detect_devices/choose_backend",
+    "from textcenter.speech import transcribe_pcm",
+    "from textcenter.transcripts import translate_offline/installed_translation_pairs",
+    "textcenter.transcripts transitively imports textcenter.core Store/clean_text/utc_now",
+    "direct import sites include tv_center/__main__.py,captions.py,media_ai.py,ai_diagnostics.py,model_market.py,translation_worker.py,settings_ui.py,performance_lab.py,cuda_faster_whisper.py,kaffeine_next/captions_overlay.py"
+  ],
+  "installed_dependency_status": {
+    "linux": "Only APT/Qt5/KF5/libVLC source build and Debian Python companion currently specified; no solo-install verification",
+    "macos_apple_silicon": "No native macOS packaging/build/smoke; Linux DVB/Kaffeine path not ported",
+    "windows_x64": "No native Windows packaging/build/smoke; Linux DVB/Kaffeine path not ported",
+    "raspberry_pi_os": "Debian-family installer claims applicability; ARM64 Qt5/libVLC, DVB and installed performance not independently tested",
+    "portable_manifests": "No independent Windows/macOS installers, signed artifacts, source-only standalone lock, isolated release rollback"
+  },
+  "observed_current_installer": {
+    "source": "kaffeine_next/install.sh",
+    "fetches_origin_repo": "https://github.com/Tihulu/TIHULU-TEXT-CENTER.git",
+    "branch_default": "fix/tihulu-media-radio-dvb-2026-11-08",
+    "installs_deb": "tihulu-tv-center_0.1.0~dev1_all.deb",
+    "python_package": "tv_center/packaging/build-deb.sh copies tv_center, textcenter and kaffeine_next to /usr/share/tihulu-tv-center",
+    "native_prefix": "~/.local/opt/tihulu-kaffeine",
+    "frontend_bin": "~/.local/bin/tihulu-media-center -> tihulu-kaffeine",
+    "desktop": "~/.local/share/applications/tihulu-kaffeine.desktop",
+    "icon": "~/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg",
+    "no_snapshot_rollback": "No versioned, atomically switched, checksummed rollback artifact established"
+  },
+  "runtime_data_inventory": [
+    {
+      "current": "~/.config/tihulu-media-centerrc",
+      "kind": "Kaffeine-native KConfig (app identity)",
+      "action": "PRESERVE; backup; non-destructive media-specific profile"
+    },
+    {
+      "current": "~/.local/share/tihulu-media-center/",
+      "kind": "native DVB channel config + DB",
+      "action": "PRESERVE; never delete original Kaffeine ~/.local/share/kaffeine"
+    },
+    {
+      "current": "~/.config/tihulu-tv-center/ai-settings.json",
+      "kind": "Python AI settings",
+      "action": "COPY/VALIDATE into new Media namespace after owner-approved migration; preserve source"
+    },
+    {
+      "current": "~/.config/tihulu-tv-center/remote-gpu-token",
+      "kind": "opt-in secret/token",
+      "action": "DO NOT COPY SECRET BLINDLY; re-pair, user confirm, strict file permissions"
+    },
+    {
+      "current": "~/.config/tihulu-tv-center/deepl-api.key",
+      "kind": "opt-in external translation credential",
+      "action": "PRESERVE, explicit permission reconfigure; never print or auto-upload"
+    },
+    {
+      "current": "~/.config/tihulu-tv-center/channels*.conf",
+      "kind": "legacy CLI DVB channels",
+      "action": "inventory and copy once if owned; not system Kaffeine channel state"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/models/",
+      "kind": "GGML model files",
+      "action": "PRESERVE bytes + checksums and custom model paths; owner-select new Media root"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/ai-runtime/",
+      "kind": "Python/Argos virtual env",
+      "action": "REBUILD environment for new app; do not assume venv portable or delete old"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/whisper-runtime/",
+      "kind": "managed whisper.cpp build",
+      "action": "REBUILD binary after owner approval; preserve model files"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/cuda-faster-whisper/",
+      "kind": "managed CUDA Python runtime",
+      "action": "REBUILD and validate GPU separately; preserve weights and no host-driver edits"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/faster-whisper-models/",
+      "kind": "CT2 GPU weights",
+      "action": "COPY/VERIFY if user-owned; no wholesale downloads/copy without size and consent"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/translator-models/",
+      "kind": "NLLB/MADLAD/other translation weights",
+      "action": "COPY/VERIFY only app-owned models; non-commercial licensing must be checked"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/speaker-resemblyzer/",
+      "kind": "optional speaker runtime/models",
+      "action": "PRESERVE; separate runtime namespace"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/audio-label-classifiers/",
+      "kind": "optional classifier runtime/models",
+      "action": "PRESERVE; separate runtime namespace"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/qwen-aligner/",
+      "kind": "optional karaoke aligner",
+      "action": "PRESERVE; separate runtime namespace"
+    },
+    {
+      "current": "~/.local/share/tihulu-tv-center/overlap-separation/",
+      "kind": "optional two-voice worker",
+      "action": "PRESERVE; separate runtime namespace"
+    },
+    {
+      "current": "~/.local/share/tihulu-kaffeine/",
+      "kind": "native upstream/build/logs/helpers",
+      "action": "PRESERVE current build/logs; versioned new root + rollback"
+    },
+    {
+      "current": "~/.local/opt/tihulu-kaffeine/",
+      "kind": "native binary",
+      "action": "PRESERVE and pin old binary; no in-place destructive upgrade"
+    },
+    {
+      "current": "~/.local/share/tihulu-welle/ and ~/.local/opt/tihulu-welle/",
+      "kind": "optional app-managed DAB CLI binary",
+      "action": "PRESERVE; owner-managed optional backend; no external welle service kill"
+    },
+    {
+      "current": "~/.local/bin/tihulu-media-center and ~/.local/bin/tihulu-kaffeine",
+      "kind": "existing launchers/symlink",
+      "action": "BACKUP exact link target and ownership; versioned atomic update only"
+    },
+    {
+      "current": "~/.local/share/applications/tihulu-kaffeine.desktop",
+      "kind": "desktop entry",
+      "action": "PRESERVE existing desktop ID until owner-approved cutover"
+    },
+    {
+      "current": "~/.local/share/icons/hicolor/**/apps/tihulu-media-center.*",
+      "kind": "app SVG and optional legacy user PNG",
+      "action": "PRESERVE custom PNG and exact bytes; no font/asset loss"
+    },
+    {
+      "current": "QSettings TIHULU/KaffeineRadio, MediaPlayer, UnifiedRecordings, KaffeineTVFileCaptionDefaults, KaffeineCaptionAppearance etc.",
+      "kind": "Qt platform-specific settings roots",
+      "action": "enumerate with QSettings per platform; checksum before/after; do not guess actual filesystem path"
+    },
+    {
+      "current": "$XDG_RUNTIME_DIR/tihulu-*.json/.sock",
+      "kind": "owned per-session IPC/caption/socket metadata",
+      "action": "REMOVE ONLY invocation-owned objects after safe Close; foreign paths protected"
+    },
+    {
+      "current": "$XDG_CACHE_HOME, HF/Argos/Qt caches, user-selected external SSD model directories",
+      "kind": "potential shared caches/external user roots",
+      "action": "inventory provenance; never delete/shared-cache-clear by default"
+    },
+    {
+      "current": "User-selected audio/video recordings, exported *.srt/*.txt/*.mkv/*.mp4, original Kaffeine DVR output",
+      "kind": "user data, potentially outside app roots",
+      "action": "ABSOLUTE PRESERVE; only verified owned transaction partials may roll back"
+    }
+  ],
+  "file_inventory": [
+    {
+      "origin": "tv_center/__init__.py",
+      "git_blob_sha1": "aaf61724c292ed763ca18cc9db207c3984cc4339",
+      "bytes": 103,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/__main__.py",
+      "git_blob_sha1": "c5ea50700ef8d32eae4970ce9a962dc5795c4f00",
+      "bytes": 7544,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/ai_diagnostics.py",
+      "git_blob_sha1": "2aad2072d7c64e41a615180136a62aa8e512914b",
+      "bytes": 5937,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/ai_profiles.py",
+      "git_blob_sha1": "892b95b751710fc802d3fe993db0c13ca2c0fb3d",
+      "bytes": 14658,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/ai_provision.py",
+      "git_blob_sha1": "eac1bef163df6e7fe1a9303f85fc6a8bdacf1454",
+      "bytes": 14818,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/ai_settings.py",
+      "git_blob_sha1": "1f181f37e9d45a17d2057174027896a588f169e0",
+      "bytes": 5689,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/argos_generation.py",
+      "git_blob_sha1": "5143851b988d3ff8eed66b5817e4502042938fb6",
+      "bytes": 1742,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/argos_market_bridge.py",
+      "git_blob_sha1": "04280e0b4eeebc9f0439b3e8435251cc4caf8cfb",
+      "bytes": 5014,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/asr_quality.py",
+      "git_blob_sha1": "a74f8b89aab2edb0c000ea290c8efb488ed3fcc0",
+      "bytes": 5047,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/audio_classifiers.py",
+      "git_blob_sha1": "ba837ebc403b7cc15886c1ef08786a7e719bc747",
+      "bytes": 15049,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/bridge.py",
+      "git_blob_sha1": "86466d671ca41098f675177dce0d273f312c7074",
+      "bytes": 5826,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/captions.py",
+      "git_blob_sha1": "2e0714110832c6cfe7521563cbb5dfa964295968",
+      "bytes": 46301,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/channel_prefs.py",
+      "git_blob_sha1": "8bb2b3a8730b33ae24d06d9087f6d885e92102df",
+      "bytes": 4550,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/channels_ui.py",
+      "git_blob_sha1": "7adfb93aafd1e97165fa98dc2dc4b1778fdcacfb",
+      "bytes": 5978,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/core.py",
+      "git_blob_sha1": "9983747f3f8e828c69db4b778712676784f69c6c",
+      "bytes": 29864,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/cuda_faster_whisper.py",
+      "git_blob_sha1": "a033bf1b96a117bdd79a1cca9b463c2f4e9e556d",
+      "bytes": 20564,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/deepl_api.py",
+      "git_blob_sha1": "f746aec66ca165e1bdf24814139f23ec6f1792fc",
+      "bytes": 4484,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/desktop.py",
+      "git_blob_sha1": "e868052f31cd92d0a59ea62c183f43e29ef7bc4e",
+      "bytes": 48480,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/direct_de_tr.py",
+      "git_blob_sha1": "6d4b3dd6d08976745db3b63b6d1e18517a6e9833",
+      "bytes": 3897,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/docs/AI_MODES_REMOTE_GPU.md",
+      "git_blob_sha1": "bb5f92be57f6cab66da127442aa5928de39fed29",
+      "bytes": 8599,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/docs/OVERLAPPING_SPEAKERS_SOUND_LABELS.md",
+      "git_blob_sha1": "513f5f1e9c4688bc619de57fc695443aa371d789",
+      "bytes": 4994,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/docs/SATELLITE_PI5_DISH.md",
+      "git_blob_sha1": "c1f14bb17f14d254d0630c24af0c4b79535967b3",
+      "bytes": 4678,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/free_speakers.py",
+      "git_blob_sha1": "59b4caf1b6d8228d0a0720fe12cf7d652e22d76c",
+      "bytes": 14373,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/hardware_market.py",
+      "git_blob_sha1": "f51d0afc13737e4c6b317745f385eeae308c762d",
+      "bytes": 9355,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/hardware_status.py",
+      "git_blob_sha1": "1a23fd61145b75083e4f4239be5367cdf83332c2",
+      "bytes": 6931,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/install.sh",
+      "git_blob_sha1": "deaabd5548676195a8ed861268b41d322abb4db8",
+      "bytes": 2629,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/installed_languages.py",
+      "git_blob_sha1": "5e4cf65e09573542ba4c3e5a60e9876f596efcd6",
+      "bytes": 5538,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/lan.py",
+      "git_blob_sha1": "f4bf774212abf5b215874ec9949a462a47c3f0e6",
+      "bytes": 12980,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/language_codes.py",
+      "git_blob_sha1": "d58cea32272eda7a63d6b991aa63b437db5ea736",
+      "bytes": 2601,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/lyrics_sync.py",
+      "git_blob_sha1": "ee6d6c7147f4c3d403c8be43773a5b39562eed1b",
+      "bytes": 30074,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/media_ai.py",
+      "git_blob_sha1": "f3194e772bfe2dbe8cde488707dea4291924ecf8",
+      "bytes": 17346,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/media_ui.py",
+      "git_blob_sha1": "428b683db0de1429164dedc8641fd344c9c5205e",
+      "bytes": 9383,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/model_market.py",
+      "git_blob_sha1": "1b190c3bf94face53dc222305cc860f4970d3b8d",
+      "bytes": 10562,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/online_models.py",
+      "git_blob_sha1": "0cbce3cf3f2243b49c3b02e898141a875785a852",
+      "bytes": 3028,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/overlap_separation.py",
+      "git_blob_sha1": "2bf23f83bc28adedf7c94c464aa536bed38ccbdd",
+      "bytes": 14581,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/packaging/build-deb.sh",
+      "git_blob_sha1": "c73b0a95e650d3f25273b101c03f933dd06fd9b1",
+      "bytes": 2474,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/performance_lab.py",
+      "git_blob_sha1": "780b1151e8c8e307fdc9bf920a07da3dbac80dda",
+      "bytes": 16366,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/pi_hailo.py",
+      "git_blob_sha1": "a059f40eba6da369019fb518e1ceeedc1814be88",
+      "bytes": 5005,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/qwen_forced_aligner.py",
+      "git_blob_sha1": "b1e9c1a3236396a075bf60f00decb41a6d63a647",
+      "bytes": 9181,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/radio_ai.py",
+      "git_blob_sha1": "3a66a85401f1c5db08cd9fc83387c9aaf1664085",
+      "bytes": 55277,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/radio_capture.py",
+      "git_blob_sha1": "3721df419a15a9a2aeb856b05d46b7634aa665d4",
+      "bytes": 3156,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/radio_dls_metadata.py",
+      "git_blob_sha1": "deba924cc3875c24ba8c54a00304984db3761dad",
+      "bytes": 6155,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/radio_karaoke_router.py",
+      "git_blob_sha1": "69efdf8a11feeefb31f88ad67691c0fb0149e0a5",
+      "bytes": 4473,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/radio_language.py",
+      "git_blob_sha1": "86c6e2ca8a59f8452bd83c7ef882db1ee141dda4",
+      "bytes": 3441,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/radio_translation_status.py",
+      "git_blob_sha1": "af3f2e0fbf5620eb9fab5736c6ee7f9ed4ed3e1d",
+      "bytes": 2519,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/README.md",
+      "git_blob_sha1": "7842729b336caee90d9cc43fd81de34e63c47b67",
+      "bytes": 19146,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/recording_export.py",
+      "git_blob_sha1": "084ac92aa787b1e81f2a2dab861eb0af6041eade",
+      "bytes": 17235,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/remote_controls.py",
+      "git_blob_sha1": "6da1c9191c59ce626ee81b9e250e374450ba36ed",
+      "bytes": 2342,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/remote_gpu_server.py",
+      "git_blob_sha1": "e5356fdc674292a2a7e525ce7d15def5bef6fa44",
+      "bytes": 5550,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/remote_gpu.py",
+      "git_blob_sha1": "587d9fe72e702e38bf6756fe9ece5bf3b71945a9",
+      "bytes": 6206,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/remote_hub.py",
+      "git_blob_sha1": "4b3636d63d455ca8758c02d4d8096b7cba2be1ef",
+      "bytes": 28360,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/runtime.py",
+      "git_blob_sha1": "45431fed569221da8ebb6615a3d6436a26f4d76c",
+      "bytes": 4198,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/satellite.py",
+      "git_blob_sha1": "43303bc563fe2d2f7844b8fd6d0380b1ce4ab0f7",
+      "bytes": 2151,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/scan_ui.py",
+      "git_blob_sha1": "3562923e485db694b10e859fcb6ffd12f5de3e3c",
+      "bytes": 5131,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/scanner.py",
+      "git_blob_sha1": "6aca8cb4485ecdac386117a0afac6e9a7a6b7d2e",
+      "bytes": 18177,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/sentence_joiner.py",
+      "git_blob_sha1": "ace3577c41175b46bae83e956b3b5b69526093f4",
+      "bytes": 4993,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/settings_ui.py",
+      "git_blob_sha1": "4f786cf42145f35e79339ad485fb7f89f73f6d6a",
+      "bytes": 116468,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/sound_event_captions.py",
+      "git_blob_sha1": "20bc3864a158b3cfa98af1d140fd7ef6e881e105",
+      "bytes": 3584,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/speaker_market.py",
+      "git_blob_sha1": "28446fafd1e0f3fbf8da36269d8d849caa348cc7",
+      "bytes": 10087,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/speech_focus.py",
+      "git_blob_sha1": "b04c9a5ec826844ea80ee20b5535b0132170d517",
+      "bytes": 2238,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/streaming.py",
+      "git_blob_sha1": "af534935da2a678c6518700a52d25d7f25d7a8ed",
+      "bytes": 4988,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/translation_failover.py",
+      "git_blob_sha1": "fc70e51037a05cb458172ed941520b569b49b14a",
+      "bytes": 4095,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/translation_madlad.py",
+      "git_blob_sha1": "7e74a2185ddeb434099fe1eedc571c35a089905f",
+      "bytes": 8616,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/translation_market.py",
+      "git_blob_sha1": "3476f1bb43941bf27182cd91aba5a7b0dcbed5ee",
+      "bytes": 18097,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/translation_service.py",
+      "git_blob_sha1": "52eab6edb1b803358194fa72cab1d9580651c961",
+      "bytes": 9109,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/translation_worker.py",
+      "git_blob_sha1": "75a56cf837d1b956d76dd87e6bf29b392f90c41b",
+      "bytes": 3994,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/ts.py",
+      "git_blob_sha1": "2011fde4d04a51c1093477373e8a0f65cdf37359",
+      "bytes": 7219,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web_control.py",
+      "git_blob_sha1": "ed1d6e3f277528e94325489d1afed847ff6d02fe",
+      "bytes": 2585,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web_desktop.py",
+      "git_blob_sha1": "0d4a7c893a98a113b1c430821681bf584635614a",
+      "bytes": 19694,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/app.js",
+      "git_blob_sha1": "6b44c9c50a276d6f4746428fb00b5669a2d96c8e",
+      "bytes": 5770,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/browser-ai-ui.js",
+      "git_blob_sha1": "70a0c5a64f206d1ec8e0941a0cafd3345652b238",
+      "bytes": 7264,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/browser-ai-worker.js",
+      "git_blob_sha1": "59a778bd22f8de995aec7958af713e0aa5dc9998",
+      "bytes": 4005,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/hub.html",
+      "git_blob_sha1": "19130ce8f0ab0c1b04cf88019f1d2e5fbc12a8a0",
+      "bytes": 6102,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/hub.js",
+      "git_blob_sha1": "e38aa7f804d0354da9bb6ea1d9f1289c496af3df",
+      "bytes": 12148,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/index.html",
+      "git_blob_sha1": "37efcadf4d8555b7dd16ba510becb00b1094f1a4",
+      "bytes": 7419,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/mobile.html",
+      "git_blob_sha1": "83ec88ecf2c749f7293a1fd8662287754ceffd97",
+      "bytes": 8292,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/mobile.js",
+      "git_blob_sha1": "de63bb04a45812d7a756de5168b5a2e2096ff3eb",
+      "bytes": 19901,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/style.css",
+      "git_blob_sha1": "a7abf4ba69f2fc184dcf30cb847368180c4de8f4",
+      "bytes": 7963,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/web/web-controls.js",
+      "git_blob_sha1": "c4aac736eb1dd8824ecb73125b6b7c564ad53f1d",
+      "bytes": 17985,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "tv_center/whisper_engine.py",
+      "git_blob_sha1": "ed17175492dfd0dbc3f0a5d636b1f36bc58de36f",
+      "bytes": 8214,
+      "classification": "CANDIDATE_MEDIA_SOURCE"
+    },
+    {
+      "origin": "kaffeine_next/__init__.py",
+      "git_blob_sha1": "315c06b689cfbb83f9f205d1140ecf5058e2aa02",
+      "bytes": 44,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/AI_LIVE_PERFORMANCE_AND_LANGUAGES.md",
+      "git_blob_sha1": "828f7a30e577fffaa2a7231013646862584ed3a7",
+      "bytes": 4634,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/assets/tihulu-media-center.svg",
+      "git_blob_sha1": "b419e433a4bfbef3cd757ae2976cbf4310ae9490",
+      "bytes": 1221,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/caption_control.py",
+      "git_blob_sha1": "e2921c53353ad02819f6ac1f5f515485c94204b2",
+      "bytes": 3875,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/caption_timing.py",
+      "git_blob_sha1": "d6c77a7cec408abeea9142dae25b4c43a1cb676d",
+      "bytes": 45768,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/captions_overlay.py",
+      "git_blob_sha1": "3081be75998464e758427ea12c66071924b6e69d",
+      "bytes": 190966,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/continuous_captions.py",
+      "git_blob_sha1": "78a4105339c7152c3f9db3e9d993613d87d9362f",
+      "bytes": 7729,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/diagnostics.py",
+      "git_blob_sha1": "ed926b1524f20d9aa2356af92e2a931c96779bd0",
+      "bytes": 5224,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/dvb_diagnostics.sh",
+      "git_blob_sha1": "b42ab72ace8f6e9a8d2a5a14436b0a58cdc4e2b3",
+      "bytes": 3396,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/HARDWARE_PANEL.md",
+      "git_blob_sha1": "c482bffbb095f80e4462f6c7d191f8701c06d689",
+      "bytes": 4017,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/install_welle.sh",
+      "git_blob_sha1": "44c79231154dfd649db8324e0ccf9e74ef3e0300",
+      "bytes": 3135,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/install.sh",
+      "git_blob_sha1": "7eb12290feae60bc3f588cf831153f71c21e3771",
+      "bytes": 13915,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/live_srt.py",
+      "git_blob_sha1": "ea7fecebf2ca82f3cf61525027467c8ef77ad48b",
+      "bytes": 4703,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/mobile.py",
+      "git_blob_sha1": "82cf5bf9c9e3c1f66c1f0b94fd8b412db43a8a3d",
+      "bytes": 13527,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/mpegts.py",
+      "git_blob_sha1": "42d97caef6fe111db930629007dc1de65dd45bc3",
+      "bytes": 2023,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/native_hardware_tab.h",
+      "git_blob_sha1": "07dfe167e19a8691d8fb7a2893b7efaa37bb78f6",
+      "bytes": 20199,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/native_media_panel.h",
+      "git_blob_sha1": "7b8f2f756025a8aec5169e86b52ec589dc769aca",
+      "bytes": 27171,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/native_radio_tab.h",
+      "git_blob_sha1": "1aaac1b9b2c08f2ae4981d17dbd1f6029a2ad831",
+      "bytes": 387241,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/native_unified_recorder.h",
+      "git_blob_sha1": "65ceedc5e99534a2f348b83f5c31467b55cd237f",
+      "bytes": 29007,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/native_web_tv_dialog.h",
+      "git_blob_sha1": "d447e0161e7bceb2a87df5b2f34bd0bda50ac964",
+      "bytes": 8806,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/patch_upstream.py",
+      "git_blob_sha1": "e5de236e7c8fde637ea8d3264c6abd52a3d1d351",
+      "bytes": 96626,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/RADIO_UX_SYNC_REVIEW.md",
+      "git_blob_sha1": "6b9c63a818cda99628740bf21a2ca75afc1b8b46",
+      "bytes": 7585,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/README.md",
+      "git_blob_sha1": "33f9224d48e3a01d2f9acec864f02eda4eee6031",
+      "bytes": 51722,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+      "git_blob_sha1": "3418010eb2448879d4b8cd582e2857e64fea285d",
+      "bytes": 4777,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/REMOTE_MEDIA_HUB.md",
+      "git_blob_sha1": "086958395d28de0d17a0abcd9ea96b226856e2bb",
+      "bytes": 4633,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/subtitle_tracks.py",
+      "git_blob_sha1": "06026044214cc186596268948dca8a63e064ae2b",
+      "bytes": 10609,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/teletext_match.py",
+      "git_blob_sha1": "f70b6a6fe511d75d73eed3190d900b3512f2bb72",
+      "bytes": 9123,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/track_preferences.py",
+      "git_blob_sha1": "625f81d78dec3c4ffdca29b03d2203da8a481065",
+      "bytes": 1906,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/transport_health.py",
+      "git_blob_sha1": "ef30307978dae3442c9a4dbb7b1f26112caeecbc",
+      "bytes": 2812,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/TROUBLESHOOTING_2026-11-08.md",
+      "git_blob_sha1": "8b7475f3e66cb88c31536af338ececa69b349272",
+      "bytes": 4274,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/ts_capture_integrity.py",
+      "git_blob_sha1": "e6f28600da6d0a324dfb814f1eb28b4042c99e76",
+      "bytes": 2507,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/TV_CAPTION_CHANNEL_TRANSITIONS.md",
+      "git_blob_sha1": "a4b69bc39930f8b218bd776238f727ec6f7fe859",
+      "bytes": 3271,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/tv_tune_state.py",
+      "git_blob_sha1": "8fd1280803d1c55ce554a15a8864ae7f7ffe7321",
+      "bytes": 1779,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/UNIFIED_RECORDING.md",
+      "git_blob_sha1": "0148a549864a271974e1a7de5a451b208f0c4186",
+      "bytes": 4482,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "kaffeine_next/word_cues.py",
+      "git_blob_sha1": "b6faf90187b3ebdea5a5e4d6fae9f221ad71d3f0",
+      "bytes": 9091,
+      "classification": "CANDIDATE_NATIVE_PATCH_AND_ASSET"
+    },
+    {
+      "origin": "textcenter/__init__.py",
+      "git_blob_sha1": "85271337427e11985ce2aa13ce3f26dbfd032f6f",
+      "bytes": 86,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/__main__.py",
+      "git_blob_sha1": "aedc65a8d36ff24b163b851b1bc9e21ebea5ef0d",
+      "bytes": 5716,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/capabilities.py",
+      "git_blob_sha1": "dd335c99dcd59df0ef37aa287ec854bc6be3b4b1",
+      "bytes": 8346,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/compute.py",
+      "git_blob_sha1": "d1db4fc8d9e81627e3eef660d29d3dc02ea2edc1",
+      "bytes": 12771,
+      "classification": "REFACTOR_MUST_NOT_COPY_TEXT_PACKAGE"
+    },
+    {
+      "origin": "textcenter/conflicts.py",
+      "git_blob_sha1": "86140946be7862710fa772e6b68f0be699865234",
+      "bytes": 3374,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/core.py",
+      "git_blob_sha1": "3e13a5bca174d78b646981e46472e683a1474d4b",
+      "bytes": 21071,
+      "classification": "REFACTOR_MUST_NOT_COPY_TEXT_PACKAGE"
+    },
+    {
+      "origin": "textcenter/dab_bridge.py",
+      "git_blob_sha1": "fa4aeb204333668f753f64608c1724b30a37258a",
+      "bytes": 6541,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/dvb_hardware.py",
+      "git_blob_sha1": "50debb7425c9925ad0c41e5e9daf3f7901350496",
+      "bytes": 3461,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/fm_audio.py",
+      "git_blob_sha1": "dcb82845d5d254462de4d370205d4b613e0b2c50",
+      "bytes": 10505,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/fm_rds.py",
+      "git_blob_sha1": "954515c32e4ea3c7ca8543516579cc189847653e",
+      "bytes": 20946,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/fm_survey.py",
+      "git_blob_sha1": "f63ee2cbb39e5697a1f7f1673b6c167da918abdf",
+      "bytes": 15095,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/http_app.py",
+      "git_blob_sha1": "1364105e5410fa0801e0941856eda02a4ba9cf68",
+      "bytes": 31603,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/live_fm.py",
+      "git_blob_sha1": "971158c59267f68cb4a90871fe78d6360acf740d",
+      "bytes": 13105,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/live_tv.py",
+      "git_blob_sha1": "adaf7252852d63c590a8585001c6fe53d969bd9c",
+      "bytes": 13296,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/media.py",
+      "git_blob_sha1": "f68884f2118a46a8825988f02d59f958dc72c192",
+      "bytes": 6236,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/postprocess.py",
+      "git_blob_sha1": "cd00553c6c3c6790305c9691fdb584433a3a48a9",
+      "bytes": 7776,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/receivers.py",
+      "git_blob_sha1": "11f246444b2ccefc6f33ff4d0ca3af7629703c9c",
+      "bytes": 3861,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/scan_catalog.py",
+      "git_blob_sha1": "15afae1c3356bc732da92c7d117069e02ff10f1f",
+      "bytes": 4521,
+      "classification": "EXCLUDE_TEXT_CENTER"
+    },
+    {
+      "origin": "textcenter/speech.py",
+      "git_blob_sha1": "672ac7a9dff1bcff0a975a1120bc357a3a88f94e",
+      "bytes": 13370,
+      "classification": "REFACTOR_MUST_NOT_COPY_TEXT_PACKAGE"
+    },
+    {
+      "origin": "textcenter/transcripts.py",
+      "git_blob_sha1": "d41c635c90ec38c3eb42d77e29d98a3b078a91d6",
+      "bytes": 13441,
+      "classification": "REFACTOR_MUST_NOT_COPY_TEXT_PACKAGE"
+    },
+    {
+      "origin": "tests/test_capabilities.py",
+      "git_blob_sha1": "a4404001c8c76f2c0af3c608174046c33417a825",
+      "bytes": 1666,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_cli.py",
+      "git_blob_sha1": "b5087c6f33509e65742ab2cb3222d1d253d574a7",
+      "bytes": 2332,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_compute.py",
+      "git_blob_sha1": "23d45fb0eb72cd8240d257c92bb6d48c9354c538",
+      "bytes": 2043,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_conflicts.py",
+      "git_blob_sha1": "ce8d029d81016686d41e0f60f4d8ca39d3d1d92f",
+      "bytes": 2589,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_core.py",
+      "git_blob_sha1": "0a0ddd311b5d616b870acdf5029609fe21df7735",
+      "bytes": 7496,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_dab_bridge.py",
+      "git_blob_sha1": "8679f76763dd4d8c0052a0a4396c10e8e323322b",
+      "bytes": 2592,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_dvb_hardware.py",
+      "git_blob_sha1": "99aa75b6546178b4333eec132ec9aa0b84af3b24",
+      "bytes": 2052,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_fm_audio.py",
+      "git_blob_sha1": "710c49f1d6aba347efc3424b449c7c6808670def",
+      "bytes": 2571,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_fm_rds.py",
+      "git_blob_sha1": "eb6e6caf6bc67406670e5724a05c6b381b4051bc",
+      "bytes": 8047,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_fm_survey.py",
+      "git_blob_sha1": "c3702d8fe984102dd794ccf92ab3f1553ee70f55",
+      "bytes": 4492,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_http_app.py",
+      "git_blob_sha1": "8fa294b38fd72234ebefadf34b1e2d0fac5cb0c1",
+      "bytes": 15116,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_integration_app_preservation.py",
+      "git_blob_sha1": "fb6c6abdd1edecb65c2ffd48b136b3264342653e",
+      "bytes": 1299,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_kaffeine_buffer_language.py",
+      "git_blob_sha1": "d4c865abf46e6cdd341cd067d2bdd158eb567a1f",
+      "bytes": 4466,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_kaffeine_dvb_scan_import_crash.py",
+      "git_blob_sha1": "f1fc3df94fe7cb291b634edf9aef25c5344a6d94",
+      "bytes": 2284,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_kaffeine_native_srt_controls.py",
+      "git_blob_sha1": "cec5b52140955d8ec76a7a2963e28531af3c14cc",
+      "bytes": 7350,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_live_fm.py",
+      "git_blob_sha1": "a798f5c4c1bf9ad460a0dd22c8b3cf9b4c975855",
+      "bytes": 1595,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_live_tv.py",
+      "git_blob_sha1": "28f299136003427c458a5df95bfe015ccac6e5f4",
+      "bytes": 2383,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_media_center_launcher_without_tuner.py",
+      "git_blob_sha1": "b7e04a5ca4e7a32249fa8af1c28dd99973c82205",
+      "bytes": 1775,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_media.py",
+      "git_blob_sha1": "611b2df66c26da9be086e73824e02856c6501c5c",
+      "bytes": 2445,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_native_file_prepass_fullscreen.py",
+      "git_blob_sha1": "91ee9dff506bffdb13a7fac6a129dbbfdc9e8e96",
+      "bytes": 6159,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_postprocess.py",
+      "git_blob_sha1": "ef0137039847613cf0e035653dc8e4da3a5d689b",
+      "bytes": 3140,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_radio_ai_caption_karaoke_playback.py",
+      "git_blob_sha1": "1fbf9090cb9483b1f215fbdc18fca05c58544d65",
+      "bytes": 4327,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_caption_recovery_lyrics_model_selection.py",
+      "git_blob_sha1": "2d1dc6c5b66e887500d7b2c119d91542130e0e20",
+      "bytes": 6377,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_dls_lyrics_refresh.py",
+      "git_blob_sha1": "5b8abd1ccbed063eb6484bd5ec2c64f309acd260",
+      "bytes": 7782,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_est_caption_continuity.py",
+      "git_blob_sha1": "d3458af1a20247cfb73cdd9e5b1e586ae56902fb",
+      "bytes": 7202,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_karaoke_baseline_policy.py",
+      "git_blob_sha1": "7231538a7a71d294500083904028bf94462c34d9",
+      "bytes": 4329,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_karaoke_independent_lipsync.py",
+      "git_blob_sha1": "e784dcc7cfb7295bcea8a4f8e6f54c5cd9310208",
+      "bytes": 3698,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_lyrics_found_preview.py",
+      "git_blob_sha1": "08dd2e4b1ae3c402b514ac99bce6e6308939070a",
+      "bytes": 5254,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_lyrics_refresh_full_window.py",
+      "git_blob_sha1": "798909256a1dd763ba11241f0004ecc9113c517e",
+      "bytes": 7126,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_lyrics_refresh_output_contract.py",
+      "git_blob_sha1": "d1be94580d3e603d07569894ff1068ffc8eb70fe",
+      "bytes": 2488,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_separate_lipsync_refresh.py",
+      "git_blob_sha1": "56c4189fe5d8a9b85ebdc40ead2e48449d632dc2",
+      "bytes": 3836,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_silent_audio_recovery.py",
+      "git_blob_sha1": "d4f9eac1aab998c6a47a8dfcc15aa796678019fc",
+      "bytes": 2901,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_song_continuity_cache.py",
+      "git_blob_sha1": "26b20ae8a5fb8418edd5a647905c7665b5189bfa",
+      "bytes": 3962,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_song_metadata_sources.py",
+      "git_blob_sha1": "69bcd8fd442fc527b82840f3e6af9e479e8f3fb0",
+      "bytes": 5541,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_split_sync_and_model_pipeline.py",
+      "git_blob_sha1": "76df2c5aba7fc6027b396ab7f5e71921a4d9d2f5",
+      "bytes": 4760,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_sync_refresh_karaoke_fast.py",
+      "git_blob_sha1": "726c934701eb36ba150bfe16a28d798e2b82391e",
+      "bytes": 4844,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_tv_handoff_progress.py",
+      "git_blob_sha1": "75528cbaa2f4bf87bafde028b222264e80d82b5e",
+      "bytes": 2931,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_verified_word_karaoke.py",
+      "git_blob_sha1": "c1edb886b19721819647a9a7c44b2fb972948617",
+      "bytes": 4483,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_radio_whisper_karaoke_refresh.py",
+      "git_blob_sha1": "0c8ea10d2c15c8396b4e6fdd1199d68f89d1b637",
+      "bytes": 4794,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_receivers.py",
+      "git_blob_sha1": "4a4d364781f4915b2e0c70152ddcc4692f834eaf",
+      "bytes": 2554,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_recording_export.py",
+      "git_blob_sha1": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8",
+      "bytes": 8491,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_scan_catalog.py",
+      "git_blob_sha1": "63515882ee7123c33736a6c54219404f72a221a6",
+      "bytes": 1840,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_speech.py",
+      "git_blob_sha1": "49c5ab56a2d5dd80bc4157c97589d936d184524d",
+      "bytes": 3770,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_transcripts.py",
+      "git_blob_sha1": "9cc4768bad4ee2efaf2aba0e890890b26647708a",
+      "bytes": 2290,
+      "classification": "EXCLUDE_UNRELATED_OR_REVIEW_TEST"
+    },
+    {
+      "origin": "tests/test_tv_acoustic_sound_voice_models.py",
+      "git_blob_sha1": "81a1a7e9cd47578567c494f1da393456a9fee901",
+      "bytes": 5193,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_ai_bundle.py",
+      "git_blob_sha1": "c9f3b9df162a6f8e103deb4ce5415bdf33bf38ee",
+      "bytes": 3095,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_ai_hardware_market.py",
+      "git_blob_sha1": "93d8a9166366a41c539fc23231a7b2a00a7c2623",
+      "bytes": 7364,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_ai_performance_lab.py",
+      "git_blob_sha1": "79cbac9cd1437fc088c6b4a3d408b03241f244d0",
+      "bytes": 5744,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_ai_profiles_remote_startup.py",
+      "git_blob_sha1": "ee85652f77759414f8f277a7b4ff50ac6b0e41b9",
+      "bytes": 7847,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_auto_track_languages.py",
+      "git_blob_sha1": "9bdea422987f9fd1e8eba601f19fa437247e2bed",
+      "bytes": 2796,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_background_scan.py",
+      "git_blob_sha1": "915e867214508d84f06616b9146029e088e9c826",
+      "bytes": 2086,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_caption_live_offset.py",
+      "git_blob_sha1": "ebe9931b10654aa703456e410cc3ce94c918eece",
+      "bytes": 1977,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_caption_readability_clock.py",
+      "git_blob_sha1": "62f7b15e827c2f01ade5b878b23e6f733c7ec785",
+      "bytes": 11259,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_center.py",
+      "git_blob_sha1": "aa2ee45efa2839b965bc6b543b7a6842e4ea2a41",
+      "bytes": 7868,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_channel_epoch.py",
+      "git_blob_sha1": "b23cdf91b73f9b9f4e4001eb42a01e040063abc8",
+      "bytes": 6528,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_cuda_faster_whisper.py",
+      "git_blob_sha1": "3a8c21425473dce5479ab1363edab1bd0dc9eaa3",
+      "bytes": 3740,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_dual_voice_separation.py",
+      "git_blob_sha1": "2e4137a0c41f36724337f1171d155c81a52c9070",
+      "bytes": 6488,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_fast_output_languages.py",
+      "git_blob_sha1": "cadd8b79db832bb6b743afb044b2b6947f401de5",
+      "bytes": 4716,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_free_speakers_ui.py",
+      "git_blob_sha1": "a0fb0e15b78681052d1cdd71d5949355ef5c7eb3",
+      "bytes": 4698,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_hardware_status.py",
+      "git_blob_sha1": "322c33d0fb88bcec4b933117cd71d6684fb7b581",
+      "bytes": 3653,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_ai_diagnostics.py",
+      "git_blob_sha1": "268f71d1457d9fc2498372234ea13f118ad831ec",
+      "bytes": 2599,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_asr_metrics.py",
+      "git_blob_sha1": "afef92a8e749ac53608007d9820786628eda7605",
+      "bytes": 3647,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_caption_modes.py",
+      "git_blob_sha1": "ae2eb17313d36b6218a00de9b4aad8168fbfa6af",
+      "bytes": 2370,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_caption_service.py",
+      "git_blob_sha1": "23e8779ffe6fc74de089253290f27f60b32c856c",
+      "bytes": 2972,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_continuous.py",
+      "git_blob_sha1": "daf8584bcfa05f5d4dbc6ae7be00c022d55a064b",
+      "bytes": 4561,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_dab_api_recovery.py",
+      "git_blob_sha1": "9e2b8a6bff4dc7d07cfb5ba232b654023709a1d5",
+      "bytes": 2315,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_mobile.py",
+      "git_blob_sha1": "53e48023c07ef387046c218e151f879af50be43a",
+      "bytes": 1810,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_subtitle_tracks.py",
+      "git_blob_sha1": "86ce841f7635a0567ef08c88ffaced9633cf079e",
+      "bytes": 11045,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_timing.py",
+      "git_blob_sha1": "4f6a985430e80b5c9bf46b6633d47cfc8a457108",
+      "bytes": 18457,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine_transport_health.py",
+      "git_blob_sha1": "3e04e15e2be09fac74da3723094fc6edd4bcd601",
+      "bytes": 2196,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_kaffeine.py",
+      "git_blob_sha1": "dc3d589e0b7cc9654be029ad1ddffdf0cca120a2",
+      "bytes": 8980,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_live_asr_quality.py",
+      "git_blob_sha1": "6d397c22cbbd5b854d9acafd55161e8ebf21f6be",
+      "bytes": 4224,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_live_word_pipeline.py",
+      "git_blob_sha1": "a2a13aeabe6643dfe2d709561f9200a5fa7cce18",
+      "bytes": 4038,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_lyrics_providers.py",
+      "git_blob_sha1": "5dabe2cf7fca6132319f3264f9a1d0c36bcf812e",
+      "bytes": 9305,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_market_guided_progress.py",
+      "git_blob_sha1": "6ec794c56aaa48aa215e81185d6f14898a6a500b",
+      "bytes": 7722,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_mobile_native_scan_bridge.py",
+      "git_blob_sha1": "edab2aa15a0e16674ad4687e0ebda61f2d2981b7",
+      "bytes": 5469,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_multilingual_caption_fallback.py",
+      "git_blob_sha1": "c51871911d3f2f04f1895c786944266f4a2a6483",
+      "bytes": 6725,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_native_mobile_player_controls.py",
+      "git_blob_sha1": "80596deaf3ba54930249facad101724ede6f25e7",
+      "bytes": 3717,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_natural_caption_sync.py",
+      "git_blob_sha1": "a0b30f5b616fffbbd0c11d747c0d774e1340aaee",
+      "bytes": 8352,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_nllb_failover.py",
+      "git_blob_sha1": "76b6003d262eaa6ccaf5657de9ac598707dc28cb",
+      "bytes": 8461,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_no_tuner_playback.py",
+      "git_blob_sha1": "e92d0eaf72af5a028d397c024cf128a2dfd32d8e",
+      "bytes": 3088,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_pairing_mobile_sync.py",
+      "git_blob_sha1": "38f10c14fead27195d21fa31ef264207b65b7ff5",
+      "bytes": 12347,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_pi5_hailo_profiles.py",
+      "git_blob_sha1": "65d1bb513e17f011c45c5f3a8f1dd16ffeb08a01",
+      "bytes": 7744,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_plain_lyrics.py",
+      "git_blob_sha1": "e09d77165022987b88fd2f4c92e14e387646e227",
+      "bytes": 3833,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_quality_translation.py",
+      "git_blob_sha1": "668d3e3035286190e5a314aa18e79a4033912055",
+      "bytes": 3138,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_ai_ui_audio_drain.py",
+      "git_blob_sha1": "9296f58364dd0bb27fceea292b38bc4e1e23af7d",
+      "bytes": 4715,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_caption_sync_readability.py",
+      "git_blob_sha1": "55c846f688972e21796c52b08a2f9ae344cabcfa",
+      "bytes": 3626,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_channel_lists_translation_reading.py",
+      "git_blob_sha1": "77bf251d2c31af2036c3033810258d086d519b81",
+      "bytes": 4477,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_fast_tune_presenter_buffer.py",
+      "git_blob_sha1": "c22021c73b4581e4d31b092cfe2ba3e93256f4b5",
+      "bytes": 4919,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_frequency_buffer_progress.py",
+      "git_blob_sha1": "9f3a8cb492c71dd70fb78c3e5fd8021a63929308",
+      "bytes": 3883,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_karaoke_tv_readability.py",
+      "git_blob_sha1": "eb72eaec71ee137885c504070b24ad2c62163ad4",
+      "bytes": 4218,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_live_caption_timing_languages.py",
+      "git_blob_sha1": "8c605ca14439b7b5b5bbdd7cda9f94f8a5c7d843",
+      "bytes": 6489,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_lyrics_match_status_auto_input.py",
+      "git_blob_sha1": "f06612bf6a0f8a993ab70269b7219cc650c451ac",
+      "bytes": 4994,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_media_lyrics.py",
+      "git_blob_sha1": "5cb55c1480b4bcc87cd5897a9991417c997820ab",
+      "bytes": 6758,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_receiver_release_lifecycle.py",
+      "git_blob_sha1": "2621e2c10efc48694897635182a6ec31c6a1eb43",
+      "bytes": 3752,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_responsive_sync.py",
+      "git_blob_sha1": "5e485ee3f6dcd95e80c30d8353358b507440121a",
+      "bytes": 8013,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_radio_translation_continuity.py",
+      "git_blob_sha1": "da9af4338bf69f73738e9c8c754771223483b603",
+      "bytes": 6558,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_remote_hub.py",
+      "git_blob_sha1": "e3a85e5c648402e90ff2db36211e4e1a9cb65098",
+      "bytes": 4929,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_satellite_ai.py",
+      "git_blob_sha1": "e16ec9376a2a1a2d59f6294abdad2df4bf2ec9b8",
+      "bytes": 5918,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_scan.py",
+      "git_blob_sha1": "02ab7203e3d63ef7d6eb4c4a0928c4980d78116b",
+      "bytes": 3549,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_sentence_joiner.py",
+      "git_blob_sha1": "41114b2eb59c89401fd75b3a633142840a512711",
+      "bytes": 2406,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_sound_labels_teletext_auto.py",
+      "git_blob_sha1": "85c059156d84ec23248992733846a589ce5d6bce",
+      "bytes": 8464,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_speech_focus.py",
+      "git_blob_sha1": "f181d26ba533e80eda9dfbeeb6883351a47f9bd1",
+      "bytes": 5290,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_standalone_radio_media.py",
+      "git_blob_sha1": "18a763af232fc7daa4c98b88e506e39987bcfa98",
+      "bytes": 8791,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_subtitle_repetition.py",
+      "git_blob_sha1": "004148e130af5116fa269bb517757eb2300b0f74",
+      "bytes": 5031,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_teletext_speech_recovery.py",
+      "git_blob_sha1": "370de8ab94702ab2757498ca5ccdac1287805aa0",
+      "bytes": 8367,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_translation_managed_packs.py",
+      "git_blob_sha1": "44e7beb44cee3f3d4864ea59fce23da275fa664e",
+      "bytes": 8667,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_translation_persistent.py",
+      "git_blob_sha1": "7bb5285e114fd5a9c6d7d1a59b1cbb1b89d12d30",
+      "bytes": 1993,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_unified_recorder.py",
+      "git_blob_sha1": "5de7b395683e7b80d4de829a5e0a25f341cbfbdf",
+      "bytes": 3157,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_web.py",
+      "git_blob_sha1": "f1700d91bc24d4a9142262af00f40ef4dd2afa91",
+      "bytes": 2479,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    },
+    {
+      "origin": "tests/test_tv_word_speaker_cues.py",
+      "git_blob_sha1": "3f4dd8985c9587351fd631458b64963785aecc75",
+      "bytes": 8923,
+      "classification": "SELECT_AND_ADAPT_MEDIA_TEST"
+    }
+  ]
+}
