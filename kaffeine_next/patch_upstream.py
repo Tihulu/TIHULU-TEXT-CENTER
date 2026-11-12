@@ -2047,6 +2047,11 @@ private slots:''')
         source_epg = source_epg.replace(name + "[nibble1]", name + "()[nibble1]")
     files[epg] = source_epg
 
+    # Hard stop: never ship the frozen stable application's KConfig identity.
+    # Strict older tests still recognize this reserved literal, while this
+    # negative assertion protects the actual generated native executable.
+    if 'QStringLiteral("tihulu-media-center")' in files["src/main.cpp"]:
+        raise ValueError("Stable Media native application identity collision")
     return files
 
 def apply(root: Path):
