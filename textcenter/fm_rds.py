@@ -256,10 +256,21 @@ class FMRSDSupervisor:
             result = self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=4.0)
+        if wait and (thread is None or not thread.is_alive()):
+            for proc in (self._redsea,self._rtlfm):
+                self._end_process(proc)
         with self._mutex:
-            if wait and thread and thread.is_alive():
+            unfinished=any(p is not None and p.poll() is None
+                           for p in (self._redsea,self._rtlfm))
+            if wait and ((thread and thread.is_alive()) or unfinished):
                 self._state.update(status="stop_failed_partial",
-                    error="RDS capture worker did not stop in time")
+                    error="RDS worker/child did not stop in time")
+            elif wait:
+                self._redsea=self._rtlfm=None
+                if self._lock_fd is not None:
+                    self._unlock()
+                if self._state["status"]=="stop_failed_partial":
+                    self._state.update(status="stopped",error=None)
             return self._snapshot()
 
     def quit(self):
@@ -455,9 +466,14 @@ class FMRSDSupervisor:
                     if pipe:
                         pipe.close()
             with self._mutex:
-                self._redsea = None
-                self._rtlfm = None
-                self._unlock()
+                redsea_alive=redsea is not None and redsea.poll() is None
+                rtl_alive=rtl is not None and rtl.poll() is None
+                self._redsea=redsea if redsea_alive else None
+                self._rtlfm=rtl if rtl_alive else None
+                if redsea_alive or rtl_alive:
+                    state,reason="stop_failed_partial","Owned RDS decoder remained alive"
+                else:
+                    self._unlock()
                 self._state["status"] = state
                 self._state["active"] = False
                 self._state["ended_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
