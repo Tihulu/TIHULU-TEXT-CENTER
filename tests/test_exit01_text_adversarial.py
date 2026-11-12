@@ -14,6 +14,9 @@ from unittest.mock import patch
 
 from textcenter.core import Store
 from textcenter.http_app import LocalServer
+from textcenter.fm_audio import FMPreview
+from textcenter.fm_rds import FMRSDSupervisor
+from textcenter.fm_survey import FMSurveySupervisor
 from textcenter.live_fm import LiveFM, LiveError
 from textcenter.live_tv import LiveTV, LiveTVError
 from textcenter.postprocess import RecordingTranscriber, PostProcessError
@@ -291,6 +294,60 @@ class HTTPQuitRaceTests(unittest.TestCase):
                     server_thread.join(timeout=3)
                 self.assertFalse(thread.is_alive())
                 self.assertFalse(server_thread.is_alive())
+
+
+class DecoderLeaseTimeoutTests(unittest.TestCase):
+    def test_rds_survey_and_preview_refuse_false_success_for_unreaped_children(self):
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            store = Store(base / "records.sqlite")
+            rds = FMRSDSupervisor(store, inventory=lambda: {},
+                                  conflicts=lambda: [], lookup=lambda _: None)
+            survey = FMSurveySupervisor(inventory=lambda: {}, conflicts=lambda: [],
+                                        lookup=lambda _: None)
+            preview = FMPreview(inventory=lambda: {}, conflicts=lambda: [],
+                                lookup=lambda _: None)
+            owned_rds = OwnedChild(unresponsive=True)
+            owned_scan = OwnedChild(unresponsive=True)
+            owned_preview = OwnedChild(unresponsive=True)
+            foreign = OwnedChild()
+            rds._rtlfm = owned_rds
+            survey._process = owned_scan
+            preview._process = owned_preview
+            with patch("os.killpg", side_effect=AssertionError("global service kill")):
+                for module, handle_name, owned in (
+                    (rds, "_rtlfm", owned_rds),
+                    (survey, "_process", owned_scan),
+                    (preview, "_process", owned_preview),
+                ):
+                    report = module.quit()
+                    self.assertEqual(report["status"], "stop_failed_partial", report)
+                    self.assertIs(getattr(module, handle_name), owned)
+                    self.assertGreaterEqual(owned.terminations, 1)
+                    self.assertGreaterEqual(owned.kills, 1)
+                    owned._alive = False
+                    self.assertEqual(module.stop(wait=True)["status"], "stopped")
+                    self.assertIsNone(getattr(module, handle_name))
+            self.assertEqual(foreign.terminations, 0)
+            self.assertEqual(foreign.kills, 0)
+
+    def test_http_quit_reports_unreaped_owned_radio_subprocess(self):
+        with tempfile.TemporaryDirectory() as td:
+            server = LocalServer(("127.0.0.1", 0), Store(Path(td) / "test.sqlite"))
+            owned = OwnedChild(unresponsive=True)
+            external = OwnedChild()
+            server.rds._rtlfm = owned
+            try:
+                with patch("os.killpg", side_effect=AssertionError("must never touch service")):
+                    report = server.close_owned()
+                self.assertEqual(report["lifecycle"], "STOP_FAILED_PARTIAL", report)
+                self.assertTrue(any("fm_rds" in e for e in report["errors"]))
+                self.assertIs(server.rds._rtlfm, owned)
+                self.assertEqual(external.terminations, 0)
+                self.assertEqual(external.kills, 0)
+                self.assertEqual(server.close_owned(), report)
+            finally:
+                server.server_close()
 
 
 if __name__ == "__main__":
