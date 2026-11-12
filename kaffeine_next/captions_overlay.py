@@ -941,7 +941,7 @@ class CaptionTap:
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if len(argv) != 2 or argv[0] != "--socket":
-        raise SystemExit("Usage: tihulu-tv-center kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
+        raise SystemExit("Usage: tihulu-media-cli kaffeine-captions --socket $XDG_RUNTIME_DIR/tihulu-dvb-PID.sock")
     endpoint = validate_socket(argv[1])
     from .caption_control import CaptionServiceControl
     from tv_center.language_codes import language_code
@@ -1903,7 +1903,7 @@ def main(argv=None):
     market = QPushButton("Whisper + Translator Model Market")
     def launch_market():
         import subprocess
-        subprocess.Popen(["tihulu-tv-center","ai-market"],close_fds=True)
+        subprocess.Popen(["tihulu-media-cli", "ai-market"], close_fds=True)
     market.clicked.connect(launch_market)
     tools_layout.addWidget(market)
     benchmark_button = QPushButton(
