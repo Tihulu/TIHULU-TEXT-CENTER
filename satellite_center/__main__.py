@@ -2305,7 +2305,9 @@ def main():
                 threading.Thread(target=lambda: webbrowser.open(f"http://127.0.0.1:{args.port}/"), daemon=True).start()
             previous_term = signal.getsignal(signal.SIGTERM)
             def terminate(_signum, _frame):
-                # shutdown() must run on a different thread than serve_forever().
+                # Deny late RF launches immediately even when serve_forever()
+                # needs a moment to unwind on a different shutdown thread.
+                station.begin_quit()
                 threading.Thread(target=server.shutdown, daemon=True).start()
             signal.signal(signal.SIGTERM, terminate)
             try:
