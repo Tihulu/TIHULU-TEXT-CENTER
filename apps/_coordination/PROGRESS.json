@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "exit01_5_drafts_Flight_Media_Text_CI_green_WebUSB_7_commits_without_PR",
+  "stage": "exit01_five_draft_PRS_webusb_PR95_active_CI_red_geo_usb_red_sat_pages_red_0_of_15_hardware",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "EXIT01 Media Flight Text latest tested source CI green, RFGeo one 2.5s USB shutdown timeout JS failure, Satellite 8-file Pages parity red; new Satellite browser WebUSB separate branch 7 ahead no new PR or CI, all 15 device resource acceptance and 17 broad gates open. No reliable completion time.",
+    "reason": "All 5 native EXIT01 Draft PRs plus browser WebUSB Draft #95 are open, Media/Text CI green, Flight Pi green 4-OS rerun in progress, Geo one USB read-drain test red, Satellite existing Pages 8-file parity red, WebUSB latest source work under active test-fix (first CI red). Original 17 broader gates + EXIT01 and WEB 15 cases remain open; no hardware acceptance or release ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "FIVE_EXIT01_DRAFT_PRS_OPEN_MEDIA_FLIGHT_TEXT_GREEN_GEO_USB_RED_SAT_PAGES_RED",
+    "status": "FIVE_NATIVE_EXIT01_DRAFT_PRS_PLUS_SAT_WEBUSB_95_DRAFT_ACTIVE",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -916,11 +916,11 @@
         "new_branch": "fix/exit01-flight-clean-exit-2026-11-12",
         "handoff_issue": 77,
         "comment_id": 6813719331,
-        "status": "DRAFT_PR_OPEN_LATEST_FOUR_OS_AND_PI_CI_SUCCESS",
+        "status": "FOUR_OS_CI_IN_PROGRESS_PI_PASS",
         "new_pr": 16,
-        "head_sha": "649bf4b115d92583e55f0d720e91f21d2200cfbb",
+        "head_sha": "e9dfeb45b4d847e4147ddf157e6d531a0008ac50",
         "base_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
-        "ci": "latest 4 OS preview 43155383396 SUCCESS and Pi ARM64 43155383356 SUCCESS; synthetic tests only",
+        "ci": "Pi ARM64 43156191082 PASS; four-OS 43156191008 IN PROGRESS as of current checkpoint",
         "changed_files": 6
       },
       {
@@ -949,11 +949,11 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "DRAFT_PR_OPEN_ONE_INFLIGHT_USB_RELEASE_CI_FAILURE",
+        "status": "CI_BLOCKED_ONE_OF_83_JS_TESTS_USB_INFLIGHT_TIMEOUT",
         "new_pr": 94,
         "compared_ahead": 9,
         "changed_files": 13,
-        "ci": "RFGeo 43154606229 FAIL: 83 JS tests, 82 PASS and 1 FAIL (in-flight USB read did not drain in 2500ms); 3 launcher jobs PASS and Text 43154606210 PASS",
+        "ci": "latest RFGeolocation 43154606229 FAIL: 82/83 pass; uncooperative in-flight RF read did not drain within 2500 ms. Cross-platform launcher jobs PASS",
         "source_branch_ahead_at_checkpoint": 20,
         "specific_test_files": [
           "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
@@ -1031,15 +1031,15 @@
     "qa_fully_accepted_cases": 0
   },
   "satellite_webusb_ui_recovery": {
-    "status": "ACTIVE_WEB_BROWSER_SOURCE_IMPLEMENTATION_BRANCH_7_COMMITS_NO_PR_VERIFIED",
+    "status": "WEBUSB_DRAFT_PR_95_OPEN_FIRST_CI_RED_AGENT_PATCHING",
     "owner_request": "Repair broken Satellite Center web/PWA site using native Qt screenshot 0.3.0 preview10 as design reference with Chromium WebUSB runtime",
     "repository": "Tihulu/TIHULU-TEXT-CENTER",
     "new_branch": "feature/satellite-webusb-ui-parity-2026-11-12",
     "source_original_pr": 37,
     "source_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
-    "source_comparison_ahead": 7,
+    "source_comparison_ahead": 14,
     "source_comparison_behind": 0,
-    "new_draft_pr_verified": false,
+    "new_draft_pr_verified": true,
     "recovery_contract": "apps/_coordination/SATELLITE_WEBUSB_UI_RECOVERY_ACCEPTANCE.md",
     "expected_testing_cases": 15,
     "accepted_cases": 0,
@@ -1076,6 +1076,9 @@
       "UI text assumes simple 60s/128MiB clips but optional explicit 900s/2GB disk stream still exists and must not be silently removed"
     ],
     "source_diff_verified": true,
-    "website_repair_executed_ci": false
+    "website_repair_executed_ci": "First PR head a14a748 browser WebUSB run 43156583643 FAIL (service worker cache no-RF payload test assertion), Text run 43156583631 FAIL (two stale preview6 UI assertions, Python 3.11/3.12/3.13); new head 8e764b... not yet separately validated",
+    "new_draft_pr": 95,
+    "latest_checked_head": "8e764bafb4c5b40dcf768dd1624d986653f05890",
+    "changed_file_count_at_first_pr": 13
   }
 }
