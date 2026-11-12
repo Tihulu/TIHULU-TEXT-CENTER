@@ -1931,6 +1931,35 @@ class Station:
                 exit_code = proc.poll()
                 errors.seek(0)
                 stderr_tail = errors.read()[-500:].decode("utf-8", "replace")
+            # Only real SatDump-created files can become photo-gallery items.
+            # Copies receive satellite + capture UTC + frequency filenames; no
+            # decoded image is invented if the decoder fails or has no lock.
+            image_files = sorted(
+                (p for p in dest.rglob("*") if p.is_file() and
+                 p.suffix.lower() in (".png", ".jpg") and not p.name.startswith("TIHULU_")
+                 and p.stat().st_size <= 15_000_000),
+                key=lambda p:str(p))[:32]
+            match = re.search(r"_(\d{8}T\d{6}Z)_(\d{7,11})Hz", name)
+            original_time = (datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+                             if match else datetime.fromtimestamp(src.stat().st_mtime, UTC))
+            original_freq = int(match.group(2)) if match else 137900000
+            original_satellite = name.split("_")[1] if name.startswith("TIHULU_") else "METEOR-UNVERIFIED"
+            images = []
+            for idx, image in enumerate(image_files, start=1):
+                if self.closed.is_set():
+                    raise RuntimeError("Quit during SatDump results; original images preserved")
+                output_name = recording_name(
+                    satellite=original_satellite, timestamp=original_time,
+                    frequency_hz=original_freq, kind="LRPT-IMAGE-"+str(idx).zfill(2),
+                    extension=image.suffix.lower())
+                output = dest/output_name
+                if image.resolve() != output.resolve():
+                    shutil.copyfile(image,output)
+                images.append(str(output.relative_to(self.archive)))
+            return {"decoder_exit": exit_code, "images": images, "variant": variant,
+                    "result": "actual_decoder_files" if images else "no_images_decoded",
+                    "note": "Only actual SatDump-created image files are shown; satellite source is a target candidate, not independently verified.",
+                    "stderr": stderr_tail}
         finally:
             stop_process(proc)
             with self.lock:
@@ -1938,35 +1967,6 @@ class Station:
                     self.owned_processes.discard(proc)
                 self.decoder_active = False
                 self.decoder_worker = None
-        # Only real SatDump-created files can become photo-gallery items.
-        # Copies receive satellite + capture UTC + frequency filenames; no
-        # decoded image is invented if the decoder fails or has no lock.
-        image_files = sorted(
-            (p for p in dest.rglob("*") if p.is_file() and
-             p.suffix.lower() in (".png", ".jpg") and not p.name.startswith("TIHULU_")
-             and p.stat().st_size <= 15_000_000),
-            key=lambda p:str(p))[:32]
-        match = re.search(r"_(\d{8}T\d{6}Z)_(\d{7,11})Hz", name)
-        original_time = (datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
-                         if match else datetime.fromtimestamp(src.stat().st_mtime, UTC))
-        original_freq = int(match.group(2)) if match else 137900000
-        original_satellite = name.split("_")[1] if name.startswith("TIHULU_") else "METEOR-UNVERIFIED"
-        images = []
-        for idx, image in enumerate(image_files, start=1):
-            if self.closed.is_set():
-                raise RuntimeError("Quit during SatDump results; original images preserved")
-            output_name = recording_name(
-                satellite=original_satellite, timestamp=original_time,
-                frequency_hz=original_freq, kind="LRPT-IMAGE-"+str(idx).zfill(2),
-                extension=image.suffix.lower())
-            output = dest/output_name
-            if image.resolve() != output.resolve():
-                shutil.copyfile(image,output)
-            images.append(str(output.relative_to(self.archive)))
-        return {"decoder_exit": exit_code, "images": images, "variant": variant,
-                "result": "actual_decoder_files" if images else "no_images_decoded",
-                "note": "Only actual SatDump-created image files are shown; satellite source is a target candidate, not independently verified.",
-                "stderr": stderr_tail}
 
 
 PAGE = Path(__file__).with_name("index.html")
