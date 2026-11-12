@@ -227,6 +227,189 @@ class Exit01SatelliteTests(unittest.TestCase):
         self.station.active_worker = None
         self.assertEqual(self.station.close(timeout_seconds=0.2)["state"], "stopped")
 
+    def test_quit_during_inflight_lease_acquisition_rejects_late_ownership(self):
+        """EXIT-01-I: the second admission gate closes a delayed lock-open race."""
+        entered = threading.Event()
+        resume = threading.Event()
+        failures = []
+        lock_fds = []
+
+        def delayed_lock(fd):
+            lock_fds.append(fd)
+            entered.set()
+            if not resume.wait(2):
+                raise AssertionError("synthetic lease gate did not resume")
+
+        def open_lease():
+            try:
+                self.station._acquire()
+            except RuntimeError as exc:
+                failures.append(str(exc))
+
+        isolated_lock = self.root / "synthetic-shared-lease.lock"
+        with mock.patch.object(satellite, "TEXT_CENTER_LOCK", isolated_lock), \
+             mock.patch.object(satellite.platform, "system", return_value="Linux"), \
+             mock.patch.object(satellite, "tuner_present", return_value=True), \
+             mock.patch.object(satellite, "detect_busy", return_value=[]), \
+             mock.patch.object(satellite, "lock_receiver", side_effect=delayed_lock), \
+             mock.patch.object(satellite, "unlock_receiver") as unlocked:
+            worker = threading.Thread(target=open_lease, name="synthetic-lease-acquire")
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(2), "synthetic lock attempt did not start")
+                # _acquire has already passed its first STOPPING guard but has
+                # not admitted the temporary fd as an app-owned device lease.
+                self.station.begin_quit()
+            finally:
+                resume.set()
+                worker.join(3)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(len(lock_fds), 1)
+            unlocked.assert_called_once_with(lock_fds[0])
+            self.assertIsNone(self.station.device_lock)
+            with self.assertRaises(OSError):
+                os.fstat(lock_fds[0])
+        self.assertEqual(len(failures), 1)
+        self.assertIn("cancelled before lease admission", failures[0])
+        self.assertEqual(self.station.close()["state"], "stopped")
+
+    def test_decoder_validation_racing_with_quit_does_not_spawn_late_child(self):
+        """EXIT-01-I: a decoder whose binary lookup was delayed cannot spawn."""
+        filename = "meteor-race-fixture.cu8"
+        saved = self.station.archive / filename
+        saved.write_bytes(b"original meteor IQ untouched")
+        lookup_entered = threading.Event()
+        release_lookup = threading.Event()
+        errors = []
+
+        def delayed_which(name):
+            self.assertEqual(name, "satdump")
+            lookup_entered.set()
+            if not release_lookup.wait(2):
+                raise AssertionError("synthetic decoder lookup not resumed")
+            return "/synthetic/satdump"
+
+        def decode():
+            try:
+                self.station.decode_meteor(filename)
+            except RuntimeError as exc:
+                errors.append(str(exc))
+
+        with mock.patch.object(satellite, "meteor_capture", return_value=True), \
+             mock.patch.object(satellite.shutil, "which", side_effect=delayed_which), \
+             mock.patch.object(self.station, "_launch_receiver",
+                               side_effect=AssertionError("SatDump launched after Quit")) as launched:
+            worker = threading.Thread(target=decode, name="synthetic-late-decoder")
+            worker.start()
+            try:
+                self.assertTrue(lookup_entered.wait(2), "decoder lookup not entered")
+                self.station.begin_quit()
+            finally:
+                release_lookup.set()
+                worker.join(3)
+            self.assertFalse(worker.is_alive())
+            launched.assert_not_called()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("quitting", errors[0])
+        self.assertFalse(self.station.decoder_active)
+        self.assertEqual(saved.read_bytes(), b"original meteor IQ untouched")
+        self.assertEqual(self.station.close()["state"], "stopped")
+
+    def test_schedule_restart_remains_cancelled_and_all_saved_media_is_untouched(self):
+        """EXIT-01-H/K: only mutable job states change, not persisted user media."""
+        retained = {
+            "previous-pass.cu8": b"IQ bytes; do not truncate",
+            "previous-pass.wav": b"WAV bytes; do not erase",
+            "previous-image.png": b"PNG bytes; do not replace",
+            "previous-image.jpg": b"JPEG bytes; do not replace",
+            "previous-meta.json": b'{"original":"keep"}',
+            "previous-telemetry.txt": b"saved decoded text",
+        }
+        for filename, value in retained.items():
+            (self.station.archive / filename).write_bytes(value)
+        pending = self.future_job()
+        completed = {"id": "historical-pass", "state": "completed",
+                     "result": {"file": "previous-pass.cu8"}}
+        self.station.jobs.append(completed)
+        self.station.save_jobs()
+        initial_files = {name: (self.station.archive / name).stat().st_mtime_ns
+                         for name in retained}
+        result = self.station.close()
+        self.assertTrue(result["saved_recordings_preserved"])
+        self.assertEqual(pending["state"], "cancelled")
+        self.assertEqual(completed["state"], "completed")
+        for filename, payload in retained.items():
+            file = self.station.archive / filename
+            self.assertEqual(file.read_bytes(), payload)
+            self.assertEqual(file.stat().st_mtime_ns, initial_files[filename])
+        reopened = satellite.Station(self.root)
+        self.addCleanup(reopened.close)
+        self.assertEqual([j["state"] for j in reopened.jobs],
+                         ["cancelled", "completed"])
+        self.assertIsNone(reopened.scheduler_thread)
+        self.assertFalse(reopened.session["active"])
+
+    def test_module_stop_leaves_pending_passes_and_external_services_alone(self):
+        """EXIT-01-M: receiver Stop is not identical to true application Quit."""
+        pending = self.future_job()
+        owned, external = FakeChild(), FakeChild()
+        self.station.process = owned
+        self.station.owned_processes.add(owned)
+        with mock.patch.object(satellite, "stop_process", side_effect=stop_fake) as stopped:
+            reply = self.station.request_stop()
+            self.assertTrue(reply["requested"])
+            self.assertEqual(reply["owned_processes_stop_requested"], 1)
+            self.assertEqual(owned.stop_calls, 1)
+            self.assertEqual(external.stop_calls, 0)
+            self.assertFalse(self.station.closed.is_set())
+            self.assertEqual(pending["state"], "pending")
+            self.assertTrue(all(call.args[0] is owned for call in stopped.call_args_list))
+        # A subsequent genuine Quit must cancel that pending pass.
+        self.station.begin_quit()
+        self.assertEqual(pending["state"], "cancelled")
+
+    def test_simultaneous_quit_is_idempotent_for_private_lease_fd(self):
+        """EXIT-01-K: two Quit callbacks must never double-close an owned fd."""
+        fd = self.lease()
+        replies = []
+        failures = []
+        gate = threading.Barrier(3)
+
+        def quit_callback():
+            try:
+                gate.wait(timeout=2)
+                replies.append(self.station.close(timeout_seconds=0.8))
+            except Exception as exc:
+                failures.append(str(exc))
+
+        workers = [threading.Thread(target=quit_callback, name="fake-qt-quit")
+                   for _ in range(2)]
+        for worker in workers:
+            worker.start()
+        gate.wait(timeout=2)
+        for worker in workers:
+            worker.join(3)
+        self.assertFalse(any(worker.is_alive() for worker in workers))
+        self.assertEqual(failures, [])
+        self.assertEqual([result["state"] for result in replies],
+                         ["stopped", "stopped"])
+        with self.assertRaises(OSError):
+            os.fstat(fd)
+        self.assertIsNone(self.station.device_lock)
+
+    def test_partial_decoder_state_never_claims_zero_owned_resources(self):
+        """EXIT-01-J: process-free is not equivalent to decoder-worker-free."""
+        self.station.decoder_active = True
+        self.station.decoder_worker = object()
+        incomplete = self.station.close(timeout_seconds=0.03)
+        self.assertEqual(incomplete["state"], "stop_failed_partial")
+        self.assertTrue(incomplete["decoder_active"])
+        self.assertTrue(incomplete["owned_decoder_worker_alive"])
+        self.station.decoder_active = False
+        self.station.decoder_worker = None
+        complete = self.station.close(timeout_seconds=0.2)
+        self.assertTrue(complete["app_released"])
+
     def test_invalid_decoder_does_not_reserve_worker_or_launch_satdump(self):
         with self.assertRaises(ValueError):
             self.station.decode_meteor("not-a-meteor")
