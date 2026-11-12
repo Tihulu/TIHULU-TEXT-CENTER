@@ -54,12 +54,14 @@ test("L-09/L-12/L-13: concurrent Hard Stops and Quit, warning for incomplete own
  app.register("owned","device",async()=>{closes++;await wait.promise;throw Error("mock close refused")});
  const stop=app.hardStop(),again=app.hardStop(),quit=app.quit();
  assert.strictEqual(stop,again);
- assert.strictEqual(stop,quit);
+ assert.notStrictEqual(stop,quit); // Quit also retires UI-only handlers
  assert.equal(app.state,"STOPPING");
  wait.resolve();
  const out=await stop;
+ const full=await quit;
  assert.equal(closes,1);
  assert.equal(out.state,"HARD_STOPPED");
+ assert.equal(full.state,"QUIT");
  assert.deepEqual(out.incomplete.map(x=>x.name),["owned"]);
  assert.match(out.incomplete[0].error,/mock close refused/);
 });
@@ -110,4 +112,22 @@ test("WebUSB synthetic delayed driver claim is closed when it resolves after Qui
   assert.equal(closed,1); // late provider.get must not reacquire session
   assert.equal(env.events.some(e=>e.detail?.status==="USB CONNECTED"),false);
  }finally{env.restore()}
+});
+
+test("L-13: Hard Stop retains static GUI handlers; only true Quit releases them",async()=>{
+ const app=createExitLifecycle();
+ let device=0,uiWorker=0,uiControls=0;
+ app.register("own-rf","rf",()=>{device++});
+ app.register("orbit-timer","ui",()=>{uiWorker++});
+ app.register("dom-navigation","ui-controls",()=>{uiControls++});
+ const hard=await app.hardStop();
+ assert.equal(hard.state,"HARD_STOPPED");
+ assert.equal(device,1);
+ assert.equal(uiWorker,1);
+ assert.equal(uiControls,0); // static application GUI remains alive
+ assert.equal(app.canStart("rf"),false);
+ await app.quit();
+ assert.equal(uiControls,1);
+ await app.quit();
+ assert.equal(uiControls,1);
 });
