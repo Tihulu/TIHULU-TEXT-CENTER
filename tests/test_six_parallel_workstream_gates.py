@@ -47,7 +47,17 @@ class SixParallelWorkstreamGates(unittest.TestCase):
         self.assertTrue(progress["release_gates"]["no_runtime_changes_in_all_six_worker_prs_verified"])
         self.assertEqual(progress["workstreams"]["worker_pr_numbers"],
                          [83,84,85,86,87,88])
-        self.assertEqual(progress["workstreams"]["started_by_other_chats"], 0)
+        # Handoff-index started_chats=0 is an immutable bootstrap snapshot.
+        # Live progress is independent and can advance after worker evidence.
+        live = progress["workstreams"]
+        self.assertTrue(0 <= live["started_by_other_chats"] <= len(idx["workers"]))
+        self.assertTrue(0 <= live["completed_audits"] <= live["started_by_other_chats"])
+        self.assertEqual(len(live.get("worker_audit_source_scope", {})),
+                         live["completed_audits"])
+        self.assertFalse(progress["release_gates"]["feature_acceptance_verified"])
+        self.assertFalse(progress["release_gates"]["hardware_device_acceptance_verified"])
+        self.assertIsNone(progress["time_remaining"]["hours"])
+        self.assertIsNone(progress["time_remaining"]["minutes"])
         self.assertTrue((BASE/"WORKSTREAM_LAUNCH_GUIDE.md").is_file())
 
 if __name__=="__main__":
