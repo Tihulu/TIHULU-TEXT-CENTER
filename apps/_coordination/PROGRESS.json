@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "latest_recheck_finished_agent_1_2_5_source_CI_green_agent3_web95_browser_green_agent4_single_JS_fail_agent6_QA_first_pass_done",
+  "stage": "phase6_exit01_media_sidecar96_green_geo_sourcefix97_syntax_repaired_CI_pending_webusb95_pages_red",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Only stage progress: A1/A2/A5 source & CI complete, A3 native source done while satellite published Pages parity still red and WebUSB PR95 browser/Text CI green other 2 CI runs outstanding, A4 one inflight USB teardown JS regression still red, A6 first read-only QA report done, new evidence review needed. 0/15 installed EXIT01 accepted, original 17 gates OPEN, no merges/deployments. No reliable ETA.",
+    "reason": "Current source CI Media #91 and follow-up #96 green, Flight #16 green, Text #93 green; Satellite web/native runtimes green but published Pages parity red; Geo separate source-fix Draft #97 has updated syntax but no verified CI, #94 old regression red; original 17 gates + EXIT01 resource acceptance 0/15 and WEB physical review open; no release ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "A1_A2_A5_SOURCE_CI_DONE_A3_NATIVE_DONE_WEB95_ACTIVE_A4_ONE_TEST_RED_A6_FIRST_QA_DONE",
+    "status": "EXITS_5_DRAFTS_PLUS_MEDIA_96_GEO_97_FOLLOWUPS_MEDIA_FLIGHT_TEXT_CI_GREEN_WEB_PAGES_RED_GEO_CI_PENDING",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -900,12 +900,15 @@
         "new_branch": "fix/exit01-media-model-unload-2026-11-12",
         "handoff_issue": 76,
         "comment_id": 6813718607,
-        "status": "EXIT01_SOURCE_AND_FOUR_CI_WORKFLOWS_COMPLETE_UNMERGED_NATIVE_ACCEPTANCE_OPEN",
+        "status": "EXIT01_DRAFT_91_CI_PASS_SEPARATE_SIDECAR_FIX_DRAFT_96_LATEST_CI_PASS",
         "new_pr": 91,
         "head_sha": "acf3513d3d25c75d6e4e9bfa1b9aff7668349755",
         "base_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
         "ci": "Four Media source CI workflows completed SUCCESS; new export P67-GAP-07 task not yet verified as separate PR",
-        "changed_files": 3
+        "changed_files": 3,
+        "new_followup_pr": 96,
+        "new_followup_head": "9cff1fd851cf84bb25d4dddc5c647c6591ccb116",
+        "followup_ci": "Text 43158122213 SUCCESS; Native TV 43158122197 SUCCESS. Needs owner/QA review and original file-preservation proof; unmerged."
       },
       {
         "id": "A2",
@@ -916,11 +919,11 @@
         "new_branch": "fix/exit01-flight-clean-exit-2026-11-12",
         "handoff_issue": 77,
         "comment_id": 6813719331,
-        "status": "EXIT01_SOURCE_AND_FULL_CROSS_OS_PI_CI_COMPLETE_UNMERGED_NATIVE_ACCEPTANCE_OPEN",
+        "status": "EXIT01_FLIGHT_DRAFT_16_LATEST_PI_FOUR_OS_CI_ALL_GREEN",
         "new_pr": 16,
-        "head_sha": "e9dfeb45b4d847e4147ddf157e6d531a0008ac50",
+        "head_sha": "fc5ff27ced19d3b7e4072317ca2190fc3d262f44",
         "base_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
-        "ci": "Current head Pi ARM64 run 43156191082 SUCCESS, four-OS run 43156191008 SUCCESS",
+        "ci": "Latest Pi 43157715091 SUCCESS, cross-platform 43157715123 SUCCESS; real service non-interference unverified.",
         "changed_files": 6
       },
       {
@@ -932,11 +935,11 @@
         "new_branch": "fix/exit01-satellite-lease-release-2026-11-12",
         "handoff_issue": 78,
         "comment_id": 6813720095,
-        "status": "EXIT01_NATIVE_SOURCE_COMPLETE_PORTABLE_PAGES_PARITY_RED_UNMERGED",
+        "status": "EXIT01_SAT_NATIVE_DRAFT_92_PORTABLE_RUNTIME_GREEN_PAGES_PARITY_RED",
         "new_pr": 92,
         "head_sha": "4e35bf27abba8a4eee7ac27f9c099ea51ede711c",
         "base_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
-        "ci": "Native Debian and Text tests SUCCESS; portable runtimes SUCCESS, eight-file Pages/source parity FAIL",
+        "ci": "Satellite native/portable runtimes pass, published Pages file parity failure still open; separate browser WebUSB PR95 source-only success except Pages parity.",
         "changed_files": 4,
         "source_feature_acceptance": "NOT_ACCEPTED_NO_REAL_DEVICES"
       },
@@ -949,11 +952,11 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "SOURCE_READY_CURRENT_HEAD_ONE_INFLIGHT_USB_RELEASE_TEST_FAILURE",
+        "status": "SOURCE_FIX_SEPARATE_STACKED_DRAFT_97_OPEN_CI_NOT_YET_AVAILABLE",
         "new_pr": 94,
         "compared_ahead": 9,
         "changed_files": 13,
-        "ci": "RFGeo 43154606229 FAIL 1 of 83 JS: in-flight sample not drained within 2500 ms; Text workflow green",
+        "ci": "New head b265f5e... source syntax error (missing captureRF closing brace) corrected, but no current-head GitHub PR CI returned yet; original #94 remains 82/83 JS. Must run all regression suites before declaring fixed.",
         "source_branch_ahead_at_checkpoint": 20,
         "specific_test_files": [
           "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
@@ -967,7 +970,9 @@
           "run tests without skipping or disabling failing regressions"
         ],
         "ci_web_run": 43153097772,
-        "ci_text_run": 43153097727
+        "ci_text_run": 43153097727,
+        "new_followup_pr": 97,
+        "new_followup_head": "b265f5e997cba3a7b0583d8b0ad0890775c8eccb"
       },
       {
         "id": "A5",
@@ -978,12 +983,12 @@
         "new_branch": "fix/exit01-text-asr-quit-2026-11-12",
         "handoff_issue": 80,
         "comment_id": 6813721489,
-        "status": "EXIT01_SOURCE_AND_TEXT_PYTHON_MATRIX_COMPLETE_UNMERGED_NATIVE_ACCEPTANCE_OPEN",
+        "status": "EXIT01_TEXT_DRAFT_93_PYTHON_3_VERSIONS_CI_GREEN",
         "new_pr": 93,
         "compared_ahead": 10,
         "changed_files": 11,
-        "ci": "Python 3.11/3.12/3.13 tests 43155643440 SUCCESS",
-        "head_sha": "003aa74df5eee2daf559ec67849949a6fd5b000b",
+        "ci": "Latest Text tests 43157896901 SUCCESS; real ASR/HTTP/device release unverified.",
+        "head_sha": "6172e55a2510a79eaf5a02bfc44087b25d8a7830",
         "base_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
       },
       {
@@ -994,14 +999,24 @@
         "source_sha": null,
         "new_branch": null,
         "comment_id": null,
-        "status": "FIRST_INDEPENDENT_READONLY_QA_REPORT_COMPLETE_FOLLOW_UP_ON_NEW_WEB95_AND_LATEST_HEADS_NEEDED",
+        "status": "FIRST_QA_HOLD_REPORT_DONE_SECOND_7_DRAFT_REVIEW_DUE",
         "handoff_issue": 81,
         "scope": "Read-only coordination; compare A1-A5 Draft PRs, 15 EXIT-01 acceptance matrix, no source edits to owner-managed AI Tools or Survival Kit, no new implementation branch",
         "new_pr": null,
         "qa_matrix": "apps/_coordination/EXIT01_QA_ACCEPTANCE_MATRIX.md",
         "qa_cases_total": 15,
         "qa_cases_fully_accepted": 0,
-        "qa_fully_accepted_cases": 0
+        "qa_fully_accepted_cases": 0,
+        "review_scope": [
+          "Media #91",
+          "#96 sidecar",
+          "Flight #16",
+          "Satellite #92",
+          "#95 WebUSB",
+          "RFGeo #94",
+          "#97 source fix",
+          "Text #93"
+        ]
       }
     ],
     "new_draft_prs_created": 5,
@@ -1022,17 +1037,16 @@
     "verified_source_progress_as_of_date": "2026-11-12",
     "hardware_release_accepted": false,
     "remaining_critical_failures": [
-      "A4 RFGeo current-head USB in-flight sample teardown timeout CI red (82/83 JS pass)",
-      "A3 Satellite eight mismatch source/Pages parity CI red on native EXIT-01 PR",
-      "Flight newest four-OS CI not yet completed at latest checked SHA",
-      "No 15 actual native installed owned RAM/VRAM/NPU/SDR shutdown acceptance cases passed",
-      "No EXIT-01 PR merges or app migrations/release; original 17 broader gates still OPEN"
+      "Geo source-fix PR #97 newest head b265f5e has no verified CI; original #94 fails 1/83 USB self-wait regression",
+      "Satellite native #92 and WebUSB #95 each blocked by old eight-file published Pages parity",
+      "Independent stacked branch QA and installed process/device/model acceptance not complete",
+      "Original 17 broader release gates and new EXIT01 P0 open; no merges or release"
     ],
     "qa_documented_cases": 15,
     "qa_fully_accepted_cases": 0
   },
   "satellite_webusb_ui_recovery": {
-    "status": "NEW_SEPARATE_DRAFT_PR_95_OPEN_BROWSER_AND_TEXT_CI_GREEN_PORTABLE_NATIVE_RUNNING",
+    "status": "DRAFT_95_BROWSER_TEXT_NATIVE_AND_RUNTIME_GREEN_PUBLISHED_PAGES_PARITY_RED",
     "owner_request": "Repair broken Satellite Center web/PWA site using native Qt screenshot 0.3.0 preview10 as design reference with Chromium WebUSB runtime",
     "repository": "Tihulu/TIHULU-TEXT-CENTER",
     "new_branch": "feature/satellite-webusb-ui-parity-2026-11-12",
@@ -1077,9 +1091,9 @@
       "UI text assumes simple 60s/128MiB clips but optional explicit 900s/2GB disk stream still exists and must not be silently removed"
     ],
     "source_diff_verified": true,
-    "website_repair_executed_ci": "At PR #95 b6785440..., browser WebUSB 43156967482 SUCCESS, Text Python 43156967584 SUCCESS; portable 43156967363 and Debian 43156967338 IN PROGRESS",
+    "website_repair_executed_ci": "Browser-only 43157391802 PASS, Text 43157391828 PASS, native Debian 43157391784 PASS, portable 43157391855 FAIL solely pages-source-parity; Linux/x64/ARM64/Windows/macOS runtime jobs all PASS. No public Pages deploy or real USB acceptance.",
     "new_draft_pr": 95,
-    "latest_checked_head": "b6785440a6987d1816b168a53a4df06cf058b119",
+    "latest_checked_head": "f2be8f210ce10e0c1462cc2a3edaba854d424311",
     "changed_file_count_at_first_pr": 13
   }
 }
