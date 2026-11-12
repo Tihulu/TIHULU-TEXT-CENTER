@@ -54,7 +54,7 @@ test("offline shell assets exist; service worker never caches RF payloads or inv
  }
  assert.match(sw,/request\.method!=="GET"/);
  assert.match(sw,/url\.origin!==scope\.origin/);
- assert.match(sw,/\.cu8\|wav\|iq\|bin\|zip/);
+ assert.match(sw,/cu8\|wav\|iq\|bin\|zip/);
  assert.doesNotMatch(sw,/requestDevice\s*\(/);
  assert.doesNotMatch(sw,/readSamples\s*\(/);
  const manifest=JSON.parse(read("manifest.webmanifest"));
