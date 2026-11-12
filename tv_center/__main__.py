@@ -1,5 +1,6 @@
 """Launch native TV Center or inspect its dependencies without touching hardware."""
 import json
+import os
 import sys
 from .core import receiver_status, discover_channels
 from .satellite import SATELLITES, satellite_hardware_note
@@ -133,7 +134,7 @@ def main():
     if len(sys.argv) == 1 or sys.argv[1] in ("tv", "watch"):
         from pathlib import Path
         import os
-        launcher = Path.home() / ".local/bin/tihulu-kaffeine"
+        launcher = Path.home() / (".local/bin/tihulu-media-standalone" if os.environ.get("TIHULU_MEDIA_STANDALONE") == "1" else ".local/bin/tihulu-kaffeine")
         if not launcher.is_file():
             print("Kaffeine core not installed: run kaffeine_next/install.sh. "
                   "No fallback scanner will start.", file=sys.stderr)

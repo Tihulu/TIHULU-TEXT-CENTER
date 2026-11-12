@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 
 _TUNE = re.compile(rb"([0-9]{1,19}) ([0-9]{1,5}) ([0-9]{1,5})\n?\Z")
-_SOCKET = re.compile(r"tihulu-dvb-([0-9]{1,10})\.sock\Z")
+_SOCKET = re.compile((r"tihulu-standalone-dvb-([0-9]{1,10})\.sock\Z" if os.environ.get("TIHULU_MEDIA_STANDALONE") == "1" else r"tihulu-dvb-([0-9]{1,10})\.sock\Z"))
 
 
 def read_native_tune(socket_path: str | Path) -> tuple[int, int, int] | None:
@@ -24,7 +24,7 @@ def read_native_tune(socket_path: str | Path) -> tuple[int, int, int] | None:
     match = _SOCKET.fullmatch(path.name)
     if not match or not path.is_absolute():
         return None
-    candidate = path.with_name(f"tihulu-tv-tune-{match.group(1)}.txt")
+    candidate = path.with_name(f"{'tihulu-standalone-tv-tune' if os.environ.get('TIHULU_MEDIA_STANDALONE') == '1' else 'tihulu-tv-tune'}-{match.group(1)}.txt")
     try:
         # The runtime directory is private to the desktop user; prevent an
         # accidental symlink and refuse unexpectedly large or foreign files.

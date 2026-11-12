@@ -199,7 +199,7 @@ public:
 
 private:
     static QString recordingsFolder() {
-        QSettings config(QLatin1String("TIHULU"),QLatin1String("UnifiedRecordings"));
+        QSettings config(QLatin1String("TIHULUStandalone"),QLatin1String("UnifiedRecordingsStandalone"));
         QString name=config.value(QLatin1String("folder")).toString();
         // A saved user recording path always wins. Environment overrides
         // affect only the default for a fresh profile.
@@ -207,7 +207,7 @@ private:
         if(name.isEmpty()) {
             QString movies=QStandardPaths::writableLocation(QStandardPaths::MoviesLocation);
             if(movies.isEmpty())movies=QDir::homePath();
-            name=movies+QLatin1String("/TIHULU Recordings");
+            name=movies+QLatin1String("/TIHULU Standalone Recordings");
         }
         return name;
     }
@@ -300,7 +300,7 @@ private:
         if(savedFolder.isEmpty() || !QDir().mkpath(savedFolder)) {
             report(tr("Cannot create recording directory."));return;
         }
-        QSettings config(QLatin1String("TIHULU"),QLatin1String("UnifiedRecordings"));
+        QSettings config(QLatin1String("TIHULUStandalone"),QLatin1String("UnifiedRecordingsStandalone"));
         config.setValue(QLatin1String("folder"),savedFolder);
         subtitlesAfter_=aiChoice->isChecked();
         singing_=musicChoice->isChecked();
@@ -330,7 +330,7 @@ private:
         }
         const QString timestamp=QDateTime::currentDateTimeUtc().toString(
             QLatin1String("yyyyMMdd-HHmmsszzz"));
-        recordedPath_=savedFolder+QLatin1String("/TIHULU-")+
+        recordedPath_=savedFolder+QLatin1String("/TIHULU-Standalone-")+
             timestamp+QLatin1String(".mkv");
         if(QFileInfo::exists(recordedPath_)){
             report(tr("Destination already exists. Recording was not started."));return;
@@ -397,7 +397,7 @@ private:
     void addToLibrary(const QString &path) {
         const QFileInfo file(path);
         if(!file.isFile() || file.size()==0)return;
-        QSettings cfg(QLatin1String("TIHULU"),QLatin1String("UnifiedRecordings"));
+        QSettings cfg(QLatin1String("TIHULUStandalone"),QLatin1String("UnifiedRecordingsStandalone"));
         QStringList items=cfg.value(QLatin1String("paths")).toStringList();
         if(!items.contains(file.absoluteFilePath()))items.prepend(file.absoluteFilePath());
         while(items.size()>500)items.removeLast();
@@ -411,7 +411,7 @@ private:
                          QLatin1String("--source"),QLatin1String("auto"),
                          QLatin1String("--targets"),languages};
         if(music)args<<QLatin1String("--music");
-        ai_.start(QLatin1String("tihulu-media-cli"),args);
+        ai_.start(QLatin1String("tihulu-media-standalone-cli"),args);
         if(!ai_.waitForStarted(850))
             report(tr("Recording saved; cannot start installed AI companion."));
         else
@@ -487,7 +487,7 @@ private:
         if(time->isChecked())arguments<<QLatin1String("--timestamps");
         if(mux->isChecked())arguments<<QLatin1String("--mux");
         if(burn->isChecked())arguments<<QLatin1String("--burn-video");
-        formatExportProcess_.start(QLatin1String("tihulu-media-cli"),arguments);
+        formatExportProcess_.start(QLatin1String("tihulu-media-standalone-cli"),arguments);
         if(!formatExportProcess_.waitForStarted(800))
             report(tr("Cannot launch the offline export tool."));
         else report(tr("Exporting selected formats. Source recording untouched."));
@@ -507,7 +507,7 @@ private:
         root->addWidget(list,1);
         auto populate=[&](){
             list->clear();
-            QSettings cfg(QLatin1String("TIHULU"),QLatin1String("UnifiedRecordings"));
+            QSettings cfg(QLatin1String("TIHULUStandalone"),QLatin1String("UnifiedRecordingsStandalone"));
             for(const QString &path:cfg.value(QLatin1String("paths")).toStringList()){
                 const QFileInfo f(path);
                 if(!f.isFile() || f.size()==0)continue;

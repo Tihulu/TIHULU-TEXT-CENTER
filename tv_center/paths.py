@@ -12,7 +12,7 @@ from pathlib import Path
 import stat
 
 
-APP_ID = "tihulu-media-center"
+APP_ID = ("tihulu-media-standalone" if os.environ.get("TIHULU_MEDIA_STANDALONE") == "1" else "tihulu-media-center")
 
 
 def _base(env_name: str, fallback: Path) -> Path:
@@ -97,7 +97,7 @@ def media_paths() -> MediaPaths:
     cache = _base("XDG_CACHE_HOME", home / ".cache") / APP_ID
     state = _base("XDG_STATE_HOME", home / ".local/state") / APP_ID
     runtime = _base("XDG_RUNTIME_DIR", cache / "runtime") / APP_ID
-    recordings = home / "Videos" / "TIHULU Recordings"
+    recordings = home / "Videos" / ("TIHULU Standalone Recordings" if APP_ID == "tihulu-media-standalone" else "TIHULU Recordings")
     return MediaPaths(config, data, cache, state, runtime, recordings)
 
 

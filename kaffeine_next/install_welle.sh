@@ -10,14 +10,25 @@ if ! command -v apt-get >/dev/null 2>&1; then
   echo "Optional receiver build requires Debian/Ubuntu/Pop!_OS." >&2; exit 1
 fi
 echo "Installing welle-cli build prerequisites (no changes to GPU drivers)."
-sudo apt-get update
-sudo apt-get install -y --no-install-recommends \
+if [[ "${TIHULU_MEDIA_STANDALONE:-0}" == 1 ]]; then
+  echo "Standalone Media never changes global APT packages. Build tools must already exist."
+else
+  # Retained only for legacy source / isolated workflow build compatibility;
+  # no standalone installer invokes this branch.
+  sudo apt-get update
+  sudo apt-get install -y --no-install-recommends \
   git ca-certificates cmake g++ make pkg-config python3 \
   libfaad-dev libmpg123-dev libfftw3-dev librtlsdr-dev \
   libusb-1.0-0-dev libmp3lame-dev libflac++-dev \
   libsoapysdr-dev libairspy-dev libasound2-dev
-ROOT="$HOME/.local/share/tihulu-media-center/welle"
-PREFIX="$HOME/.local/opt/tihulu-media-center-welle"
+fi
+if [[ "${TIHULU_MEDIA_STANDALONE:-0}" == 1 ]]; then
+  ROOT="$HOME/.local/share/tihulu-media-standalone/welle"
+  PREFIX="$HOME/.local/opt/tihulu-media-standalone-welle"
+else
+  ROOT="$HOME/.local/share/tihulu-media-center/welle"
+  PREFIX="$HOME/.local/opt/tihulu-media-center-welle"
+fi
 mkdir -p "$ROOT" "$PREFIX"
 TEMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEMPDIR"' EXIT

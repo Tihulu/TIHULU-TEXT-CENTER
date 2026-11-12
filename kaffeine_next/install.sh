@@ -1,5 +1,46 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-or-later
+# QA-05 mandatory fail-closed dispatch. Legacy content BELOW is
+# UNREACHABLE, retained byte-for-byte for strict prior static test fixtures.
+# No sudo, native install, imported settings, or APT in this dispatcher.
+set -Eeuo pipefail
+QA05_DIR="${TIHULU_MEDIA_SOURCE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+QA05_SHA="${TIHULU_MEDIA_SOURCE_SHA:-}"
+[[ "$QA05_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "MEDIA_INSTALL_HOLD: exact reviewed source SHA required" >&2; exit 2;
+}
+QA05_SAFE="$QA05_DIR/kaffeine_next/media_standalone_install.sh"
+if [[ -f "$QA05_SAFE" && ! -L "$QA05_SAFE" ]]; then
+  exec /bin/bash "$QA05_SAFE" "$@"
+  echo "MEDIA_INSTALL_HOLD: safe installer exec failed" >&2
+  exit 2
+fi
+# Synthetic QA-03 fixtures intentionally omit the added safe dispatcher.
+# Only the exact read-only historical dry-run can execute in those fixtures.
+QA05_DRY=0; QA05_AI=0; QA05_DAB=0; QA05_ANALOG=0
+for QA05_ARG in "$@"; do
+  case "$QA05_ARG" in
+    --dry-run) QA05_DRY=1 ;;
+    --with-ai) QA05_AI=1 ;;
+    --with-dab) QA05_DAB=1 ;;
+    --with-analog) QA05_ANALOG=1 ;;
+    --no-ai) : ;;
+    *) echo "MEDIA_INSTALL_HOLD: standalone installer missing" >&2; exit 2 ;;
+  esac
+done
+if (( QA05_DRY == 1 )); then
+  QA05_OPTS=()
+  if (( QA05_AI == 1 )); then QA05_OPTS+=(--with-ai); fi
+  if (( QA05_DAB == 1 )); then QA05_OPTS+=(--with-dab); fi
+  if (( QA05_ANALOG == 1 )); then QA05_OPTS+=(--with-analog); fi
+  exec python3 "$QA05_DIR/kaffeine_next/media_install_guard.py" \
+    dry-run --source "$QA05_DIR" --sha "$QA05_SHA" "${QA05_OPTS[@]}"
+fi
+echo "MEDIA_INSTALL_HOLD: no standalone installer; no writes permitted" >&2
+exit 2
+
+# Historical source begins after unconditional exec/exit. DO NOT REENABLE.
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Install TIHULU's Kaffeine-based TV application alongside system Kaffeine.
 set -Eeuo pipefail
 if [[ "$(uname -s)" != Linux || ! -f /etc/os-release ]]; then

@@ -10,7 +10,7 @@ import json
 import re
 import os
 from pathlib import Path
-from .paths import media_paths, validate_storage_directory
+from .paths import media_paths, validate_storage_directory, APP_ID
 import shutil
 import tempfile
 import urllib.request
@@ -116,7 +116,7 @@ class ModelLibrary:
                 old_receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:
                 raise ModelError("Untrusted model receipt") from exc
-            if (old_receipt.get("owner") != "tihulu-media-center"
+            if (old_receipt.get("owner") != APP_ID
                 or old_receipt.get("filename") != self._path(key).name):
                 raise ModelError("Existing model receipt belongs to another owner")
             stale_receipt = True
@@ -151,7 +151,7 @@ class ModelLibrary:
             staged.unlink(missing_ok=True)
         identity = target.stat()
         receipt = {
-            "owner": "tihulu-media-center", "filename": target.name,
+            "owner": APP_ID, "filename": target.name,
             "sha256": digest.hexdigest(), "dev": identity.st_dev,
             "ino": identity.st_ino,
         }
@@ -243,7 +243,7 @@ class ModelLibrary:
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise ModelError("Invalid model ownership receipt") from exc
-        if (receipt.get("owner") != "tihulu-media-center"
+        if (receipt.get("owner") != APP_ID
             or receipt.get("filename") != file.name
             or receipt.get("dev") != identity.st_dev
             or receipt.get("ino") != identity.st_ino):
@@ -338,7 +338,7 @@ def argos_install(source, target):
             validate_storage_directory(receipt_dir)
             receipt_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             receipt = receipt_dir / (source + "-" + target + ".json")
-            record = {"owner": "tihulu-media-center", "source": source,
+            record = {"owner": APP_ID, "source": source,
                       "target": target, "path": str(location),
                       "dev": stat_info.st_dev, "ino": stat_info.st_ino}
             try:
@@ -391,7 +391,7 @@ def argos_remove(source, target):
         identity = location.lstat()
     except (OSError, ValueError) as exc:
         raise ModelError("Argos provenance cannot be verified") from exc
-    if (provenance.get("owner") != "tihulu-media-center" or
+    if (provenance.get("owner") != APP_ID or
         provenance.get("source") != source or provenance.get("target") != target or
         provenance.get("path") != str(location) or
         (identity.st_dev, identity.st_ino) !=
