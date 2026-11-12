@@ -266,10 +266,19 @@ class FMSurveySupervisor:
             snapshot=self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=4)
+        if wait and (thread is None or not thread.is_alive()):
+            self._terminate(self._process)
         with self._mutex:
-            if wait and thread and thread.is_alive():
+            unfinished=self._process is not None and self._process.poll() is None
+            if wait and ((thread and thread.is_alive()) or unfinished):
                 self._state.update(status="stop_failed_partial",
-                    error="Spectrum survey worker did not stop in time")
+                    error="RF survey worker/child did not stop in time")
+            elif wait:
+                self._process=None
+                if self._lock_fd is not None:
+                    self._unlock()
+                if self._state["status"]=="stop_failed_partial":
+                    self._state.update(status="stopped",error=None)
             return self._snapshot()
 
     def quit(self):
@@ -348,8 +357,12 @@ class FMSurveySupervisor:
         finally:
             self._terminate(process)
             with self._mutex:
-                self._process=None
-                self._unlock()
+                still_alive=process is not None and process.poll() is None
+                self._process=process if still_alive else None
+                if still_alive:
+                    status,error="stop_failed_partial","Owned RF survey child remained alive"
+                else:
+                    self._unlock()
                 self._state.update(data)
                 self._state["status"]=status
                 self._state["active"]=False
