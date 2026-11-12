@@ -111,7 +111,14 @@ class SatelliteAndAISettingsTests(unittest.TestCase):
                 local.write_bytes(content)
                 manager.add_local("fake", local)
                 self.assertTrue((root/"fake.bin").is_file())
-                manager.remove("fake")
+                # An external/shared model root is not deletable by a
+                # passive Market click even when the model is valid.
+                with self.assertRaises(ModelError):
+                    manager.remove("fake")
+                self.assertTrue((root/"fake.bin").exists())
+                # Explicit owner-authorized test-only removal still verifies
+                # the per-file provenance receipt before deleting.
+                manager.remove("fake", allow_external_delete=True)
                 self.assertFalse((root/"fake.bin").exists())
                 self.assertTrue(local.is_file())
                 local.write_bytes(b"tampered")
