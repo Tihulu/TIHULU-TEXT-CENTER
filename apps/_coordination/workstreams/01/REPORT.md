@@ -123,3 +123,114 @@ Each exact SHA-pinned source link identifies inspected code; each test link iden
 - **Remaining time estimate: UNKNOWN**. The hardware/platform test matrix and release/rollback workload lack defensible measured durations.
 
 **Audit safety result:** 0 application/installer/device/feature modifications; 0 merges; 0 migrations; PR remains Draft.
+
+## PR #65→#66→#67 detailed preservation ledger (2026-11-12)
+
+This appendix extends the existing 41-requirement source audit; it is read-only. Each listed source path, commit, and CI workflow was inspected without modifying programs, branch ancestry, receivers or installed releases.
+
+### Branch lineage and exact scopes
+
+- [PR #65](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65) head `20b0417aa7edba2f86b297e7cabdd062e9b24291`: 54 paths in its own PR diff: 8 `kaffeine_next/`, 14 `tv_center/`, 32 `tests/`.
+- [PR #66](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66) head `20379152be2751e5d89a8bdbac85fb15fc6b3c4e`: 365 paths versus `main`: 34 Kaffeine, 79 TV Center, 94 tests, 56 RF Geolocation, 92 Satellite, 3 Text Center, 4 GitHub workflows and 3 other docs/readme. Its PR comparison base differs from PR #65.
+- **Direct #65→#66 = 3 commits ahead, 0 behind, 150 newly added files and no existing Media source modifications.** The additions are 56 RF, 92 Satellite, `docs/INTEGRATION_BASELINE_2026-11-11.md`, and `tests/test_integration_app_preservation.py` (Git tree pins only, not hardware verification).
+- **Direct #66→#67 = 20 commits ahead, 0 behind, eight changed paths.** [PR #67](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67) head `4e62e21cd5252df8a04f9ceadc429f4b116412ce` is unmerged and is not part of the WS01 audit/docs branch.
+- `EVIDENCE.json > pr65_pr67_deep_audit` contains the full PR65/PR66/PR67 changed-path arrays and all 150 direct #65→#66 paths. Preserve entire source ancestry; do not use the #83 branch as a Media runtime snapshot.
+
+### All eight PR #67 changed paths
+
+| Source path at PR #67 | Change | Added / deleted |
+|---|---|---|
+| [`kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md) | added | +84 / −0 |
+| [`kaffeine_next/captions_overlay.py`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/captions_overlay.py) | modified | +33 / −2 |
+| [`kaffeine_next/native_media_panel.h`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h) | modified | +92 / −2 |
+| [`kaffeine_next/native_radio_tab.h`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h) | modified | +154 / −0 |
+| [`kaffeine_next/native_unified_recorder.h`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h) | modified | +103 / −3 |
+| [`tests/test_recording_export.py`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py) | added | +171 / −0 |
+| [`tv_center/__main__.py`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/__main__.py) | modified | +4 / −1 |
+| [`tv_center/recording_export.py`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py) | added | +395 / −0 |
+
+### Twenty individual PR #67 commits — exact path ledger
+
+| # | Git commit | Single changed path | Change intent |
+|---|---|---|---|
+| 1 | [`7f264b33ebdf`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/7f264b33ebdf9dcc3cb3abdcebe4321b9f5c0042) | `tv_center/recording_export.py` | feat: add shared opt-in timecoded text, subtitle, MKV and MP4 export engine |
+| 2 | [`24cde0ca44b7`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/24cde0ca44b7ca7c4c5d49155b02e2bccc7ad3d6) | `tests/test_recording_export.py` | test: validate common real-timed export formats, opt-in and no-overwrite safety |
+| 3 | [`61b123a64bd8`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/61b123a64bd86f70e69df5d6004a446500614a5b) | `tv_center/__main__.py` | feat: expose shared recording-export CLI without changing existing commands |
+| 4 | [`1844e30677e5`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1844e30677e532b9b9c73d426c4a74e483de6f2f) | `kaffeine_next/native_media_panel.h` | feat: add opt-in timed transcript/combined media export dialog to local audio/video player |
+| 5 | [`1586edfe09c8`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/1586edfe09c852ec210a2207e7ed06692cab6fcb) | `tv_center/recording_export.py` | fix: allow media-only export and never remove concurrently created user outputs |
+| 6 | [`0460c29f88f2`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/0460c29f88f298513fda891c2a2482d2e38187af) | `kaffeine_next/captions_overlay.py` | feat: export real live TV SRT to optional TXT, VTT, ASS and JSON on Stop |
+| 7 | [`73b0755e40f5`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/73b0755e40f57d48e2a8f5b28fbe50d0079b211b) | `kaffeine_next/native_unified_recorder.h` | feat: add shared multi-format and selectable-media export to Recordings library |
+| 8 | [`5198b1ccb30d`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/5198b1ccb30d7b94409dfd3b6ef1560356d223f2) | `kaffeine_next/native_radio_tab.h` | feat: add independent opt-in live radio SRT capture from real displayed Whisper cues |
+| 9 | [`5f1d6ab0a15c`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/5f1d6ab0a15caf60482f0fd9a45074ceda312c49) | `tv_center/recording_export.py` | feat: separate original and actual language translation tracks in subtitle/media exports |
+| 10 | [`140e16f9b5ed`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/140e16f9b5ed5b648212907691c574f5def4a8e8) | `tv_center/recording_export.py` | fix: correctly parse translation language markers and retain newline-separated phrases |
+| 11 | [`f5f78b85fa7d`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/f5f78b85fa7de4f296e850d5542bc08a4827c7f6) | `tests/test_recording_export.py` | test: verify language-split SRT exports preserve sound and speaker labels |
+| 12 | [`6d77cf1c85c0`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/6d77cf1c85c0c5e76d8c5564d9a3ed27a59911a8) | `kaffeine_next/native_media_panel.h` | feat: export separate original/translated language tracks from local file SRT |
+| 13 | [`d553998f928e`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/d553998f928e389c791ab0393a46261e1517d92c) | `kaffeine_next/native_unified_recorder.h` | feat: split translation-language tracks in live recording export workflow |
+| 14 | [`ecb87e63266e`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/ecb87e63266e76a167aed88a51fcf4a6bb7823c1) | `kaffeine_next/native_radio_tab.h` | fix: include the first real Whisper radio chunk in independent live SRT |
+| 15 | [`98ce95b230d2`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/98ce95b230d222fdf9a760bf806dd25ee8ccb2ac) | `tests/test_recording_export.py` | test: use actual multiline SRT/newline fixtures rather than backslash literals |
+| 16 | [`a249afdec783`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/a249afdec783bd3646f42543930433996ab36ee5) | `tests/test_recording_export.py` | test: validate real FFmpeg audio+SRT Matroska export and unchanged source bytes |
+| 17 | [`ef7397587462`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/ef73975874626fa5576e95aa4ce153a6b1a11e22) | `kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md` | docs: record exact live/complete export boundaries and honest remaining validation |
+| 18 | [`f236399757d7`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/f236399757d71be84ef2cdd24360a87e95e24d5f) | `kaffeine_next/native_radio_tab.h` | feat: offer independent opt-in TXT/VTT/ASS/JSON for live DAB Whisper session after Stop |
+| 19 | [`d8ad4fddf883`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/d8ad4fddf88304d01d09f7f4303a5741899ed503) | `tv_center/recording_export.py` | fix: identify exported cue timestamps without claiming measured DAC synchronization |
+| 20 | [`4e62e21cd525`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/commit/4e62e21cd5252df8a04f9ceadc429f4b116412ce) | `tests/test_recording_export.py` | fix: identify exported cue timestamps without claiming measured DAC synchronization |
+
+### Source-backed recording/export features and runtime dependencies
+
+- Source exporter requires an existing timestamped local SRT and never opens the SDR/DVB tuner itself. It offers TXT, SRT, VTT, ASS, JSON, and gated LRC. Output JSON retains cue timestamps and explicitly says physical audio/DAC synchronization is unverified.
+- Language-tagged [EN]/[DE]/[TR] translations can be split into selectable timed streams without discarding [Music] or [Speaker] original text. Native Qt interfaces expose per-file, per-recording, live-TV and live-DAB opt-in export paths; the command is `tihulu-tv-center recording-export`.
+- Text files use exclusive `O_EXCL` creation. MKV mux copies original media tracks and uses FFmpeg `-n`; burned MP4 re-encodes video. Multiple format outputs are not a proven all-or-nothing transaction, and FFmpeg failure may leave correctly created sidecars.
+- Runtime dependencies: packaged Kaffeine Qt5 UI and a **matching installed** Python `tihulu-tv-center` CLI; optional `ffmpeg`/`ffprobe`, FFmpeg subtitles/libass filter, `libx264`, AAC and correct filesystem/path quoting. Cross-platform package compatibility is not established.
+- Live DAB Whisper SRT uses an **estimated display-cue clock and text-length duration**, not calibrated word/audio timestamps. A separately recorded MP3 may need re-transcription. Radio SRT code depends on a selected active DAB service plus enabled AI; the separate Internet radio route remains unverified.
+- The feature draft explicitly says local-file concurrent full-sidecar generation **does not stream each completed chunk to the playing file overlay**. Native completed-media export uses `--mode live` while local-file dialog defaults to live; verify provenance and live/complete labels before any release.
+
+### Exact feature source anchors
+- [`tv_center/recording_export.py:43`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L43): strict existing UTF-8 SRT parser and timestamp checks, max 30MiB and 100000 cue budget.
+- [`tv_center/recording_export.py:90`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L90): time-coded TXT/SRT/VTT/ASS/JSON with optional verified-source LRC.
+- [`tv_center/recording_export.py:113`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L113): JSON clock provenance srt_cue_seconds, physical DAC sync unverified.
+- [`tv_center/recording_export.py:150`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L150): translation tag splitting with original speech/music/speaker labels retained.
+- [`tv_center/recording_export.py:191`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L191): exclusive O_EXCL text file create; no overwrite of originals.
+- [`tv_center/recording_export.py:243`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L243): FFmpeg argv -n non-overwrite, 21600 second timeout.
+- [`tv_center/recording_export.py:251`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L251): copy original audio/video to new Matroska with selectable SRT streams.
+- [`tv_center/recording_export.py:285`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L285): video burn re-encode to MP4 using ffprobe/libx264/AAC/subtitles filter.
+- [`tv_center/recording_export.py:304`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L304): live/complete mode checks and temporary mux tracks.
+- [`tv_center/__main__.py:82`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/__main__.py#L82): recording-export CLI route.
+- [`kaffeine_next/captions_overlay.py:2631`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/captions_overlay.py#L2631): live TV SRT post-Stop TXT/VTT/ASS/JSON conversion.
+- [`kaffeine_next/native_media_panel.h:346`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h#L346): local-file Qt export dialog and opt-in subprocess.
+- [`kaffeine_next/native_unified_recorder.h:417`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h#L417): native Recordings Library completed-media export.
+- [`kaffeine_next/native_radio_tab.h:5889`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5889): DAB live Whisper SRT separate from audio recording.
+- [`kaffeine_next/native_radio_tab.h:5961`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5961): estimated live radio cue durations.
+- [`kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md:16`](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md#L16): progressive local-file Whisper captions explicitly incomplete.
+
+### Unverified or source-confirmed zero-regression risks
+- **P67-GAP-01 (P0)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L148): Conditional real-FFmpeg test constructs SRT with literal backslash-n sequences (source char codes 92,92,110), unlike properly escaped multiline fixture; resulting SRT is not properly line-separated. CI skipped this case (FFmpeg unavailable). Confirmed source-test fixture issue, NOT executed test failure.
+- **P67-GAP-02 (P1)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py#L88): Mock test checks assertIn('-n',['-n']) constant, not actual FFmpeg argv; production wrapper does use -n but assertion is ineffective.
+- **P67-GAP-03 (P0)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md#L16): Progressive local-file Whisper caption chunks during playback are explicitly not streamed; async completed sidecar is not equivalent.
+- **P67-GAP-04 (P0)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5961): Live DAB Whisper SRT timestamps are estimated display-clock times and char-duration; not DAC/MP3/audio source clock, do not claim synchronized exported media.
+- **P67-GAP-05 (P1)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h#L476): Completed-recording export dialog passes --mode live; local-file dialog omits mode (default live), while UI calls this complete; validate semantics and labels.
+- **P67-GAP-06 (P1)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L94): LRC enabled through user-supplied --verified-lyrics boolean; exporter does not independently validate original timed lyric provenance.
+- **P67-GAP-07 (P1)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L322): Text sidecars are written before later FFmpeg mux/burn; failure may leave partial new exports. No atomic multi-output promise verified.
+- **P67-GAP-08 (P1)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py#L285): MP4 burn requires ffprobe, FFmpeg subtitles filter/libass, libx264, AAC, filesystem/OS filter escaping; none covered by live cross-platform acceptance.
+- **P67-GAP-09 (P1)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h#L5926): Live radio SRT creation requires active DAB and quick AI; code path does not establish equivalent Internet-radio SRT capture.
+- **P67-GAP-10 (P0)** [source](https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h#L395): Native C++ and Kaffeine invoke the installed tihulu-tv-center recording-export Python CLI; exact binary/package version and Qt5 build not certified.
+
+### Recorded GitHub CI at PR #67 head — distinguished from worker execution
+
+| Workflow | Run | Conclusion | Qualification |
+|---|---|---|---|
+| Native TIHULU DVB / Radio build | [43050201382](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43050201382) | cancelled | Cancelled during dependency installation; no native player compilation proven |
+| Pinned welle.io DAB+ loopback receiver build | [43050201148](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43050201148) | failure | APT DNS resolving azure.archive.ubuntu.com failed; exit 100 during dependency fetch, not source compilation |
+| Text Center tests | [43050201857](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43050201857) | success | Python 3.11: 672 tests, one skipped. test_recording_export methods ran; optional FFmpeg test skipped because FFmpeg tools unavailable |
+| Native TV Center checks and Debian preview package | [43050201104](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43050201104) | success | Python 3.11: 440 tests; Python 3.12/3.13 and preview-deb jobs succeeded; no physical receiver test |
+| TIHULU Kaffeine DVB source build | [43050201365](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43050201365) | failure | APT DNS resolving azure.archive.ubuntu.com failed; exit 100 during KDE dependencies, no actual Qt compilation proof |
+
+- Text Center Python 3.11 workflow log reports **672 tests with 1 skipped**, including `test_recording_export` methods. The only real FFmpeg mux test was **skipped for unavailable FFmpeg**, and its SRT fixture contains literal escaped `\\n` instead of newline content. No complete FFmpeg hardware/video success is claimed.
+- Native Kaffeine and DAB failures were **Ubuntu APT DNS resolution failures** (`azure.archive.ubuntu.com`, exit 100) during dependency installation, **not demonstrated C++ source compile failures**. Native player workflow was cancelled. Those native compile gates remain open.
+- **This WS01 audit executed zero tests** and accessed no physical radio receiver. GitHub historical software CI is recorded separately, not counted as native hardware acceptance.
+
+### Cross-worker dependency and release gates
+
+- Coordinator issues link WS01 to REG-01, REG-03, REG-10, REG-11, REG-13, REG-14, REG-16, REG-17. Preserve all old PR/Issue/review permalinks; non-owned `readsb`/`tar1090`/`welle` services; EN(default)/TR/DE UI; approved red/black/white TIHULU logo binaries; original receiver behavior; developer matrices, native rollback and caption timing.
+- The retained Text Center's **archived snapshot**, not current active main, imports sibling `tv_center` modules via `compute.py`, `speech.py`, `transcripts.py`. Current main differs. Any future approved Media isolation requires tests with Media installed/absent and must retain independent Text functionality; see [coordinator Issue #76 handoff](https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76#issuecomment-6809852830).
+- P0 acceptance needs real DVB-T2/Teletext, live DAB, audio-video/subtitle tracks, calibrated timing, device lease ownership, FFmpeg Mux and MP4 subtitle burn, complete/live captions, native Qt build, cross-platform packaging, no-overwrite/race failures and rollback validation. None was physically performed.
+- ETA: **UNKNOWN**, because a measured receiver/packaging acceptance plan does not yet exist. Keep PR #83 Draft, Issue #76 open, and prohibit application source, installs, merges, rebases, migrations or releases.
+
