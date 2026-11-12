@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase6_exit01_five_draft_PRS_geo_usb_CI_red_sat_pages_red_webusb_new_branch_no_commits",
+  "stage": "exit01_five_unchanged_source_drafts_webusb_branch_7_commits_QA_waiting_ci_hardware",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "5 EXIT01 Draft PRs open; current Media+Text CI green, Flight latest cross-OS pending, Geo USB read teardown 1/83 JS case red, Satellite Pages parity eight-file issue red despite portable/native runtime green. Separate Satellite WebUSB repair branch exists at source baseline with no code delta or new PR yet. New WEB-01..15 browser acceptance 0, EXIT01 installed resources 0/15, original 17 broader gates OPEN; release ETA unknown.",
+    "reason": "Satellite WebUSB owned branch active with 7 commits and 7 browser-only files changed, no new Draft PR and no browser CI acceptance yet. Five app EXIT01 Draft PRs still pending; Geo USB in-flight read CI red, Satellite Pages parity red, Flight cross-OS latest CI pending, 15 physical exit resource cases and original 17 broad gates remain open. No release ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -1031,13 +1031,13 @@
     "qa_fully_accepted_cases": 0
   },
   "satellite_webusb_ui_recovery": {
-    "status": "ISOLATED_BRANCH_CREATED_NO_BROWSER_SOURCE_DELTA_YET_AT_CHECKPOINT",
+    "status": "ACTIVE_WEB_BROWSER_SOURCE_IMPLEMENTATION_BRANCH_7_COMMITS_NO_PR_VERIFIED",
     "owner_request": "Repair broken Satellite Center web/PWA site using native Qt screenshot 0.3.0 preview10 as design reference with Chromium WebUSB runtime",
     "repository": "Tihulu/TIHULU-TEXT-CENTER",
     "new_branch": "feature/satellite-webusb-ui-parity-2026-11-12",
     "source_original_pr": 37,
     "source_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
-    "source_comparison_ahead": 0,
+    "source_comparison_ahead": 7,
     "source_comparison_behind": 0,
     "new_draft_pr_verified": false,
     "recovery_contract": "apps/_coordination/SATELLITE_WEBUSB_UI_RECOVERY_ACCEPTANCE.md",
@@ -1059,6 +1059,23 @@
       "gh-pages"
     ],
     "scopes": "new isolated browser-only Draft PR, no real WebUSB hardware, no site deploy without explicit owner approval",
-    "note": "Source capture_duration.mjs has 128 MiB memory budget and separate conditional 2 GB/900s foreground disk streaming. Keep both source capabilities, test and label truthfully; do not confuse obsolete 60s prose with hard runtime limit."
+    "note": "Source capture_duration.mjs has 128 MiB memory budget and separate conditional 2 GB/900s foreground disk streaming. Keep both source capabilities, test and label truthfully; do not confuse obsolete 60s prose with hard runtime limit.",
+    "web_files_changed_at_checkpoint": [
+      "satellite_center/browser/browser.css",
+      "satellite_center/browser/index.html",
+      "satellite_center/browser/reception.html",
+      "satellite_center/browser/satellite-sw.js",
+      "satellite_center/browser/web_pwa.mjs",
+      "satellite_center/browser/web_shell.mjs",
+      "satellite_center/browser/webusb_lifecycle.mjs"
+    ],
+    "review_comment_issue_id": 6814674366,
+    "code_review_findings": [
+      "Generation ownership gate webusb_lifecycle.mjs defined but not yet imported by browser.js or HTML at previous checkpoint; actual integration not proven",
+      "Service worker cache-first static assets may retain old module versions; new release/cache invalidation test needed",
+      "UI text assumes simple 60s/128MiB clips but optional explicit 900s/2GB disk stream still exists and must not be silently removed"
+    ],
+    "source_diff_verified": true,
+    "website_repair_executed_ci": false
   }
 }
