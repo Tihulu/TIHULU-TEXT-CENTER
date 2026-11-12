@@ -72,6 +72,22 @@ def _cached_cuda_whisper(model_path: str):
                         local_files_only=True)
 
 
+def release_owned_speech_caches() -> bool:
+    """Release only this Media module's optional in-process CUDA cache.
+
+    Fail closed if inference currently holds the decoder lock. This does not
+    touch CUDA workers owned by another process, Jan/Ollama or NPU contexts.
+    It cannot claim immediate driver VRAM release without physical testing.
+    """
+    if not _faster_whisper_lock.acquire(blocking=False):
+        raise SpeechError("Media CUDA inference still active; cache not released")
+    try:
+        _cached_cuda_whisper.cache_clear()
+        return True
+    finally:
+        _faster_whisper_lock.release()
+
+
 def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
     if not pcm:
         raise SpeechError("Empty received audio")
@@ -276,4 +292,10 @@ class SpeechPipeline:
 
     def stop(self):
         self.stopping.set()
-        # Worker finishes at most two bounded windows, without blocking Stop.
+        self.thread.join(timeout=0.25)
+        if self.thread.is_alive():
+            # Do not unload model weights or declare success while an owned
+            # worker may still be processing buffered speech.
+            raise SpeechError("Owned speech worker still running; stop incomplete")
+        release_owned_speech_caches()
+        return True
