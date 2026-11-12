@@ -275,7 +275,7 @@ python3 "$GUARD" snapshot --source "$MEDIA_SOURCE_DIR" \
 TRANSACTION_STARTED=1
 sudo apt-get install -y "$COMPANION"
 
-cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
+cat > "$temp/tihulu-kaffeine" <<'LAUNCH'
 #!/bin/sh
 # XWayland avoids the broken NVIDIA / COSMIC embedded surface path.
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then export QT_QPA_PLATFORM=xcb; fi
@@ -315,9 +315,8 @@ exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
   "$HOME/.local/opt/tihulu-media-center/current/bin/tihulu-media-center" "$@"
 LAUNCH
-chmod 755 "$HOME/.local/bin/tihulu-kaffeine"
-ln -sfn tihulu-kaffeine "$HOME/.local/bin/tihulu-media-center"
-cat > "$HOME/.local/share/applications/tihulu-media-center.desktop" <<DESKTOP
+chmod 755 "$temp/tihulu-kaffeine"
+cat > "$temp/tihulu-media-center.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=TIHULU Media Center
@@ -331,10 +330,13 @@ Terminal=false
 Categories=AudioVideo;Video;TV;Audio;Player;
 DESKTOP
 
-# Store the exact bytes of launcher created by this installer for future
-# collision/upgrade review; do not migrate another application's launcher.
-sha256sum "$HOME/.local/bin/tihulu-kaffeine" | awk '{print $1}' > "$OWNED_LAUNCHER_MARKER"
-sha256sum "$OWNED_DESKTOP" | awk '{print $1}' > "$OWNED_DESKTOP_MARKER"
+# Publish from staged files only after guard verifies per-file ownership.
+# No cat > on a foreign launcher; no ln -sfn on a foreign regular file.
+python3 "$GUARD" activate --sha "$ACTUAL_MEDIA_SHA" \
+  --launcher "$temp/tihulu-kaffeine" \
+  --desktop "$temp/tihulu-media-center.desktop" \
+  --release "$PREFIX" --companion "$COMPANION" >/dev/null
+TRANSACTION_COMPLETE=1
 
 if [[ "$MODE" != --no-ai ]]; then
   echo "Installing baseline offline models for the device: Whisper Tiny,"
@@ -357,7 +359,4 @@ echo "Set DVB-T2 Source in Configure Television before the first channel scan."
 echo "FM/MW/LW requires a suitable SDR; optional tools: bash install.sh --with-analog"
 echo "DAB+ Radio is a native tab. Optional welle.io backend (separate SDR):"
 echo "  bash $APPROOT/install_welle.sh"
-if (( WITH_DAB == 1 )); then
-  echo "User explicitly selected --with-dab: building pinned localhost-only welle-cli."
-  bash "$APPROOT/install_welle.sh"
-fi
+
