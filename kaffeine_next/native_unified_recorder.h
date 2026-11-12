@@ -408,7 +408,7 @@ private:
                          QLatin1String("--source"),QLatin1String("auto"),
                          QLatin1String("--targets"),languages};
         if(music)args<<QLatin1String("--music");
-        ai_.start(QLatin1String("tihulu-tv-center"),args);
+        ai_.start(QLatin1String("tihulu-media-cli"),args);
         if(!ai_.waitForStarted(850))
             report(tr("Recording saved; cannot start installed AI companion."));
         else
@@ -484,7 +484,7 @@ private:
         if(time->isChecked())arguments<<QLatin1String("--timestamps");
         if(mux->isChecked())arguments<<QLatin1String("--mux");
         if(burn->isChecked())arguments<<QLatin1String("--burn-video");
-        formatExportProcess_.start(QLatin1String("tihulu-tv-center"),arguments);
+        formatExportProcess_.start(QLatin1String("tihulu-media-cli"),arguments);
         if(!formatExportProcess_.waitForStarted(800))
             report(tr("Cannot launch the offline export tool."));
         else report(tr("Exporting selected formats. Source recording untouched."));
