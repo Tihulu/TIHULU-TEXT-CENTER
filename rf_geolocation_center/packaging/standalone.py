@@ -263,9 +263,6 @@ def _safe_existing(path: Path, home: Path, *, file: bool = False) -> None:
     home = home.absolute()
     if not path.is_relative_to(home):
         raise PackagingError("Refuse path outside selected user home")
-    for parent in (home,) + tuple(reversed(path.relative_to(home).parents)):
-        if parent == Path("."):
-            continue
     cur = home
     if cur.is_symlink() or not cur.is_dir():
         raise PackagingError("User home must be a real directory")
@@ -311,7 +308,9 @@ def _assert_scope(paths: dict[str, Path]) -> None:
     _safe_existing(root / "state.json", home, file=True)
     _safe_existing(root / "bin" / "tihulu-rfgeo", home, file=True)
     state = _read_state(root)
-    if state is None and root.exists() and any(root.iterdir()):
+    if state is None and root.exists() and any(
+        entry.name != ".operation-lock" for entry in root.iterdir()
+    ):
         raise PackagingError("Existing unowned install prefix: refusing to adopt")
 
 
@@ -451,7 +450,18 @@ def install_bundle(archive: Path, *, apply: bool = False, home: Path | None = No
             with dest.open("xb") as handle:
                 handle.write(blob)
             os.chmod(dest, 0o755 if relative.startswith("scripts/") and relative.endswith(".sh") else 0o644)
-        (target / "bundle-manifest.json").write_bytes(_json_bytes(manifest))
+        with (target / "bundle-manifest.json").open("xb") as handle:
+            handle.write(_json_bytes(manifest))
+        rollback_manifest = {
+            "schema": SCHEMA, "app_id": APP_ID, "new_release": release,
+            "previous_release": prior["active"] if prior else None,
+            "bundle_sha256": plan["bundle_sha256"],
+            "source_revision_declared": manifest["source_revision_declared"],
+            "rollback": "Repoint state.json to verified previous release only",
+            "deletion_policy": "NEVER DELETE RELEASES, CONFIG, CACHE, DATA OR USER FILES",
+        }
+        with (target / "rollback-manifest.json").open("xb") as handle:
+            handle.write(_json_bytes(rollback_manifest))
         _verify_release(root, release)
         for key in ("config", "cache", "data"):
             paths[key].mkdir(parents=True, exist_ok=True)
@@ -465,8 +475,11 @@ def install_bundle(archive: Path, *, apply: bool = False, home: Path | None = No
                 handle.write(_launcher())
             os.chmod(bin_path, 0o755)
         history = ([prior["active"]] + prior["previous"])[:50] if prior else []
+        bundles = dict(prior.get("bundles", {})) if prior else {}
+        bundles[release] = plan["bundle_sha256"]
         state = {"schema": SCHEMA, "app_id": APP_ID, "active": release,
                  "previous": history, "bundle_sha256": plan["bundle_sha256"],
+                 "bundles": bundles,
                  "source_revision_declared": manifest["source_revision_declared"],
                  "data_paths": {key: str(paths[key]) for key in ("config", "cache", "data")},
                  "rollback_policy": "switch only version pointer; preserve prior releases and ALL user data"}
@@ -514,7 +527,9 @@ def rollback(*, apply: bool = False, home: Path | None = None,
         state["previous"] = [plan["from"]] + state["previous"][1:]
         chosen = _verify_release(root, state["active"])
         state["source_revision_declared"] = chosen["source_revision_declared"]
-        state["bundle_sha256"] = state["active"].rsplit("-", 1)[-1]  # prefix only; see installed manifest
+        state["bundle_sha256"] = state.get("bundles", {}).get(state["active"])
+        if not isinstance(state["bundle_sha256"], str) or not SHA_RE.fullmatch(state["bundle_sha256"]):
+            raise PackagingError("Cannot identify rollback release's original full bundle digest")
         _atomic_json(root / "state.json", state)
         return {**plan, "dry_run": False, "status": "ROLLED BACK BY VERSION POINTER ONLY"}
     finally:
