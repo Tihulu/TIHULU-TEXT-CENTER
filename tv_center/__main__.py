@@ -34,7 +34,7 @@ def main():
         from .cuda_faster_whisper import FasterWhisperCUDA
         model_path=str(selected.get("model_path") or "")
         speech_inventory=[
-            row["name"] for row in ModelLibrary().installed()
+            row["name"] for row in ModelLibrary(selected.get("model_dir") or None).installed()
             if row["installed"]]
         cuda_available=FasterWhisperCUDA().installed()
         if cuda_available:
