@@ -143,7 +143,7 @@ class PackagingPreparationTests(unittest.TestCase):
                    "XDG_STATE_HOME": str(home / "xdg-state")}
             roots = linux_data_roots(home, xdg)
             self.assertEqual(len(roots), 7)
-            self.assertTrue(all("tihulu/rf-geolocation-center" in root
+            self.assertTrue(all("tihulu/rf-geolocation-center" in Path(root).as_posix()
                                 for root in roots.values()))
             self.assertEqual(roots["config"], str(home / "xdg-config/tihulu/rf-geolocation-center"))
             self.assertNotEqual(roots["data"], roots["cache"])
