@@ -327,23 +327,13 @@ class FMRSDSupervisor:
         if process is None or process.poll() is not None:
             return
         try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            return
-        except OSError:
             process.terminate()
-        try:
             process.wait(timeout=1.2)
-        except subprocess.TimeoutExpired:
+        except (OSError, subprocess.TimeoutExpired):
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            except OSError:
                 process.kill()
-            try:
                 process.wait(timeout=0.7)
-            except subprocess.TimeoutExpired:
+            except (OSError, subprocess.TimeoutExpired):
                 pass
 
     def _worker(self, hz: int, seconds: int, rds2_images: bool = False) -> None:
