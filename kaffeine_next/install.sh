@@ -259,24 +259,21 @@ if [[ -f "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" &
 fi
 
 TIHULU_KAFFEINE_PRIMARY=1 bash "$MEDIA_SOURCE_DIR/tv_center/packaging/build-deb.sh" "$temp/debs"
-# A separate Media package must never overwrite the existing TV/Text package.
-sudo apt-get install -y "$temp/debs/tihulu-media-center-ai_0.1.0~dev2_all.deb"
-# Switch only a proven Media-owned current symlink after version is installed.
-BASE_PREFIX="$HOME/.local/opt/tihulu-media-center"
-CURRENT_LINK="$BASE_PREFIX/current"
-mkdir -p "$BASE_PREFIX/releases"
+COMPANION="$temp/debs/tihulu-media-center-ai_0.1.0~dev2_all.deb"
+test -s "$COMPANION"
+# Fail before package/file activation if the optional user-selected
+# localhost welle.io backend cannot be built.
+if (( WITH_DAB == 1 )); then
+  bash "$APPROOT/install_welle.sh"
+fi
+# This SHA names only a new release prefix; prior versions stay intact.
 printf '%s\n' "$ACTUAL_MEDIA_SHA" > "$PREFIX/.tihulu-media-owned-release"
-if [[ -e "$CURRENT_LINK" && ! -L "$CURRENT_LINK" ]]; then
-  echo "Refusing a non-symlink Media current path." >&2; exit 1
-fi
-if [[ -L "$CURRENT_LINK" ]]; then
-  OLD_LINK="$(readlink -f "$CURRENT_LINK")"
-  case "$OLD_LINK" in "$BASE_PREFIX"/releases/*) ;; *) echo "Foreign current link; refusing." >&2; exit 1;; esac
-  test -f "$OLD_LINK/.tihulu-media-owned-release" ||
-    { echo "Existing Media release is not verified as owned." >&2; exit 1; }
-fi
-ln -s "$PREFIX" "$CURRENT_LINK.next.${BASHPID}"
-mv -T "$CURRENT_LINK.next.${BASHPID}" "$CURRENT_LINK"
+# Snapshot the previously installed Media release, per-file hashes and the
+# previous signed package BEFORE the first companion package replacement.
+python3 "$GUARD" snapshot --source "$MEDIA_SOURCE_DIR" \
+  --sha "$ACTUAL_MEDIA_SHA" >/dev/null
+TRANSACTION_STARTED=1
+sudo apt-get install -y "$COMPANION"
 
 cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
 #!/bin/sh
