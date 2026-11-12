@@ -845,16 +845,34 @@ listenWindow("resize",()=>{if(state.activeView==="earth")renderEarth()});
 async function disconnect(){
  serialEpoch++;
  state.reading=false;
+ const warnings=[];
+ const bounded=async(task,label)=>{
+  let timer;
+  try{
+   const completed=await Promise.race([
+    Promise.resolve().then(task).then(()=>true),
+    new Promise(resolve=>{timer=setTimeout(()=>resolve(false),1500)})
+   ]);
+   if(!completed)warnings.push(label+" did not finish within 1500 ms");
+  }catch(error){warnings.push(label+": "+String(error?.message||error))}
+  finally{clearTimeout(timer)}
+ };
  const reader=state.serialReader;state.serialReader=null;
- if(reader){try{await Promise.race([reader.cancel(),new Promise(done=>setTimeout(done,1500))])}catch{}}
-
- if(state.serialPort){
-   const port=state.serialPort;state.serialPort=null;
-   try{await Promise.race([port.close(),new Promise(done=>setTimeout(done,1500))])}catch{}
+ if(reader){
+  await bounded(()=>reader.cancel(),"Owned serial reader cancel");
+  try{reader.releaseLock()}catch(error){warnings.push("Serial reader lock: "+String(error?.message||error))}
  }
+ const port=state.serialPort;state.serialPort=null;
+ if(port)await bounded(()=>port.close(),"Owned serial port close");
  state.serialFix=null;state.serialAt=0;
- setText("serial-state","DISCONNECTED");setText("stage-device","UNAVAILABLE");
- if(!lifecycle.isQuit()){setText("rf-state","NO RF RECEIVER OPEN");renderPosition(true);renderDiagnostics();}
+ setText("serial-state",warnings.length?"STOP PARTIAL — "+warnings.join("; ").slice(0,160):"DISCONNECTED");
+ setText("stage-device","UNAVAILABLE");
+ if(!lifecycle.isQuit()){setText("rf-state","NO RF RECEIVER OPEN");renderPosition(true);renderDiagnostics()}
+ if(warnings.length){
+  const error=Error("Owned serial resources not fully released: "+warnings.join("; ").slice(0,240));
+  if(!lifecycle.isQuit())msg(error.message);
+  throw error;
+ }
 }
 $("serial-connect")?.addEventListener("click",async()=>{
  if(lifecycle.isQuit())return;
@@ -886,7 +904,7 @@ $("serial-connect")?.addEventListener("click",async()=>{
  }catch(e){msg("Serial receiver unavailable: "+e.message)}
  finally{if(epoch===serialEpoch)await disconnect()}
 });
-$("serial-disconnect")?.addEventListener("click",()=>{disconnect();msg("Own NMEA serial port released")});
+$("serial-disconnect")?.addEventListener("click",()=>{void disconnect().then(()=>msg("Own NMEA serial port released")).catch(e=>msg(e.message))});
 $("hard-stop")?.addEventListener("click",()=>{
  state.usbSelection=null;setText("usb-state","No USB device selected; no RF capture started");
  setText("stage-device","UNAVAILABLE");msg("HARD STOP: only this page's own serial reader was stopped; readsb/Gqrx not touched");
