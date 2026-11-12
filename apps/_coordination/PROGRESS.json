@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase3_three_reviewable_isolated_test_prs_created_software_results_pinned_no_merges",
+  "stage": "phase3_three_test_only_prs_software_ci_success_flight_known_xfail_17_gates_open",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Initial and detailed source audits documented; three test-only Draft PRs have been created. Text and Media synthetic CI pass; Flight cross-platform build still in progress at checkpoint while mocked unit steps passed. 17 wider feature/hardware/release gates remain open and future fix/migration effort unknown.",
+    "reason": "All three isolated test-only PRs have successful hosted software CI on their respective source branches; Flight has a strict known P0 external-service ownership XFAIL, Media real FFmpeg test remains skipped. No physical hardware, release or full feature equivalence certified; 17 gates open and migration effort unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -516,10 +516,16 @@
       "new_test_cases": 8,
       "known_strict_xfail": 1,
       "ci_cross_platform_run": 43133741667,
-      "ci_cross_platform_status_at_checkpoint": "in_progress; unit test steps passed Debian 12, Linux 24.04, Windows 2025, macOS Apple Silicon",
+      "ci_cross_platform_status_at_checkpoint": "completed SUCCESS; four jobs Debian 12 x64, Ubuntu 24.04 x64, Windows 2025 x64 and macOS 15 Apple Silicon successful",
       "ci_pi_run": 43133741622,
       "ci_pi_conclusion": "success",
-      "limit": "real external readsb stop risk remains and is XFAIL, no service calls or hardware acceptance"
+      "limit": "real external readsb stop risk remains and is XFAIL, no service calls or hardware acceptance",
+      "ci_cross_platform_conclusion": "success",
+      "inspected_ubuntu_job_id": 130903937110,
+      "inspected_ubuntu_test_passed": 79,
+      "inspected_ubuntu_test_xfailed": 1,
+      "xfail_is_an_open_p0_defect": true,
+      "unit_suite_hardware_verified": false
     },
     "evidence_requirements": {
       "all_changed_paths_only_new_tests": true,
