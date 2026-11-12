@@ -116,6 +116,15 @@ class ExitLifecycleTests(unittest.TestCase):
         self.assertEqual(bridge.calls, 1)
         self.assertEqual(bridge.timeout, 3.0)
 
+    def test_revoked_empty_token_cannot_authenticate_after_native_quit(self):
+        from rf_geolocation_center.native import LocalAppHandler, DVB
+        handler = object.__new__(LocalAppHandler)
+        handler.headers = {"Host": "127.0.0.1", "X-Tihulu-Bridge-Token": ""}
+        handler._bridge_origin = lambda: None
+        with patch.object(DVB, "token", ""):
+            with self.assertRaisesRegex(PermissionError, "Invalid"):
+                handler._authorize_bridge()
+
     def test_incomplete_shutdown_reports_partial_without_killing_other_processes(self):
         class ForeverWorker:
             def is_alive(self):
