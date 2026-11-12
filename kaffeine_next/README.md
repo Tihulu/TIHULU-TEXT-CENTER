@@ -6,42 +6,61 @@ upstream commit **e7ea15b86dafed3b20b151cbcb080578ab8e2d5c**.
 Source transformations are in patch_upstream.py and keep Kaffeine's GPL
 licensing and contributor notices.
 
-## One-line installation
+## Standalone Media development source — NO release or one-line deployment yet
 
-Debian/Ubuntu/Pop!_OS and 64-bit Raspberry Pi OS:
+**Draft PR #108, isolated source implementation only.** This is not a published
+Media Center release, and the empty destination repository has not been
+populated. The historical one-line installer that fetched
+`Tihulu/TIHULU-TEXT-CENTER` must **not** be used for standalone Media.
+
+The new native installer accepts a *complete, locally reviewed Media source
+checkout*, checks `TIHULU_MEDIA_SOURCE_SHA` against the actual full Git HEAD
+**before APT**, and keeps the native build under the separate versioned
+`~/.local/opt/tihulu-media-center/releases/<sha12>/` prefix. Its default is
+`--no-ai`, with model downloads only after explicit `--with-ai`.
+Existing unmarked legacy launchers are protected and the installer refuses to
+overwrite them; native Kaffeine's channel settings are imported only if the
+owner separately requests `TIHULU_MEDIA_IMPORT_STOCK_KAFFEINE=1`.
+No real installation or migration was performed for this Draft.
+
+After a separate owner approval, the disposable clean-VM acceptance command
+would be:
 
 ~~~bash
-curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/architecture/kaffeine-core-tv-2026-11-07/kaffeine_next/install.sh | bash
+# Only inside an approved disposable VM using a verified source checkout:
+export TIHULU_MEDIA_SOURCE_SHA="$(git rev-parse HEAD)"
+bash kaffeine_next/install.sh --no-ai
 ~~~
 
-Read the script first if preferred. It installs the KDE/Qt5 DVB build
-dependencies, clones verified upstream code, patches, compiles and installs
-the new application under HOME/.local/opt/tihulu-kaffeine. The normal
-installer also attempts to install user-owned Whisper Tiny (~78MB),
-whisper.cpp CPU and German/English/Turkish Argos translation packages.
-A failed model installation does NOT uninstall or disable TV. All downloads
-are initiated by the user's explicit installation action.
+A true hosted one-line Media installation and Windows/macOS native packages
+require a separate release, independent repository artifact and signoff.
+No other TIHULU application, running Text server or shared daemon is needed
+by the new Python Media package. Original Kaffeine and existing Media,
+Text, model and recording directories remain untouched by default.
 
-Start:
+Read-only legacy discovery and explicit path configuration (no automatic move):
 
 ~~~bash
-~/.local/bin/tihulu-kaffeine
+python3 -m tv_center media-paths --discover-legacy
+python3 -m tv_center media-paths --set-model-dir /absolute/model/folder
+python3 -m tv_center media-paths --set-cache-dir /absolute/cache/folder
+python3 -m tv_center media-paths --set-recording-dir /absolute/recordings
 ~~~
 
-A separate **TIHULU TV (Kaffeine)** desktop entry is installed. The original
-system Kaffeine executable and personal channel database are preserved.
-Both Kaffeine builds may share settings, so back up settings before
-experimenting; close the original Kaffeine before starting the fork.
+Native recording folder choices already saved in Kaffeine's
+`QSettings("TIHULU", "UnifiedRecordings")` take priority; optional
+`TIHULU_MEDIA_RECORDINGS` and `TIHULU_MEDIA_CACHE` affect new Qt
+recording/subtitle output defaults. Existing recordings are never moved.
 
 ## Kaffeine-style player and native antenna scan
 
 **There is now only one default television interface:** Kaffeine's original
 channel sidebar, live player, normal playback controls, EPG, channel editor,
-Teletext and recording UI. Opening either `tihulu-tv-center` or
+Teletext and recording UI. Opening either `tihulu-media-cli` or
 `tihulu-kaffeine` launches **Kaffeine's Television tab**. The separate
 Python player and w_scan_cpp scanner have been withdrawn from the default
 route; the old preview is available explicitly through
-`tihulu-tv-center legacy-player` for debugging only.
+`tihulu-media-cli legacy-player` for debugging only.
 
 To use the **actual native Kaffeine antenna scanner** on a device already
 known to receive the three DVB-T2 multiplexes:
@@ -70,7 +89,7 @@ scanfile.dvb is missing or stale. This does not use w_scan_cpp, dvbv5-scan,
 Python USB access or WebUSB, and does not touch saved channel databases.
 
 For separate receiver health diagnostics (which must **not** take the tuner
-away from Kaffeine), run `tihulu-tv-center kaffeine-doctor`. Lock and
+away from Kaffeine), run `tihulu-media-cli kaffeine-doctor`. Lock and
 C/N/UCB cannot be honestly measured while Kaffeine owns the tuner; use
 Kaffeine's own scanning UI metrics instead.
 
@@ -194,7 +213,7 @@ CUDA toolkit with `nvcc` >= 12.8 and separate user action; this requirement
 does not apply to the prebuilt Faster-Whisper wheel path.
 
 Restart captions after installation. Select **GPU** or **Auto**, turn on
-offline transcription, and inspect `tihulu-tv-center ai-check`. A successful
+offline transcription, and inspect `tihulu-media-cli ai-check`. A successful
 installation should report `selected_backend: gpu`,
 `backend_ready: true`, `known_gpu_engine: faster_whisper_managed`.
 These values describe *readiness*, not confirmed live inference accuracy
@@ -488,14 +507,14 @@ This version has independent end-to-end timing and transport telemetry.
 Use the read-only health command **without acquiring the DVB frontend**:
 
 ~~~bash
-tihulu-tv-center ai-check
+tihulu-media-cli ai-check
 ~~~
 
 This prints the RTX/GPU/NPU discovery, selected backend, installed model,
 CUDA-runtime readiness and translator backend separately. A detected
 RTX 5080 is *not* proof that Whisper inference runs on the GPU.
 
-For the settings UI, use `tihulu-tv-center ai-market`. Install a
+For the settings UI, use `tihulu-media-cli ai-market`. Install a
 multilingual GGML model and a compatible CUDA whisper.cpp runtime, choose
 **Auto** or **GPU** in the market, save the settings, and reopen Kaffeine's
 captions controller. If the output reports CPU, adjust the backend or
@@ -549,8 +568,8 @@ is a valid fallback but is **not** the GPU Turbo model.
 After installing and saving **Auto** or **GPU** backend:
 
 ```sh
-tihulu-tv-center ai-check
-tihulu-tv-center ai-check --deep
+tihulu-media-cli ai-check
+tihulu-media-cli ai-check --deep
 ```
 
 The first reports runtime status without model inference or RF. `--deep`
@@ -706,8 +725,8 @@ untouched. Supported examples include MP4, MKV, TS, MP3, WAV, FLAC,
 M4A and OGG. The offline CLI alternative is:
 
 ```sh
-tihulu-tv-center media-captions --input "$HOME/Videos/example.mp4" --source de --targets en,tr
-tihulu-tv-center media-captions --input "$HOME/Music/song.flac" --source en --targets tr --music
+tihulu-media-cli media-captions --input "$HOME/Videos/example.mp4" --source de --targets en,tr
+tihulu-media-cli media-captions --input "$HOME/Music/song.flac" --source en --targets tr --music
 ```
 
 **Timed lyrics**: A local same-basename `.lrc` is preferred. For
