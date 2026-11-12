@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase6_exit01_five_app_fix_handoffs_one_QA_owner_AITools_SurvivalKit_preserved",
+  "stage": "phase6_exit01_five_source_branches_three_draft_prs_ci_mixed_18_release_gates_pending",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Five independent EXIT-01 app implementation handoffs + one QA-only agent; separate existing AI Tools/Survival Kit work remains owner-managed, no duplicate branch/PR permitted. Original 17 gates + EXIT-01 open, no actual new EXIT-01 agent implementation/CI confirmed, no physical memory validation. No reliable ETA.",
+    "reason": "5/5 EXIT-01 implementation branches have new code; 3/5 separate Draft PRs open. A1 software CI green; A2 Flight Pi green and 4-OS underway; A3 runtimes green but known Pages parity 8-file mismatch red. A4/A5 source branches not yet Draft PRs. None merged or hardware-accepted. Original 17 gates plus EXIT-01 pending. No reliable date.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "FIVE_APP_IMPLEMENTATION_HANDOFFS_PLUS_ONE_QA_HANDOFF_PREPARED_USER_MANAGES_AI_TOOLS_SURVIVAL_KIT",
+    "status": "FIVE_EXIT01_SOURCE_BRANCHES_VISIBLE_THREE_DRAFT_PRS_TWO_BRANCH_ONLY_ONE_QA_SCOPE",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -900,7 +900,12 @@
         "new_branch": "fix/exit01-media-model-unload-2026-11-12",
         "handoff_issue": 76,
         "comment_id": 6813718607,
-        "status": "PROMPT_PENDING_USER_SEND"
+        "status": "NEW_STACKED_DRAFT_PR_CREATED_CI_GREEN",
+        "new_pr": 91,
+        "head_sha": "9186ba3330c0a051f6172d4065687d9e3e059faa",
+        "base_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+        "ci": "four workflows SUCCESS; mock only",
+        "changed_files": 3
       },
       {
         "id": "A2",
@@ -911,7 +916,12 @@
         "new_branch": "fix/exit01-flight-clean-exit-2026-11-12",
         "handoff_issue": 77,
         "comment_id": 6813719331,
-        "status": "PROMPT_PENDING_USER_SEND"
+        "status": "NEW_STACKED_DRAFT_PR_CREATED_CI_PARTIAL_PASS_RUNNING",
+        "new_pr": 16,
+        "head_sha": "7ae8b9b82b622b1d1e3f9914c89326af29da9784",
+        "base_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
+        "ci": "Pi ARM64 preview SUCCESS; main four-OS CI in progress, Ubuntu job success",
+        "changed_files": 6
       },
       {
         "id": "A3",
@@ -922,7 +932,12 @@
         "new_branch": "fix/exit01-satellite-lease-release-2026-11-12",
         "handoff_issue": 78,
         "comment_id": 6813720095,
-        "status": "PROMPT_PENDING_USER_SEND"
+        "status": "NEW_STACKED_DRAFT_PR_CREATED_CI_PAGES_PARITY_FAIL",
+        "new_pr": 92,
+        "head_sha": "597773f8aa41b11a9f4762907a46166726f2d1dd",
+        "base_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+        "ci": "Text tests, Debian native, portable runtimes Linux x64/ARM, Windows and macOS SUCCESS; 8 preexisting source-versus-gh-pages discrepancies make portable workflow FAIL",
+        "changed_files": 4
       },
       {
         "id": "A4",
@@ -933,7 +948,11 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "PROMPT_PENDING_USER_SEND"
+        "status": "NEW_SOURCE_BRANCH_WITH_CODE_NOT_YET_DRAFT_PR",
+        "new_pr": null,
+        "compared_ahead": 9,
+        "changed_files": 8,
+        "ci": "not verified"
       },
       {
         "id": "A5",
@@ -944,7 +963,11 @@
         "new_branch": "fix/exit01-text-asr-quit-2026-11-12",
         "handoff_issue": 80,
         "comment_id": 6813721489,
-        "status": "PROMPT_PENDING_USER_SEND"
+        "status": "NEW_SOURCE_BRANCH_WITH_CODE_NOT_YET_DRAFT_PR",
+        "new_pr": null,
+        "compared_ahead": 10,
+        "changed_files": 10,
+        "ci": "not verified"
       },
       {
         "id": "A6",
@@ -954,13 +977,14 @@
         "source_sha": null,
         "new_branch": null,
         "comment_id": null,
-        "status": "QA_HANDOFF_REASSIGNED_NOT_AUTOMATICALLY_STARTED",
+        "status": "QA_COORDINATOR_HANDOFF_NO_INDEPENDENT_NEW_ACCEPTANCE",
         "handoff_issue": 81,
-        "scope": "Read-only coordination; compare A1-A5 Draft PRs, 15 EXIT-01 acceptance matrix, no source edits to owner-managed AI Tools or Survival Kit, no new implementation branch"
+        "scope": "Read-only coordination; compare A1-A5 Draft PRs, 15 EXIT-01 acceptance matrix, no source edits to owner-managed AI Tools or Survival Kit, no new implementation branch",
+        "new_pr": null
       }
     ],
-    "new_draft_prs_created": 0,
-    "new_ci_executed": 0,
+    "new_draft_prs_created": 3,
+    "new_ci_executed": "A1 four workflows passed; A2 Pi passed and main CI in progress; A3 portable parity red with all tested runtimes green",
     "source_code_modified_by_coordinator": false,
     "preexisting_original_gates_open": 17,
     "additional_exit01_gate_open": true,
@@ -971,6 +995,16 @@
     "implementation_agents": 5,
     "qa_agents": 1,
     "no_AI_Tools_or_Survival_Kit_duplicate_development": true,
-    "no_new_source_PR_on_AI_Tools_or_Survival_Kit": true
+    "no_new_source_PR_on_AI_Tools_or_Survival_Kit": true,
+    "implementation_branches_confirmed": 5,
+    "implementation_draft_prs_confirmed": 3,
+    "verified_source_progress_as_of_date": "2026-11-12",
+    "hardware_release_accepted": false,
+    "remaining_critical_failures": [
+      "A3 Satellite eight Pages/source parity mismatches",
+      "A2 Flight four-OS CI not yet finished",
+      "A4 RFGeo / A5 Text new Draft PR and exact mocked CI not verified",
+      "Full owned RAM/VRAM/NPU/SDR release on installed devices not yet measured"
+    ]
   }
 }
