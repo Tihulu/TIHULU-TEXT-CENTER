@@ -762,12 +762,17 @@ async function startCapture(job=null,prepared=null) {
   try{await capturePromise;}
   finally{capturePromise=null;refreshControls();renderJobs();}
 }
-async function stopCapture() {
+async function stopCapture({cancelPending=true}={}) {
+  receiverGate.cancel();
+  schedulerCancellationEpoch+=1;
   stopRequested=true;
-  for(const job of jobs){
-    if(job.state==='armed'&&String(job.chainId||'').startsWith('manual:')){
-      job.state='cancelled';
-      job.message='Remaining manual RF chain cancelled by Stop & release.';
+  if(cancelPending){
+    for(const job of jobs){
+      if(['armed','starting'].includes(job.state)){
+        job.state='cancelled';
+        job.message='Stop & release cancelled this pending WebUSB capture; no late restart.';
+        releaseScheduledStream(job);
+      }
     }
   }
   // Closing our own USB handle helps interrupt a stuck readSamples() transfer.
@@ -833,8 +838,9 @@ $('start').addEventListener('click',()=>{
 });
 
 navigator.usb?.addEventListener('disconnect',e=>{
-  stopRequested=true;
-  if(device)log('USB disconnection detected; receiving session is stopping.');
+  if(e?.device!==ownedUsbSelection&&e?.device!==pendingUsbSelection)return;
+  log('Tab-owned RTL-SDR disconnected; cancelling its capture and pending jobs.');
+  void stopCapture();
 });
 for (const [city,coords] of Object.entries(LOCATIONS)) void coords;
 $('city').addEventListener('change',()=>{
@@ -1899,8 +1905,11 @@ async function scheduledTick(){
      job.message='At scheduled minute. Attempting to reopen previously permitted USB receiver (no new permission prompt).';
      log('Scheduled capture starting: '+job.name+' at '+new Date().toLocaleTimeString());
      renderJobs();
+     const tickEpoch=schedulerCancellationEpoch;
      try{
        if(!device)await connectDevice({silent:true});
+       if(tickEpoch!==schedulerCancellationEpoch||job.state==='cancelled')
+         throw Error('Scheduled WebUSB start cancelled before capture admission');
        if(!device)throw Error('WebUSB did not open the selected RTL-SDR.');
        if(document.hidden)throw Error('Browser became hidden; scheduled RF operation cancelled.');
        const remaining=Math.floor((job.until-Date.now())/1000);
@@ -1917,6 +1926,10 @@ async function scheduledTick(){
        preparedLongStreams.delete(job.id);
        await startCapture(job,prepared);
      }catch(e){
+       if(job.state==='cancelled'){
+         await closeDevice();
+         continue;
+       }
        job.state='blocked';job.message='Could not start real USB reception: '+e.message+
          '. Check readsb/Gqrx conflicts, OS drivers, RTL-SDR permission and page visibility.';
        status('scheduled-report',job.name+' — BLOCKED. '+e.message+
@@ -1940,9 +1953,16 @@ setInterval(()=>{
 // Closing a page destroys the WebUSB session; no service worker keeps hardware open.
 // Promise resolution is not guaranteed during pagehide, but browser ownership ends.
 window.addEventListener('pagehide',()=>{
+  receiverGate.close();
+  schedulerCancellationEpoch+=1;
   stopRequested=true;
+  for(const job of jobs){
+    if(['armed','starting'].includes(job.state)){
+      job.state='cancelled';job.message='Page closed; no background RF task.';
+    }
+  }
   if(wakeLock){void wakeLock.release().catch(()=>{});wakeLock=null;}
-  if(device)void device.close().catch(()=>{});
+  void closeDevice(); // best effort only; a crash cannot guarantee cleanup
   for(const [id,prepared] of preparedLongStreams){
     preparedLongStreams.delete(id);
     void abortLongCapture(prepared);
@@ -2048,7 +2068,7 @@ $('auto-stop').addEventListener('click',async()=>{
     }
   }
   const ownedAutoCapture=jobs.some(j=>j.missionId&&['starting','running'].includes(j.state));
-  if(ownedAutoCapture)await stopCapture();
+  if(ownedAutoCapture)await stopCapture({cancelPending:false});
   renderJobs();
   $('auto-plan-status').textContent='Cancelled '+cancelled+
     ' auto-armed pass(es). '+(ownedAutoCapture?'Stopped app-owned active auto capture. ':'')+
