@@ -10,7 +10,7 @@ import json
 import re
 import os
 from pathlib import Path
-from .paths import media_paths
+from .paths import media_paths, validate_storage_directory
 import shutil
 import tempfile
 import urllib.request
@@ -37,7 +37,8 @@ class ModelError(RuntimeError):
 
 class ModelLibrary:
     def __init__(self, root=None):
-        self.root = Path(root or media_paths().model_root()).expanduser()
+        self.root = validate_storage_directory(
+            Path(root or media_paths().model_root()).expanduser())
         # Explicit alternate folder can be selected for external SSDs.
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.root = self.root.resolve()
@@ -121,7 +122,29 @@ class ModelLibrary:
             staged.unlink(missing_ok=True)
             raise ModelError("SHA-256 mismatch: refusing unverified model")
         os.chmod(staged, 0o600)
-        os.replace(staged, self._path(key))
+        target = self._path(key)
+        # Hard-linking a verified staged inode is atomic no-overwrite. Neither
+        # symlinks nor an existing borrowed GGML file can be replaced.
+        try:
+            os.link(staged, target, follow_symlinks=False)
+        except FileExistsError as exc:
+            raise ModelError("Existing/borrowed model cannot be overwritten") from exc
+        finally:
+            staged.unlink(missing_ok=True)
+        identity = target.stat()
+        receipt = {
+            "owner": "tihulu-media-center", "filename": target.name,
+            "sha256": digest.hexdigest(), "dev": identity.st_dev,
+            "ino": identity.st_ino,
+        }
+        try:
+            with self._receipt(key).open("x", encoding="utf-8") as out:
+                os.chmod(self._receipt(key), 0o600)
+                json.dump(receipt, out, sort_keys=True)
+        except (OSError, ValueError) as exc:
+            # Fail closed. Model remains installed but not removable unless
+            # a proper ownership receipt is independently present.
+            raise ModelError("Model installed but ownership receipt failed; preserve file") from exc
 
     def download(self, key, progress=None):
         desc = self.catalog.get(key)
@@ -165,12 +188,64 @@ class ModelLibrary:
             if tmp:
                 tmp.unlink(missing_ok=True)
 
-    def remove(self, key):
+    def _receipt(self, key):
+        return self.root / (".tihulu-media-owned-" + self._path(key).name + ".json")
+
+    def remove(self, key, *, allow_external_delete=False):
+        import stat
         file = self._path(key)
-        if file.is_symlink():
-            raise ModelError("Refusing to follow model symlink")
-        if file.is_file():
+        owned_root = media_paths().data
+        # External SSD/user-selected directories can be read and used, but
+        # deletion is forbidden by default even if Media installed a copy.
+        if not file.is_relative_to(owned_root) and not allow_external_delete:
+            raise ModelError("Shared/external model root: deletion is not authorized")
+        validate_storage_directory(file.parent)
+        try:
+            identity = file.lstat()
+        except FileNotFoundError:
+            return str(file)
+        if not stat.S_ISREG(identity.st_mode):
+            raise ModelError("Only regular owned model files may be removed")
+        receipt_path = self._receipt(key)
+        if receipt_path.is_symlink() or not receipt_path.is_file():
+            raise ModelError("Borrowed/unmarked model: deletion is not authorized")
+        try:
+            if receipt_path.stat().st_size > 2048:
+                raise ValueError("Oversized ownership receipt")
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ModelError("Invalid model ownership receipt") from exc
+        if (receipt.get("owner") != "tihulu-media-center"
+            or receipt.get("filename") != file.name
+            or receipt.get("dev") != identity.st_dev
+            or receipt.get("ino") != identity.st_ino):
+            raise ModelError("Model provenance changed; refusing deletion")
+        digest = hashlib.sha256()
+        # Pin opened inode, preventing immediate inode reuse in a concurrent
+        # foreign delete/recreate operation; no symlink follow.
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(file, flags)
+        try:
+            opened = os.fstat(fd)
+            if (opened.st_dev, opened.st_ino) != (identity.st_dev, identity.st_ino):
+                raise ModelError("Model changed during ownership verification")
+            with os.fdopen(os.dup(fd), "rb") as stream:
+                for block in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(block)
+            current = file.lstat()
+            if (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino):
+                raise ModelError("Model changed during deletion; preserving")
+            if digest.hexdigest() != receipt.get("sha256"):
+                raise ModelError("Model hash differs from receipt; preserving")
             file.unlink()
+        finally:
+            os.close(fd)
+        # Preserve the receipt if cleanup fails; it cannot authorize a
+        # differently-created inode and can be reviewed manually.
+        try:
+            receipt_path.unlink()
+        except OSError:
+            pass
         return str(file)
 
     def capability(self):
