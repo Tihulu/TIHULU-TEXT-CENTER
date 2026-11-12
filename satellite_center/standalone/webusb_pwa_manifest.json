@@ -1,0 +1,91 @@
+{
+  "schema": "tihulu-stand-sat-webusb-manifest-v1",
+  "intent": "PINNED_STATIC_WEBUSB_PWA_PREVIEW_ONLY_NO_PAGES_DEPLOY",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "source_commit": "558dcb359b13eedafdc303fa9f321deab9d3ae94",
+  "provenance": {
+    "webusb_pr95": "f2be8f210ce10e0c1462cc2a3edaba854d424311",
+    "pwa_cache_pr101": "558dcb359b13eedafdc303fa9f321deab9d3ae94",
+    "pages_inventory_pr107": "9383c5fb208d345548df53a2b8ee05ffcee4cadf",
+    "published_gh_pages": "854b1109c04c5f8e9a22d1ee3bb999a16d9d4b7d"
+  },
+  "assets": {
+    "index_path": "satellite_center/browser/PAGES_ATOMIC_ASSET_MANIFEST_2026-11-12.json",
+    "index_git_blob_sha1": "1c596fadd60cd90e091362576eee3154d3c5eafd",
+    "static_asset_count": 50,
+    "strict_parity_count": 31,
+    "additional_source_assets": 19,
+    "service_worker": "satellite_center/browser/satellite-sw.js",
+    "cache_version": "satellite-webusb-shell-20261112-v2",
+    "path_prefix": "satellite_center/browser/",
+    "all_assets_required_for_publication": true,
+    "optional_cache_assets_must_be_present_in_publish_tree": true,
+    "copy_order_from_index": true
+  },
+  "entrypoints": {
+    "receiver_planner": "./index.html",
+    "satellite_images_data": "./reception.html",
+    "earth_sky": "./index.html#satellite-tracking-maps",
+    "signal_analysis": "./index.html#iq-analysis",
+    "auto_workflow": "three steps on both pages"
+  },
+  "runtime": {
+    "requires_secure_context": true,
+    "chromium_webusb_opt_in": true,
+    "other_browser_mode": "planner/file/map only; no real WebUSB",
+    "no_native_sdr_commands": true,
+    "no_external_tihulu_daemon": true,
+    "driver_cdn": "https://esm.sh/@jtarrio/webrtlsdr@3.0.7/rtlsdr.js?bundle",
+    "orbital_cdn": "https://esm.sh/satellite.js@6.0.1?bundle",
+    "external_links_optional": true,
+    "first_run_fully_offline_supported": false,
+    "pwa_worker_must_not_own_receiver": true,
+    "never_install_localhost_8791": true
+  },
+  "recording": {
+    "choices": [
+      "CU8",
+      "FM-demodulated WAV",
+      "BOTH"
+    ],
+    "mode": "foreground on-demand actual USB samples only",
+    "memory_raw_limit_bytes": 134217728,
+    "chunk_max_seconds": 60,
+    "at_2048000_sps_chunk_max_seconds": 32,
+    "planned_gap_seconds": 6,
+    "opt_in_stream_bytes_limit": 2000000000,
+    "opt_in_file_stream_seconds_limit": 900,
+    "real_decoder_success_guaranteed": false
+  },
+  "receiver": {
+    "only_page_owned_usb": true,
+    "browser_user_grant_required": true,
+    "note": "only-page-owned release is a design requirement; real USB not executed",
+    "stop_on_busy": "fail-closed; no external service stop, driver changes or hidden device grabs",
+    "late_connect_cancellation": "required from #95",
+    "pagehide_release": "best effort, not guaranteed after crash"
+  },
+  "platform_status": {
+    "chromium-linux-x64-arm64": "Source/browser CI green, real USB permission and kernel driver busy unverified",
+    "chromium-windows-x64": "Browser-only source works; WebUSB driver/WinUSB installation NOT managed",
+    "chromium-macos-apple-silicon": "Chromium WebUSB source works; browser and USB device verified only in synthetic tests",
+    "chromium-raspberry-pi": "No installed Pi WebUSB/ARM Chromium acceptance",
+    "firefox-safari": "Planner-only; no WebUSB"
+  },
+  "local_data": {
+    "browser_scope": "PWA storage is origin-scoped; never silently clear Storage",
+    "native_data_roots_are_separate": true,
+    "recordings": "File System Access user-selected files / browser downloads; never delete",
+    "tile_cache": "optional service worker fallback geography; OSM online",
+    "service_worker_cache_only": "satellite-webusb-shell-*"
+  },
+  "publication_gate": {
+    "strict_checker": "scripts/verify_satellite_pages_bundle.py",
+    "expected_baseline": "9 differing source/gh-pages assets, 8 required extras absent",
+    "must_leave_red_until_publication": true,
+    "parity_waiver": false,
+    "release_only_after_owner_authorization": true,
+    "post_publish": "31/31 shared byte identical plus all 19 extras verified",
+    "source_tree_composition": "separate from native #92; no executed combined integration"
+  }
+}
