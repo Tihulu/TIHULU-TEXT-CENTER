@@ -13,6 +13,7 @@ import base64
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import select
 import shutil
 import subprocess
@@ -22,7 +23,7 @@ import time
 
 MARKER = ".tihulu-free-speaker-owned"
 READY = ".tihulu-resemblyzer-selftested"
-DEFAULT_ROOT = Path.home() / ".local/share/tihulu-tv-center/speaker-resemblyzer"
+DEFAULT_ROOT = media_paths().data / "speaker-resemblyzer"
 MAX_AUDIO_BYTES = 4_000_000
 
 
