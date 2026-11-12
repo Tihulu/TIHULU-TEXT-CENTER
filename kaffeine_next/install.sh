@@ -273,7 +273,7 @@ printf '%s\n' "$ACTUAL_MEDIA_SHA" > "$PREFIX/.tihulu-media-owned-release"
 python3 "$GUARD" snapshot --source "$MEDIA_SOURCE_DIR" \
   --sha "$ACTUAL_MEDIA_SHA" >/dev/null
 TRANSACTION_STARTED=1
-sudo apt-get install -y "$COMPANION"
+sudo apt-get install -y --reinstall "$COMPANION"
 
 cat > "$temp/tihulu-kaffeine" <<'LAUNCH'
 #!/bin/sh
