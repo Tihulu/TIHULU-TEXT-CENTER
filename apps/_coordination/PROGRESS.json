@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase4_parallel_assignment_prepared_workers_not_yet_resumed",
+  "stage": "phase4_six_parallel_worker_assignments_posted_three_more_await_user_start",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Three independent Phase4 read-only handoffs are documented but worker conversations have not been autonomously launched; 17 broader gates remain open, zero hardware/release acceptance or migrations; duration unmeasured.",
+    "reason": "Six distinct Phase4 audit handoffs documented, first three reported started by owner and three added workers not yet user-triggered. No Stage4 evidence received; software CI remains synthetic; 17 wider gates OPEN, hardware/release/migration unaccepted; ETA unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -541,7 +541,7 @@
   },
   "phase4_parallel_review": {
     "as_of_date": "2026-11-12",
-    "state": "ASSIGNMENTS_PREPARED_NOT_AUTONOMOUSLY_RUNNING",
+    "state": "SIX_ASSIGNMENTS_POSTED_FIRST_THREE_OWNER_STARTED_LAST_THREE_REQUIRE_USER_MESSAGE",
     "planning_document": "apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
     "workstreams": [
       {
@@ -570,6 +570,30 @@
         ]
       },
       {
+        "ws": "03",
+        "issue": 78,
+        "audit_pr": 85,
+        "assignment_comment": 6811787512,
+        "allowed_writes": [
+          "apps/_coordination/workstreams/03/REPORT.md",
+          "apps/_coordination/workstreams/03/EVIDENCE.json"
+        ],
+        "focus": "Satellite 8-asset Pages parity, capture gaps, 1.024/2.048MSPS, zero-CADU and synthetic decode acceptance",
+        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE"
+      },
+      {
+        "ws": "04",
+        "issue": 79,
+        "audit_pr": 86,
+        "assignment_comment": 6811788094,
+        "allowed_writes": [
+          "apps/_coordination/workstreams/04/REPORT.md",
+          "apps/_coordination/workstreams/04/EVIDENCE.json"
+        ],
+        "focus": "Scientific RF receiver location claims, 3/4 independent ICAOs, timestamps, provenance, hard-stop with external readsb",
+        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE"
+      },
+      {
         "ws": "05",
         "issue": 80,
         "audit_pr": 87,
@@ -580,13 +604,33 @@
           "apps/_coordination/workstreams/05/REPORT.md",
           "apps/_coordination/workstreams/05/EVIDENCE.json"
         ]
+      },
+      {
+        "ws": "06",
+        "issue": 81,
+        "audit_pr": 88,
+        "assignment_comment": 6811788707,
+        "allowed_writes": [
+          "apps/_coordination/workstreams/06/REPORT.md",
+          "apps/_coordination/workstreams/06/EVIDENCE.json"
+        ],
+        "focus": "Original #65-67 and #72-74 history, branding hashes, locale and URL/Pages/installer rollback release gates",
+        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE"
       }
     ],
-    "workers_expected": 3,
+    "workers_expected": 6,
     "workers_with_new_phase4_evidence": 0,
     "coordinator_responsibility": "validate SHAs, exact changed paths, test/acceptance distinctions and sync Issue #75",
     "permissions": "read-only/source-backed worker audit updates in assigned audit documents only; previously authorized isolated test-only PRs remain separate; no runtime source changes, hardware, workflow modifications, merges, migrations or releases.",
     "existing_seventeen_gates_open": 17,
-    "no_automatic_chat_execution": true
+    "no_automatic_chat_execution": true,
+    "owner_reported_first_three_started": [
+      "01",
+      "02",
+      "05"
+    ],
+    "owner_reported_first_three_started_note": "Owner reports separate WS01, WS02, WS05 chats started; do not equate with confirmed new GitHub commits.",
+    "additional_three_assignments_posted": true,
+    "additional_three_worker_chats_started": false
   }
 }
