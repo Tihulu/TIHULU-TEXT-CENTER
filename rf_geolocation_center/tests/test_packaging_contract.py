@@ -235,22 +235,29 @@ class PackagingPreparationTests(unittest.TestCase):
         self.assertIn("rf_geolocation_center/native.py", bad)
         with self.assertRaises(PackageError):
             verify_bytes(b"not a tarball")
-        payload_with_escape = _tar_bytes({"../flight-radar/saved.json": b"unsafe"})
         with self.assertRaises(PackageError):
-            verify_bytes(payload_with_escape)
+            _tar_bytes({"../flight-radar/saved.json": b"unsafe"})
         with tarfile.open(fileobj=io.BytesIO(self.payload), mode="r:gz") as tar:
             existing = {m.name: tar.extractfile(m).read() for m in tar.getmembers()}
         existing["rf_geolocation_center/native.py"] += b"\n# tampered"
         with self.assertRaisesRegex(PackageError, "checksum"):
             verify_bytes(_tar_bytes(existing))
-        # Even a manifest whose checksums are recomputed must retain closure.
-        existing = {m.name: tar_data for m, tar_data in existing.items()
-                    if m != "rf_geolocation_center/web/maps.mjs"}
-        for name, value in existing.items():
-            if name != "package-manifest.json":
-                bad_entry = self.manifest["owned_files"].get(name)
-                if bad_entry:
-                    self.assertIsInstance(value, bytes)
+        # Rehashing a package with a missing browser module cannot trick the
+        # verifier: it independently reconstructs native.ASSETS closure.
+        missing_asset = {name: data for name, data in existing.items()
+                         if name != "rf_geolocation_center/web/maps.mjs"}
+        forged_manifest = json.loads(missing_asset["package-manifest.json"])
+        forged_manifest["owned_files"] = {
+            name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+            for name, data in sorted(missing_asset.items())
+            if name != "package-manifest.json"
+        }
+        missing_asset["package-manifest.json"] = (
+            json.dumps(forged_manifest, sort_keys=True, separators=(",", ":"),
+                       ensure_ascii=True) + "\\n"
+        ).encode("utf-8")
+        with self.assertRaisesRegex(PackageError, "asset closure"):
+            verify_bytes(_tar_bytes(missing_asset))
 
     def test_package_does_not_grant_receiver_rights_or_stop_foreign_services(self):
         for consent, owner, lease, expected in (
