@@ -74,7 +74,8 @@ class LocalFullFileAndFullscreenTests(unittest.TestCase):
             self.assertNotIn(forbidden,prepass)
         self.assertIn('cancelledForFileChange_=true;',PANEL)
         self.assertIn('if(cancelledForFileChange_)',PANEL)
-        self.assertIn('QStandardPaths::AppLocalDataLocation',PANEL)
+        self.assertIn('QStandardPaths::CacheLocation',PANEL)
+        self.assertIn('TIHULU_MEDIA_CACHE',PANEL)
         self.assertIn('QLatin1String("--output"),srtPath_',PANEL)
         self.assertNotIn('QLatin1String("--overwrite")',PANEL)
 
