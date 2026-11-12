@@ -317,6 +317,7 @@ class Station:
         self.owned_processes = set()  # Only processes launched by Satellite Center.
         self.decoder_active = False
         self.decoder_worker = None
+        self.postprocess_active = False
         self.quit_result = None
         self.active_worker = None
         self.manual_owner = None
@@ -1592,7 +1593,8 @@ class Station:
             scheduler.join(timeout=max(0.0, deadline-time.monotonic()))
         while time.monotonic() < deadline:
             with self.lock:
-                if self.active_worker is None and self.decoder_worker is None:
+                if (self.active_worker is None and self.decoder_worker is None
+                        and not self.postprocess_active):
                     break
             time.sleep(0.05)
         # A worker may have just published another child before seeing STOPPING.
@@ -1606,11 +1608,13 @@ class Station:
             scheduler_alive = bool(self.scheduler_thread and self.scheduler_thread.is_alive()
                                    and self.scheduler_thread is not threading.current_thread())
             decoder_alive = self.decoder_worker is not None
+            postprocess_alive = self.postprocess_active
             if not worker_alive and not self.launching and not self.owned_processes:
                 self._release()
             remaining = len(self.owned_processes)
             released = (remaining == 0 and not worker_alive and not scheduler_alive
-                        and not decoder_alive and not self.launching
+                        and not decoder_alive and not postprocess_alive
+                        and not self.launching and not self.session.get("active")
                         and self.device_lock is None and not self.decoder_active)
             self.quit_result = {
                 "state": "stopped" if released else "stop_failed_partial",
@@ -1619,6 +1623,7 @@ class Station:
                 "owned_scheduler_alive": scheduler_alive,
                 "decoder_active": self.decoder_active,
                 "owned_decoder_worker_alive": decoder_alive,
+                "owned_postprocess_worker_alive": postprocess_alive,
                 "lease_held": self.device_lock is not None,
                 "stop_requested": stopped["requested"],
                 "saved_recordings_preserved": True,
@@ -1638,8 +1643,10 @@ class Station:
             raise ValueError("Dual CU8 + FM WAV requires a catalogued ISS audio profile")
         iq=self.capture(profile,"iq",seconds,scheduled=scheduled,owner=owner,
                         satellite=satellite,sample_rate=sample_rate)
-        if self.closed.is_set():
-            raise RuntimeError("Application Quit; original IQ preserved, WAV conversion cancelled")
+        with self.lock:
+            if self.closed.is_set():
+                raise RuntimeError("Application Quit; original IQ preserved, WAV conversion cancelled")
+            self.postprocess_active = True
         from .native_signal_tools import fm_to_wav
         try:
             report=fm_to_wav(
@@ -1653,6 +1660,9 @@ class Station:
             iq["wav_error"]=str(exc)[:240]
             iq["mode"]="iq_and_fm_wav_partial"
             iq["note"]="Real CU8 preserved; derived FM WAV failed"
+        finally:
+            with self.lock:
+                self.postprocess_active = False
         return iq
 
     def capture(self, profile, mode="survey", seconds=18, scheduled=False, owner=None,
