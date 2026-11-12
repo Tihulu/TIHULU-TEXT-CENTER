@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import shutil
 import subprocess
 import sys
@@ -62,7 +63,7 @@ class TranslationModelMarket:
             from .ai_settings import AISettings
             selected = AISettings().values.get("model_dir", "")
             root = (Path(selected) / "translator-models" if selected else
-                    Path.home()/".local/share/tihulu-tv-center/translator-models")
+                    media_paths().data/"translator-models")
         self.root=Path(root).expanduser()
         self.model=self.root/"nllb-600m"
         self.marker=self.model/".tihulu-nllb-ready"
