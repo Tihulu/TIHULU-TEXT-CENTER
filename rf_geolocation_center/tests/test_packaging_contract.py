@@ -254,7 +254,7 @@ class PackagingPreparationTests(unittest.TestCase):
         }
         missing_asset["package-manifest.json"] = (
             json.dumps(forged_manifest, sort_keys=True, separators=(",", ":"),
-                       ensure_ascii=True) + "\\n"
+                       ensure_ascii=True) + "\n"
         ).encode("utf-8")
         with self.assertRaisesRegex(PackageError, "asset closure"):
             verify_bytes(_tar_bytes(missing_asset))
