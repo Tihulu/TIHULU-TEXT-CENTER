@@ -1,0 +1,79 @@
+:root{color-scheme:dark;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;background:#0a1019;color:#e5edf7}
+*{box-sizing:border-box}body{margin:0}.shell{max-width:1450px;margin:auto;padding:28px}
+header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #293648;padding-bottom:25px;margin-bottom:23px}
+.eyebrow{color:#68bace;letter-spacing:.16em;font-weight:700;font-size:11px}
+h1{font-size:30px;margin:7px 0 0}h1 span{color:#738ca6;font-weight:400;font-size:20px}
+h2{font-size:20px;margin:8px 0 14px}.state{border:1px solid #42566b;border-radius:16px;padding:8px 15px;font-size:11px;letter-spacing:.13em}
+main{display:grid;grid-template-columns:minmax(0,2fr) minmax(320px,1fr);gap:20px}.hero,.panel{background:#141f2c;border:1px solid #293b51;border-radius:13px;padding:23px}
+.hero h2{font-size:28px}.video{min-height:270px;background:radial-gradient(ellipse at center,#1c3548,#050a10);border:1px solid #34506a;display:grid;place-items:center;color:#a6bbd0;padding:22px;text-align:center;line-height:1.6;border-radius:9px;margin:22px 0}
+.captions{background:#070e18;border-radius:9px;padding:22px;min-height:160px}.captions p{font-size:18px;line-height:1.6}.captions .translated{font-size:23px;color:#a6e4c0}
+p{line-height:1.55;color:#adbbcb}small{color:#8fa4b5}aside{display:flex;flex-direction:column;gap:16px}
+.panel h2{margin-top:0}.actions{display:flex;gap:8px;margin-top:12px}input,button{background:#0a1522;border:1px solid #49637b;border-radius:6px;padding:11px;color:#f1f8ff}
+input{width:100%;font:inherit}button{background:#245f76;cursor:pointer;white-space:nowrap}button:hover{background:#3684a0}button:disabled{opacity:.45;cursor:not-allowed}
+button.secondary{background:#293c4b}.shortcuts{display:flex;gap:6px;margin-top:9px}.shortcuts button{background:#243b4a}
+label{font-size:13px;color:#9db1c6}#page{max-width:140px}.panel a{color:#7ecfe1}
+footer{margin-top:28px;font-size:11px;color:#8099b1;letter-spacing:.13em}
+@media(max-width:850px){.shell{padding:14px}main{grid-template-columns:1fr}.video{min-height:200px}h1{font-size:24px}h1 span{display:block}.hero h2{font-size:23px}}
+
+#usb-status,#compute-status{border-left:2px solid #4f9cbc;padding-left:10px;line-height:1.5}small{display:block;line-height:1.5}
+
+#browser-ai-panel select{width:100%;background:#0a1522;border:1px solid #49637b;border-radius:6px;padding:11px;color:#fff;margin:6px 0 13px}#browser-ai-panel label{display:block;margin:12px 0 3px}#browser-ai-panel .checkboxline{display:flex;align-items:center;gap:8px}#browser-ai-panel input[type=checkbox]{width:auto}#browser-ai-panel .actions{flex-wrap:wrap}#browser-ai-status{border-left:2px solid #62c0a6;padding:8px 10px}#browser-ai-panel .muted{font-size:12px}#browser-ai-panel .captions{margin:16px 0}
+
+#web-control-root{display:grid;gap:16px}#web-control-root select{background:#0b1827;border:1px solid #415b72;border-radius:6px;color:#eff6fb;padding:9px;margin:7px 0;max-width:100%}#web-control-root label{display:block;margin:11px 0 2px}#web-control-root .actions{flex-wrap:wrap}.web-channel-list{max-height:330px;overflow:auto}.web-channel-item{display:grid;gap:5px;border-top:1px solid #304357;padding:10px 0}.web-channel-item button{padding:5px 7px;font-size:12px}.web-channel-log{max-height:180px;overflow:auto;font-family:monospace;font-size:12px;line-height:1.5;overflow-wrap:anywhere;color:#93afbd}#web-channel-msg{font-size:12px;color:#8bd1c0}
+
+#webusb-dvb .actions{flex-wrap:wrap}#webusb-dvb details{border:1px solid #31495a;border-radius:7px;padding:12px;margin:15px 0}#webusb-dvb summary{cursor:pointer;color:#85c2cf}#webusb-dvb pre{font-size:11px;max-height:300px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#b3d1d9}#webusb-ts-import{font-size:12px;margin-top:8px}#webusb-dvb strong{color:#d7f2fd}
+
+/* Unified native DVB scan policy: do not show irrelevant satellite/country fields. */
+.web-scan-field[hidden]{display:none!important}
+#web-scan-panel .actions{flex-wrap:wrap}
+#web-scan-panel .web-mini-subtitle{display:inline;font-size:12px;font-weight:500;color:#8b9fb3}
+#web-scan-panel .web-scan-field{margin:16px 0 8px}
+#web-scan-panel .web-scan-field label{display:block;font-weight:600;margin:0 0 6px}
+#web-scan-panel .web-scan-field select{width:100%;max-width:360px}
+#web-scan-panel .web-scan-field small{display:block;margin-top:6px}
+#web-scan-panel .web-scan-backend{border-left:2px solid #607c90;padding-left:11px;color:#b4c7d8;font-size:13px}
+#web-scan-panel[data-connected="false"] #web-scan-backend{border-color:#8192a2}
+#web-scan-state,#web-signal{font-size:13px;line-height:1.5}
+#web-scan-limitation{display:block;margin-top:12px}
+#web-control-root .actions button:disabled{opacity:.40}
+
+/* Tokenless local TV navigation; never conceal that Pages is a static app. */
+.link-button{display:inline-flex;align-items:center;justify-content:center;
+  background:#246985;border:1px solid #398eac;border-radius:6px;
+  padding:11px 16px;color:#ecf9ff!important;text-decoration:none;
+  font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}
+.link-button:hover{background:#328eae}
+#local-tv-panel .actions{align-items:center;flex-wrap:wrap}
+#video-box{display:flex;flex-direction:column;gap:9px}
+#video-box video{border-radius:7px}
+#local-tv-panel code{overflow-wrap:anywhere}
+@media(max-width:480px){.link-button{width:100%}}
+
+/* Public Pages: actionable local receiver entry point before driver diagnostics. */
+#local-tv-panel{border-color:#497e91;background:linear-gradient(145deg,#173145,#132330)}
+#web-pages-tv-launch{border-color:#497e91}
+#web-pages-tv-launch .link-button{margin:8px 0 12px}
+#web-pages-tv-launch code{overflow-wrap:anywhere}
+
+#browser-driver-center,#wasm-ts-panel{border-color:#36556b}
+#browser-driver-center .web-research-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+#browser-driver-center label,#wasm-ts-panel label{display:block;margin:10px 0 5px;font-size:13px}
+#browser-driver-center select,#browser-driver-center input{width:100%;background:#071522;border:1px solid #405a6e;color:#e9f4ff;border-radius:5px;padding:10px}
+#browser-driver-center details{padding:9px;background:#091522;margin-top:15px;border-radius:8px;border:1px solid #344d61}
+#browser-driver-center pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font-size:11px;color:#9fdac8}
+#wasm-ts-panel video[hidden]{display:none!important}
+
+/* Hardware permission problems need a visible, narrow and actionable fix. */
+#webusb-access-help[hidden],#webusb-help-udev-block[hidden],
+#webusb-help-claim-block[hidden]{display:none!important}
+#webusb-access-help{margin:14px 0;padding:12px;border:1px solid #a27b3e;
+ border-radius:8px;background:#1b2028;color:#e8eef4;overflow:hidden}
+#webusb-access-help summary{cursor:pointer;font-weight:700;color:#f5d096}
+#webusb-access-help h3{font-size:16px;margin:10px 0 6px}
+#webusb-access-help p{line-height:1.5;margin:9px 0}
+#webusb-access-help strong{display:block;margin-top:10px;color:#e8edf4}
+#webusb-help-udev{white-space:pre-wrap;overflow-wrap:anywhere;
+ max-height:210px;overflow:auto;padding:10px;border:1px solid #3d5064;
+ background:#0c1622;border-radius:6px;color:#bad7e5;font-size:11px}
+#webusb-access-help code{color:#b7e3ea;overflow-wrap:anywhere}
+#webusb-copy-udev{white-space:normal;max-width:100%}
