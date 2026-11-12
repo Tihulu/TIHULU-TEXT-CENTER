@@ -1,0 +1,93 @@
+{
+  "schema": "tihulu-stand-sat-rollback-policy-v1",
+  "state": "REVIEW_ONLY_NOT_INSTALLED_OR_EXECUTABLE",
+  "source_pins": {
+    "native_exit01": "4e35bf27abba8a4eee7ac27f9c099ea51ede711c",
+    "webusb_pwa": "558dcb359b13eedafdc303fa9f321deab9d3ae94",
+    "pages_manifest": "9383c5fb208d345548df53a2b8ee05ffcee4cadf"
+  },
+  "policy": {
+    "before_any_future_install": [
+      "Record exact old package source SHA + Git blob SHA-1 of every existing app-owned installed file",
+      "Create SHA-256 preflight inventory of every existing Satellite recording/settings/TLE/cached tile and foreign app fixture WITHOUT moving/deleting",
+      "Obtain explicit owner authorization for a later installer/uninstaller",
+      "Keep old package artifact for rollback under independently audited non-user-data path"
+    ],
+    "future_rollback_method": "Restore only the prior manifest-owned Satellite code/UI/shortcut files by exact hash, in a single reviewed package operation. Never delete user profiles or foreign app files. This JSON does not perform rollback.",
+    "allowed_when_reviewed": [
+      "atomic installed package replacement of owned app binaries only",
+      "restore original Satellite-owned launcher names ONLY if exact ownership evidence is present"
+    ],
+    "forbidden": [
+      "remove or overwrite IQ/CU8/WAV/PNG/JPEG recordings",
+      "delete TLE/schedules/hardware.json or protocol profiles",
+      "delete custom/external SSD recording roots",
+      "modify Text Center shared SDR cooperative lock path",
+      "stop readsb/tar1090, Gqrx, welle.io or external SDR programs",
+      "unregister another app's service workers",
+      "delete arbitrary matching .desktop shortcuts",
+      "use rm -rf user directory, broad app wildcard, sudo/service or driver changes"
+    ],
+    "retention": "Existing Satellite data and third-party files preserved byte-for-byte; uninstall must not delete saved captures unless separately opted into by owner"
+  },
+  "owned_app_code_roots": {
+    "linux_debian": [
+      "/usr/share/tihulu-satellite-center",
+      "/usr/bin/tihulu-satellite-center",
+      "/usr/share/applications/tihulu-satellite-center.desktop",
+      "/usr/share/icons/hicolor/*/apps/tihulu-satellite.*"
+    ],
+    "linux_user": [
+      "~/.local/share/tihulu-satellite-center-app",
+      "~/.local/bin/tihulu-satellite",
+      "~/.local/bin/tihulu-satellite-web"
+    ],
+    "windows_user": [
+      "%LOCALAPPDATA%\\Tihulu\\SatelliteCenterApp"
+    ],
+    "macos_user": [
+      "~/Applications/TIHULU Satellite Center.command",
+      "~/.local/share/tihulu-satellite-center-app"
+    ]
+  },
+  "protected_data_roots": {
+    "linux": [
+      "~/.local/share/tihulu-satellite-center",
+      "~/.cache/tihulu-satellite-center",
+      "~/.local/share/tihulu-text-center/.receiver-locks"
+    ],
+    "windows": [
+      "%LOCALAPPDATA%\\Tihulu\\SatelliteCenter"
+    ],
+    "macos": [
+      "~/Library/Application Support/TihuluSatelliteCenter",
+      "~/.cache/tihulu-satellite-center"
+    ]
+  },
+  "pages": {
+    "current_published_sha": "854b1109c04c5f8e9a22d1ee3bb999a16d9d4b7d",
+    "rollback_reference": "satellite_center/browser/PAGES_ATOMIC_PUBLICATION_GATE_2026-11-12.md",
+    "notes": "PWA cache worker cleanup is scoped to satellite-webusb-shell-* and must never clear origin-wide data; no gh-pages change authorized"
+  },
+  "source_files_provenance": {
+    "native": "satellite_center/standalone/native_desktop_manifest.json",
+    "webusb": "satellite_center/standalone/webusb_pwa_manifest.json",
+    "verified_artifact_sha256": "NOT_MEASURED; future staging requirement"
+  },
+  "dry_run": {
+    "writes_to_os": false,
+    "hardware_access": false,
+    "network_access": false,
+    "real_uninstall": false,
+    "report_only": true
+  },
+  "pending_acceptance": [
+    "Native #92+Web #101 combined source test",
+    "Windows/macOS/Pi installed packaging",
+    "Real receiver busy/owned-lease device control",
+    "REG-06 decoder-rate repair and test",
+    "All 12 STAND installed signoffs",
+    "50 asset Pages staging/parity without bypass",
+    "Owner-reviewed rollback/sha256 artifacts"
+  ]
+}
