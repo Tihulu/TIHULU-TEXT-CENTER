@@ -156,6 +156,7 @@ class FMSurveySupervisor:
         self.max_seconds = max_seconds
         self._mutex = Lock()
         self._stop = Event()
+        self._closed = False
         self._thread: Thread | None = None
         self._process: subprocess.Popen | None = None
         self._lock_fd: int | None = None
@@ -211,6 +212,8 @@ class FMSurveySupervisor:
     def start(self, band: str = "fm") -> dict:
         profile=survey_band(band)
         with self._mutex:
+            if self._closed:
+                raise SurveyError("RF survey has quit")
             if self._state["active"]:
                 raise SurveyError("A spectrum survey is already running")
             avail=self.availability(band)
@@ -259,7 +262,16 @@ class FMSurveySupervisor:
             snapshot=self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=4)
-        return snapshot
+        with self._mutex:
+            if wait and thread and thread.is_alive():
+                self._state.update(status="stop_failed_partial",
+                    error="Spectrum survey worker did not stop in time")
+            return self._snapshot()
+
+    def quit(self):
+        with self._mutex:
+            self._closed=True
+        return self.stop(wait=True)
 
     @staticmethod
     def _terminate(process: subprocess.Popen | None) -> None:
@@ -283,6 +295,9 @@ class FMSurveySupervisor:
         error=None
         data={}
         try:
+            if self._stop.is_set():
+                status="cancelled"
+                return
             binary=self.lookup("rtl_power")
             if not binary:
                 raise SurveyError("rtl_power no longer installed")
