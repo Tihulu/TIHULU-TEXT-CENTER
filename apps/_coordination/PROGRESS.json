@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "exit01_five_draft_PRS_webusb_PR95_active_CI_red_geo_usb_red_sat_pages_red_0_of_15_hardware",
+  "stage": "latest_recheck_finished_agent_1_2_5_source_CI_green_agent3_web95_browser_green_agent4_single_JS_fail_agent6_QA_first_pass_done",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "All 5 native EXIT01 Draft PRs plus browser WebUSB Draft #95 are open, Media/Text CI green, Flight Pi green 4-OS rerun in progress, Geo one USB read-drain test red, Satellite existing Pages 8-file parity red, WebUSB latest source work under active test-fix (first CI red). Original 17 broader gates + EXIT01 and WEB 15 cases remain open; no hardware acceptance or release ETA.",
+    "reason": "Only stage progress: A1/A2/A5 source & CI complete, A3 native source done while satellite published Pages parity still red and WebUSB PR95 browser/Text CI green other 2 CI runs outstanding, A4 one inflight USB teardown JS regression still red, A6 first read-only QA report done, new evidence review needed. 0/15 installed EXIT01 accepted, original 17 gates OPEN, no merges/deployments. No reliable ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "FIVE_NATIVE_EXIT01_DRAFT_PRS_PLUS_SAT_WEBUSB_95_DRAFT_ACTIVE",
+    "status": "A1_A2_A5_SOURCE_CI_DONE_A3_NATIVE_DONE_WEB95_ACTIVE_A4_ONE_TEST_RED_A6_FIRST_QA_DONE",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -900,11 +900,11 @@
         "new_branch": "fix/exit01-media-model-unload-2026-11-12",
         "handoff_issue": 76,
         "comment_id": 6813718607,
-        "status": "DRAFT_PR_OPEN_ALL_MEDIA_SOURCE_CI_GREEN",
+        "status": "EXIT01_SOURCE_AND_FOUR_CI_WORKFLOWS_COMPLETE_UNMERGED_NATIVE_ACCEPTANCE_OPEN",
         "new_pr": 91,
         "head_sha": "acf3513d3d25c75d6e4e9bfa1b9aff7668349755",
         "base_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
-        "ci": "Four current-head Media CI runs PASS (Text, Native TV, Kaffeine, DVB/Radio), synthetic only",
+        "ci": "Four Media source CI workflows completed SUCCESS; new export P67-GAP-07 task not yet verified as separate PR",
         "changed_files": 3
       },
       {
@@ -916,11 +916,11 @@
         "new_branch": "fix/exit01-flight-clean-exit-2026-11-12",
         "handoff_issue": 77,
         "comment_id": 6813719331,
-        "status": "FOUR_OS_CI_IN_PROGRESS_PI_PASS",
+        "status": "EXIT01_SOURCE_AND_FULL_CROSS_OS_PI_CI_COMPLETE_UNMERGED_NATIVE_ACCEPTANCE_OPEN",
         "new_pr": 16,
         "head_sha": "e9dfeb45b4d847e4147ddf157e6d531a0008ac50",
         "base_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
-        "ci": "Pi ARM64 43156191082 PASS; four-OS 43156191008 IN PROGRESS as of current checkpoint",
+        "ci": "Current head Pi ARM64 run 43156191082 SUCCESS, four-OS run 43156191008 SUCCESS",
         "changed_files": 6
       },
       {
@@ -932,11 +932,11 @@
         "new_branch": "fix/exit01-satellite-lease-release-2026-11-12",
         "handoff_issue": 78,
         "comment_id": 6813720095,
-        "status": "EXIT01_DRAFT_PR_OPEN_PLATFORM_RUNTIME_GREEN_PAGES_PARITY_RED",
+        "status": "EXIT01_NATIVE_SOURCE_COMPLETE_PORTABLE_PAGES_PARITY_RED_UNMERGED",
         "new_pr": 92,
         "head_sha": "4e35bf27abba8a4eee7ac27f9c099ea51ede711c",
         "base_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
-        "ci": "Text CI 43154486572 SUCCESS; Debian native 43154486664 SUCCESS; portable runtimes all PASS but Pages/source parity 43154486520 FAIL",
+        "ci": "Native Debian and Text tests SUCCESS; portable runtimes SUCCESS, eight-file Pages/source parity FAIL",
         "changed_files": 4,
         "source_feature_acceptance": "NOT_ACCEPTED_NO_REAL_DEVICES"
       },
@@ -949,11 +949,11 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "CI_BLOCKED_ONE_OF_83_JS_TESTS_USB_INFLIGHT_TIMEOUT",
+        "status": "SOURCE_READY_CURRENT_HEAD_ONE_INFLIGHT_USB_RELEASE_TEST_FAILURE",
         "new_pr": 94,
         "compared_ahead": 9,
         "changed_files": 13,
-        "ci": "latest RFGeolocation 43154606229 FAIL: 82/83 pass; uncooperative in-flight RF read did not drain within 2500 ms. Cross-platform launcher jobs PASS",
+        "ci": "RFGeo 43154606229 FAIL 1 of 83 JS: in-flight sample not drained within 2500 ms; Text workflow green",
         "source_branch_ahead_at_checkpoint": 20,
         "specific_test_files": [
           "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
@@ -978,12 +978,12 @@
         "new_branch": "fix/exit01-text-asr-quit-2026-11-12",
         "handoff_issue": 80,
         "comment_id": 6813721489,
-        "status": "DRAFT_PR_OPEN_PYTHON_CI_GREEN",
+        "status": "EXIT01_SOURCE_AND_TEXT_PYTHON_MATRIX_COMPLETE_UNMERGED_NATIVE_ACCEPTANCE_OPEN",
         "new_pr": 93,
         "compared_ahead": 10,
         "changed_files": 11,
-        "ci": "Text Python matrix 43155402054 SUCCESS",
-        "head_sha": "468d2ae9078bbbf25d98c7aa54825efe372de4df",
+        "ci": "Python 3.11/3.12/3.13 tests 43155643440 SUCCESS",
+        "head_sha": "003aa74df5eee2daf559ec67849949a6fd5b000b",
         "base_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
       },
       {
@@ -994,13 +994,14 @@
         "source_sha": null,
         "new_branch": null,
         "comment_id": null,
-        "status": "COORDINATOR_QA_MATRIX_COMMITTED_SOURCE_EVIDENCE_ONLY",
+        "status": "FIRST_INDEPENDENT_READONLY_QA_REPORT_COMPLETE_FOLLOW_UP_ON_NEW_WEB95_AND_LATEST_HEADS_NEEDED",
         "handoff_issue": 81,
         "scope": "Read-only coordination; compare A1-A5 Draft PRs, 15 EXIT-01 acceptance matrix, no source edits to owner-managed AI Tools or Survival Kit, no new implementation branch",
         "new_pr": null,
         "qa_matrix": "apps/_coordination/EXIT01_QA_ACCEPTANCE_MATRIX.md",
         "qa_cases_total": 15,
-        "qa_cases_fully_accepted": 0
+        "qa_cases_fully_accepted": 0,
+        "qa_fully_accepted_cases": 0
       }
     ],
     "new_draft_prs_created": 5,
@@ -1031,13 +1032,13 @@
     "qa_fully_accepted_cases": 0
   },
   "satellite_webusb_ui_recovery": {
-    "status": "WEBUSB_DRAFT_PR_95_OPEN_FIRST_CI_RED_AGENT_PATCHING",
+    "status": "NEW_SEPARATE_DRAFT_PR_95_OPEN_BROWSER_AND_TEXT_CI_GREEN_PORTABLE_NATIVE_RUNNING",
     "owner_request": "Repair broken Satellite Center web/PWA site using native Qt screenshot 0.3.0 preview10 as design reference with Chromium WebUSB runtime",
     "repository": "Tihulu/TIHULU-TEXT-CENTER",
     "new_branch": "feature/satellite-webusb-ui-parity-2026-11-12",
     "source_original_pr": 37,
     "source_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
-    "source_comparison_ahead": 14,
+    "source_comparison_ahead": 18,
     "source_comparison_behind": 0,
     "new_draft_pr_verified": true,
     "recovery_contract": "apps/_coordination/SATELLITE_WEBUSB_UI_RECOVERY_ACCEPTANCE.md",
@@ -1076,9 +1077,9 @@
       "UI text assumes simple 60s/128MiB clips but optional explicit 900s/2GB disk stream still exists and must not be silently removed"
     ],
     "source_diff_verified": true,
-    "website_repair_executed_ci": "First PR head a14a748 browser WebUSB run 43156583643 FAIL (service worker cache no-RF payload test assertion), Text run 43156583631 FAIL (two stale preview6 UI assertions, Python 3.11/3.12/3.13); new head 8e764b... not yet separately validated",
+    "website_repair_executed_ci": "At PR #95 b6785440..., browser WebUSB 43156967482 SUCCESS, Text Python 43156967584 SUCCESS; portable 43156967363 and Debian 43156967338 IN PROGRESS",
     "new_draft_pr": 95,
-    "latest_checked_head": "8e764bafb4c5b40dcf768dd1624d986653f05890",
+    "latest_checked_head": "b6785440a6987d1816b168a53a4df06cf058b119",
     "changed_file_count_at_first_pr": 13
   }
 }
