@@ -132,6 +132,7 @@ class FMRSDSupervisor:
         self.idle_seconds = idle_seconds
         self._mutex = Lock()
         self._stop = Event()
+        self._closed = False
         self._thread: Thread | None = None
         self._rtlfm: subprocess.Popen | None = None
         self._redsea: subprocess.Popen | None = None
@@ -185,6 +186,8 @@ class FMRSDSupervisor:
         if type(rds2_images) is not bool:
             raise ValueError("RDS2 image option must be a Boolean")
         with self._mutex:
+            if self._closed:
+                raise CaptureError("FM RDS decoder has quit")
             if self._state["active"]:
                 raise CaptureError("An FM RDS capture is already running")
             ok = self.availability()
@@ -249,7 +252,16 @@ class FMRSDSupervisor:
             result = self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=4.0)
-        return result
+        with self._mutex:
+            if wait and thread and thread.is_alive():
+                self._state.update(status="stop_failed_partial",
+                    error="RDS capture worker did not stop in time")
+            return self._snapshot()
+
+    def quit(self):
+        with self._mutex:
+            self._closed=True
+        return self.stop(wait=True)
 
     def _unlock(self) -> None:
         fd = self._lock_fd
@@ -344,6 +356,9 @@ class FMRSDSupervisor:
         buffers: dict[int, bytearray] = {}
         stderr_tail: deque[str] = deque(maxlen=5)
         try:
+            if self._stop.is_set():
+                state="cancelled"
+                return
             rtl_bin = self.lookup("rtl_fm")
             red_bin = self.lookup("redsea")
             if not rtl_bin or not red_bin:
