@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase6_exit01_5_of_5_open_Drafts_media_text_flight_green_satellite_pages_red_geo_new_ci_pending",
+  "stage": "exit01_five_of_five_Draft_PRS_four_full_CI_green_satellite_pages_parity_red_real_acceptance_unverified",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "All five app-specific EXIT01 draft PRs open; Media, Flight, Text synthetic CI success; Satellite tests portable/native green apart from 8-file Pages mismatch; RFGeo previous 8/76 JS failed, latest head rerun queued. 15/15 real resource-release cases unaccepted, original 17 broad gates + new EXIT01 P0 open, no installed OS/GPU/NPU/USB proof or merge. ETA not supportable.",
+    "reason": "5/5 new Draft PRs; latest RFGeo #94 CI all green; Media/Flight/Text green; Satellite platform runtime tests green but Pages/source parity red. 15/15 hardware/installed shutdown cases unaccepted, 17 original gates + new EXIT01 P0 open, none merged or released; no reliable time estimate.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "FIVE_OF_FIVE_EXIT01_DRAFT_PRS_OPEN_INDEPENDENT_QA_15_CASES_NO_INSTALLED_ACCEPTANCE",
+    "status": "ALL_FIVE_EXIT01_DRAFT_PRS_OPEN_APP_CI_PASS_EXCEPT_SATELLITE_PAGES_PARITY",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -949,23 +949,25 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "NEW_STACKED_DRAFT_PR_94_OPEN_PRIOR_WEB_CI_8_FAILURES_LATEST_RERUN_PENDING",
+        "status": "DRAFT_PR_94_OPEN_LATEST_JS_AND_TEXT_CI_SUCCESS_HARDWARE_UNVERIFIED",
         "new_pr": 94,
         "compared_ahead": 9,
         "changed_files": 13,
-        "ci": "Previous head e9a01e... RFGeolocation run 43152590279 FAIL 8 JS out of 76 (68 PASS); 3 platform launchers and Text CI passed. New head adc307... RFGeo 43152922690 QUEUED; must not claim this latest CI passed.",
+        "ci": "Latest head da1ee... RF Geolocation Center run 43153097772 SUCCESS and Text Center tests run 43153097727 SUCCESS. Earlier head had 8 JS failures, now fixed on new head. Real WebUSB/native SDR release not physically verified.",
         "source_branch_ahead_at_checkpoint": 20,
         "specific_test_files": [
           "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
           "rf_geolocation_center/tests/test_exit_lifecycle.py"
         ],
-        "head_sha": "adc30779d7e916db69daa41340273b42b71237da",
+        "head_sha": "da1ee084873488cecacba987e0b6d6d37c7a70bc",
         "base_sha": "6664a04a6247826d71f6adeb795b137fd26de213",
         "needs_review": [
           "old JS assertions and actual USB/DVB/maps behavior",
           "idempotent Stop/Hard Stop/Quit, scoped device release",
           "run tests without skipping or disabling failing regressions"
-        ]
+        ],
+        "ci_web_run": 43153097772,
+        "ci_text_run": 43153097727
       },
       {
         "id": "A5",
@@ -1002,7 +1004,7 @@
       }
     ],
     "new_draft_prs_created": 5,
-    "new_ci_executed": "A1 four source workflows success; A2 4 OS+Pi success; A3 all portable runtime jobs+native Debian+Text success but 8-file Pages parity fail; A5 Python 3.11/3.12/3.13 success; A4 PR/CI not yet verified",
+    "new_ci_executed": "Media all 4 workflows success; Flight cross-platform + Pi success; Text Python matrix success; RFGeo latest JS+Text success; Satellite native + portable runtime jobs success but Pages parity workflow red",
     "source_code_modified_by_coordinator": false,
     "preexisting_original_gates_open": 17,
     "additional_exit01_gate_open": true,
@@ -1019,10 +1021,10 @@
     "verified_source_progress_as_of_date": "2026-11-12",
     "hardware_release_accepted": false,
     "remaining_critical_failures": [
-      "RFGeo #94 previous JS 8/76 failed; newest rerun pending",
-      "Satellite #92 8-file source/Pages parity is red; all native portable runtime jobs passed",
-      "No actual device/RAM/VRAM/NPU installed acceptance in any app",
-      "No merges/releases/3-app migrations or source preservation acceptance"
+      "Satellite #92 eight mismatching published Pages/source files; published parity CI still RED",
+      "No 15-case real RAM/VRAM/NPU/SDR installed teardown acceptance",
+      "Independent cross-app source review and original release gates incomplete",
+      "No merges, releases or app migrations"
     ],
     "qa_documented_cases": 15,
     "qa_fully_accepted_cases": 0
