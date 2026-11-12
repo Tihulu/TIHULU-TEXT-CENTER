@@ -58,7 +58,7 @@ def media_metadata(media: Path) -> dict:
 
 
 def _choose_model(ai: AISettings):
-    from textcenter.compute import detect_devices,choose_backend
+    from tv_center.media_backend.compute import detect_devices,choose_backend
     profile=detect_devices()
     selected=choose_backend(profile,ai.values["backend"])
     if not selected["ready"]:
@@ -125,7 +125,7 @@ def _chunk_cues(pcm: bytes, *, position: float, lang: str, profile:dict,
         # CPU whisper.cpp can transcribe with -l auto, but this API does
         # not provide a verified language code. Never guess a translation
         # source from an unspecified language; keep original words only.
-        from textcenter.speech import transcribe_pcm
+        from tv_center.media_backend.speech import transcribe_pcm
         text=transcribe_pcm(pcm,lang,backend,profile).strip()
         if lang=="auto":
             recognized_language="und"
