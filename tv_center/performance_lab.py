@@ -116,7 +116,7 @@ def diagnose_live(samples, *, capture_seconds=6, queue_overflows=0,
 def inventory(settings=None, library=None, profile=None):
     from .ai_settings import AISettings
     from .model_market import ModelLibrary
-    from textcenter.compute import detect_devices,choose_backend
+    from tv_center.media_backend.compute import detect_devices,choose_backend
     ai = settings or AISettings()
     ai.configure_environment()
     market = library or ModelLibrary()
