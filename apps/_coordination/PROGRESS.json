@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "six_initial_worker_source_audits_documented_17_gates_open_coordinator_ci_contract_drift_open",
+  "stage": "six_initial_source_audits_received_17_regression_gates_open_coordination_metadata_ci_fixed",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -200,7 +200,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Seventeen source-based regression gates remain open; current coordination CI fails two stale zero-worker assertions on three Python jobs. Required test-contract reconciliation, physical test, history and release workload are not measured.",
+    "reason": "All six initial source audits are complete and coordination metadata CI passed, but 17 functionality, history, hardware, platform, language, URL and release gates remain unverified with no measured workload. Hours/minutes remain unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -223,7 +223,7 @@
     ],
     "engineering_language": "en",
     "all_5_ui_locale_coverage_verified": false,
-    "new_ci_checks_current_head_status": "FAILURE: coordinator PR #82 head d3f9dffd85b5e9e89f043a5c9b5ea26888783134, Text Center tests run 43119633429; 3 Python matrix jobs failed stale zero-worker assertions (two failures in 696 tests per inspected Python 3.12 log). Worker-head CI successes are separate.",
+    "new_ci_checks_current_head_status": "Coordinator head c8efb3504d26449667eeab5dc21b259cdd0362ef, Text Center tests run 43125496491: completed SUCCESS (Python 3.11, 3.12, 3.13). Pinned success on tested SHA; subsequent docs commits require separate CI verification.",
     "last_verified_ci_for_prior_head": {
       "sha": "b35f3f2f1cc5f35cb46bad90840ac814ab226b69",
       "actions_runs": [
@@ -276,6 +276,28 @@
     "regression_gates_open": 17,
     "regression_gates_approved_for_code_changes": 0,
     "latest_coordinator_ci": {
+      "source_head": "c8efb3504d26449667eeab5dc21b259cdd0362ef",
+      "run_id": 43125496491,
+      "workflow": "Text Center tests",
+      "conclusion": "success",
+      "matrix_job_results": {
+        "python_3_11": "success",
+        "python_3_12": "success",
+        "python_3_13": "success"
+      },
+      "inspected_job_3_12_tests_run": 696,
+      "inspected_job_3_12_test_failures": 0,
+      "scope": "Offline GitHub software CI; two stage-aware coordination metadata assertions fixed. This does NOT certify RF/DVB hardware, installed feature equivalence, source migrations, browser Pages parity or release.",
+      "remediation_status": "VERIFIED at commit c8efb3504d26449667eeab5dc21b259cdd0362ef",
+      "diagnosis_doc": "apps/_coordination/COORDINATION_CI_CONTRACT_DRIFT.md",
+      "verified_as_of_date": "2026-11-12"
+    },
+    "all_current_head_ci_success": true,
+    "original_worker_ci_successes_distinct_from_coordinator_failure": true,
+    "ci_test_contract_fix_proposed_not_implemented": false,
+    "text_archive_import_boundary_requires_resolution": true,
+    "history_pr72_74_link_provenance_verified_but_ledgers_incomplete": true,
+    "previous_coordinator_ci_contract_drift_failure": {
       "source_head": "d3f9dffd85b5e9e89f043a5c9b5ea26888783134",
       "run_id": 43119633429,
       "workflow": "Text Center tests",
@@ -296,11 +318,11 @@
       "diagnosis_doc": "apps/_coordination/COORDINATION_CI_CONTRACT_DRIFT.md",
       "tested_as_of_date": "2026-11-12"
     },
-    "all_current_head_ci_success": false,
-    "original_worker_ci_successes_distinct_from_coordinator_failure": true,
-    "ci_test_contract_fix_proposed_not_implemented": true,
-    "text_archive_import_boundary_requires_resolution": true,
-    "history_pr72_74_link_provenance_verified_but_ledgers_incomplete": true
+    "coordination_test_contract_fixed_verified": true,
+    "coordination_test_only_modified_paths": [
+      "tests/test_master_zero_regression_coordination.py",
+      "tests/test_six_parallel_workstream_gates.py"
+    ]
   },
   "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
   "documentation": {
@@ -341,12 +363,12 @@
     "feature_equivalence_certified": 0,
     "remaining_hours": null,
     "remaining_minutes": null,
-    "coordinator_ci_gate_current": "FAILURE planning-test expected zero workers; 6 verified reports, tracked in COORDINATION_CI_CONTRACT_DRIFT.md"
+    "coordinator_ci_gate_current": "Resolved on tested SHA c8efb3504d26449667eeab5dc21b259cdd0362ef, run 43125496491 success; 17 functionality/release gates remain OPEN."
   },
   "coordinator_followup": {
     "as_of_date": "2026-11-12",
     "ci_test_repair_proposal": "apps/_coordination/COORDINATION_TEST_REPAIR_PROPOSAL.md",
-    "coordination_python_tests_changed": false,
+    "coordination_python_tests_changed": true,
     "text_active_snapshot_semantic_delta": "apps/_coordination/TEXT_MAIN_SNAPSHOT_SEMANTIC_DELTA.md",
     "text_archived_tv_center_import_dependency_found": true,
     "origin_pr72_to_74_verified_ancestry": "apps/_coordination/ORIGIN_PR72_74_ANCESTRY_ADDENDUM.json",
@@ -354,6 +376,9 @@
     "new_regression_gates_added": 0,
     "open_regression_gates": 17,
     "source_migration_or_release_performed": false,
-    "all_pending_acceptance_remains_unverified": true
+    "all_pending_acceptance_remains_unverified": true,
+    "ci_test_repair_proposal_applied_at_sha": "c8efb3504d26449667eeab5dc21b259cdd0362ef",
+    "ci_test_maintenance_verified_run": 43125496491,
+    "app_runtime_source_edited": false
   }
 }
