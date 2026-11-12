@@ -297,6 +297,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
        }));
      }
    }
+ }
  async function fmSweep(startMHz=87.5,stopMHz=108,stepMHz=.1){
    if(quitting||releasePromise)return;
    if(!receiver){notify("FM SCAN UNAVAILABLE","Connect the real RTL-SDR first. No synthetic spectrum readings.");window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message:"RTL-SDR not connected"}}));return}
@@ -374,6 +375,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
        }));
      }
    }
+ }
 
  async function recover(){
    if(quitting||releasePromise)return;
