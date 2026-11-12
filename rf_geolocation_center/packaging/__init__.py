@@ -156,8 +156,9 @@ def build_bytes(source_root: Path) -> tuple[bytes, dict]:
 def build_to(source_root: Path, out_dir: Path) -> dict:
     """Explicit artifact output only, exclusive create; never overwrites files."""
     out_dir = Path(out_dir)
-    if not out_dir.is_absolute() or out_dir.is_symlink():
-        raise PackageError("explicit absolute, non-symlink artifact directory required")
+    if not out_dir.is_absolute():
+        raise PackageError("explicit absolute artifact directory required")
+    _reject_symlink_ancestors(out_dir)
     payload, manifest = build_bytes(source_root)
     if not out_dir.is_dir():
         raise PackageError("output directory must already exist; no implicit mkdir")
@@ -210,10 +211,31 @@ def verify_bytes(payload: bytes) -> dict:
             or manifest.get("native_desktop_binary") is not False
             or manifest.get("hardware_verified") is not False):
         raise PackageError("untrusted package metadata/checksum mismatch")
-    if (set(files) != set(_source_inventory_from_manifest_paths(files))
-            or BUNDLE_LAUNCHER not in files
-            or files[BUNDLE_LAUNCHER] != LAUNCHER):
-        raise PackageError("incomplete or extra package files")
+    _source_inventory_from_manifest_paths(files)
+    # A self-declared checksum alone is not sufficient: validate source closure
+    # against the actual bundled native allowlist without executing native.py.
+    try:
+        source = ast.parse(files["rf_geolocation_center/native.py"].decode("utf-8"))
+        allowlist = next(ast.literal_eval(node.value)
+                         for node in source.body
+                         if isinstance(node, ast.Assign)
+                         and any(isinstance(target, ast.Name) and target.id == "ASSETS"
+                                 for target in node.targets))
+    except (KeyError, UnicodeError, ValueError, SyntaxError, StopIteration) as error:
+        raise PackageError("missing/invalid bundled asset allowlist") from error
+    if not isinstance(allowlist, dict) or len(allowlist) < 25:
+        raise PackageError("invalid embedded allowlist")
+    try:
+        expected = {BUNDLE_LAUNCHER}
+        expected.update("rf_geolocation_center/" + filename for filename in PY_FILES)
+        expected.update("rf_geolocation_center/" + entry[0]
+                        for entry in allowlist.values())
+    except (TypeError, ValueError, KeyError) as error:
+        raise PackageError("invalid embedded asset reference") from error
+    if (set(files) != expected or
+            any(not _safe_member(path) for path in expected) or
+            files[BUNDLE_LAUNCHER] != LAUNCHER):
+        raise PackageError("asset closure, launcher or package members mismatch")
     return manifest
 
 
@@ -274,6 +296,27 @@ def linux_data_roots(home: Path, env: Mapping[str, str] | None = None) -> dict[s
         "models_reserved_not_implemented": str(data / "models"),
         "logs": str(base("XDG_STATE_HOME", ".local/state") / app / "logs"),
     }
+
+
+def receiver_access_preflight(*, explicit_consent: bool,
+                              owner_classification: str,
+                              verified_exclusive_lease: bool) -> dict:
+    """No device lookup or acquisition: report whether an external adapter MAY ask.
+
+    No preflight result grants hardware access. Unknown/foreign owners always
+    fail closed; a later OS-backed lease check and user gesture are mandatory.
+    """
+    if not explicit_consent:
+        reason = "CONSENT_REQUIRED"
+    elif owner_classification not in ("app-owned", "known-free"):
+        reason = "BUSY_OR_UNKNOWN_EXTERNAL_OWNER"
+    elif not verified_exclusive_lease:
+        reason = "EXCLUSIVE_LEASE_NOT_VERIFIED"
+    else:
+        reason = "POLICY_ONLY_NOT_A_RECEIVER_CLAIM"
+    return {"status": reason, "device_opened": False,
+            "may_claim_now": False, "driver_unbound": False,
+            "readsb_or_other_service_stopped": False}
 
 
 def compatibility_report(system: str | None = None, machine: str | None = None,
