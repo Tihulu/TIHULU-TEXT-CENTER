@@ -316,6 +316,7 @@ class Station:
         self.process = None
         self.owned_processes = set()  # Only processes launched by Satellite Center.
         self.decoder_active = False
+        self.decoder_worker = None
         self.quit_result = None
         self.active_worker = None
         self.manual_owner = None
@@ -1580,7 +1581,7 @@ class Station:
         deadline = time.monotonic() + max(0.0, min(float(timeout_seconds), 15.0))
         stopped = self.request_stop(timeout_seconds=max(0.0, deadline-time.monotonic()))
         with self.lock:
-            threads = (self.active_worker, self.scheduler_thread)
+            threads = (self.active_worker, self.scheduler_thread, self.decoder_worker)
         for thread in threads:
             if thread is not None and thread is not threading.current_thread() and thread.is_alive():
                 thread.join(timeout=max(0.0, deadline-time.monotonic()))
@@ -1595,18 +1596,21 @@ class Station:
                                 and self.active_worker is not threading.current_thread())
             scheduler_alive = bool(self.scheduler_thread and self.scheduler_thread.is_alive()
                                    and self.scheduler_thread is not threading.current_thread())
+            decoder_alive = bool(self.decoder_worker and self.decoder_worker.is_alive()
+                                 and self.decoder_worker is not threading.current_thread())
             if not worker_alive and not self.launching and not self.owned_processes:
                 self._release()
             remaining = len(self.owned_processes)
             released = (remaining == 0 and not worker_alive and not scheduler_alive
-                        and not self.launching and self.device_lock is None
-                        and not self.decoder_active)
+                        and not decoder_alive and not self.launching
+                        and self.device_lock is None and not self.decoder_active)
             self.quit_result = {
                 "state": "stopped" if released else "stop_failed_partial",
                 "app_released": released, "owned_processes_remaining": remaining,
                 "owned_capture_worker_alive": worker_alive,
                 "owned_scheduler_alive": scheduler_alive,
                 "decoder_active": self.decoder_active,
+                "owned_decoder_worker_alive": decoder_alive,
                 "lease_held": self.device_lock is not None,
                 "stop_requested": stopped["requested"],
                 "saved_recordings_preserved": True,
@@ -1899,6 +1903,7 @@ class Station:
             if self.closed.is_set() or self.decoder_active:
                 raise RuntimeError("Satellite Center is quitting or already decoding")
             self.decoder_active = True
+            self.decoder_worker = threading.current_thread()
             self.stopping.clear()
         import tempfile
         proc = None
@@ -1924,6 +1929,7 @@ class Station:
                 if proc is not None and proc.poll() is not None:
                     self.owned_processes.discard(proc)
                 self.decoder_active = False
+                self.decoder_worker = None
         # Only real SatDump-created files can become photo-gallery items.
         # Copies receive satellite + capture UTC + frequency filenames; no
         # decoded image is invented if the decoder fails or has no lock.
