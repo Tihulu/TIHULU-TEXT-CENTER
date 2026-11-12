@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase6_exit01_media_sidecar96_green_geo_sourcefix97_syntax_repaired_CI_pending_webusb95_pages_red",
+  "stage": "phase6_RFGeo_97_89of89_green_Media96_green_Flight_and_Text_green_Sat_pages_parity_red",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Current source CI Media #91 and follow-up #96 green, Flight #16 green, Text #93 green; Satellite web/native runtimes green but published Pages parity red; Geo separate source-fix Draft #97 has updated syntax but no verified CI, #94 old regression red; original 17 gates + EXIT01 resource acceptance 0/15 and WEB physical review open; no release ETA.",
+    "reason": "Latest RF Geo source fix PR97 89/89 JS tests and Linux/macOS/Windows launchers green plus Text CI green. Media sidecar PR96 green; Flight, Media EXIT, Text green; Satellite browser and native runtime tests green except published gh-pages eight-file parity. Still 0/15 real installed resource acceptance, 17 original gates open, no merge, deployment or reliable ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "EXITS_5_DRAFTS_PLUS_MEDIA_96_GEO_97_FOLLOWUPS_MEDIA_FLIGHT_TEXT_CI_GREEN_WEB_PAGES_RED_GEO_CI_PENDING",
+    "status": "FIVE_EXIT01_DRAFTS_PLUS_MEDIA_96_AND_RF_GEO_97_FOLLOWUPS_GREEN_ONLY_SAT_PAGES_PARITY_AUTOMATED_RED",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -952,11 +952,11 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "SOURCE_FIX_SEPARATE_STACKED_DRAFT_97_OPEN_CI_NOT_YET_AVAILABLE",
+        "status": "SEPARATE_SOURCE_FIX_DRAFT_97_JS_89_OF_89_GREEN_ALL_THREE_LAUNCHERS_GREEN_TEXT_CI_GREEN_UNMERGED_HARDWARE_UNVERIFIED",
         "new_pr": 94,
         "compared_ahead": 9,
         "changed_files": 13,
-        "ci": "New head b265f5e... source syntax error (missing captureRF closing brace) corrected, but no current-head GitHub PR CI returned yet; original #94 remains 82/83 JS. Must run all regression suites before declaring fixed.",
+        "ci": "RFGeo CI 43158389877 SUCCESS: JS 89/89 PASS, 0 failed/skipped, Windows/Ubuntu/macOS launcher jobs SUCCESS; Text CI 43158389931 SUCCESS. Source code fix remains unmerged, real SDR/USB safety NOT_VERIFIED.",
         "source_branch_ahead_at_checkpoint": 20,
         "specific_test_files": [
           "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
@@ -972,7 +972,7 @@
         "ci_web_run": 43153097772,
         "ci_text_run": 43153097727,
         "new_followup_pr": 97,
-        "new_followup_head": "b265f5e997cba3a7b0583d8b0ad0890775c8eccb"
+        "new_followup_head": "33ba329a4b6af82e7a9f8440e4aa17f037d4ed12"
       },
       {
         "id": "A5",
@@ -1037,10 +1037,10 @@
     "verified_source_progress_as_of_date": "2026-11-12",
     "hardware_release_accepted": false,
     "remaining_critical_failures": [
-      "Geo source-fix PR #97 newest head b265f5e has no verified CI; original #94 fails 1/83 USB self-wait regression",
-      "Satellite native #92 and WebUSB #95 each blocked by old eight-file published Pages parity",
-      "Independent stacked branch QA and installed process/device/model acceptance not complete",
-      "Original 17 broader release gates and new EXIT01 P0 open; no merges or release"
+      "Satellite native #92 and WebUSB #95 published Pages/source 8-file parity red; owner approval needed for safe publication",
+      "Real installed RAM/VRAM/NPU/SDR owned-session release 0/15 accepted",
+      "Stacked PR integration, external borrowed service persistence, physical device and rollback acceptance unverified",
+      "Original 17 general release gates OPEN; no merge/release"
     ],
     "qa_documented_cases": 15,
     "qa_fully_accepted_cases": 0
