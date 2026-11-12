@@ -33,7 +33,9 @@
   <div class="sidebar-bottom">
    <div class="dotline"><span class="dot off"></span><span id="rf-state">NO RF RECEIVER OPEN</span></div>
    <div class="meta">Background RF: OFF<br>No synthetic signals or location fixes</div>
-   <button id="hard-stop" class="danger" type="button">■ HARD STOP — MY RF ONLY</button>
+   <button id="rf-module-stop" class="secondary" type="button">■ Stop RF Module</button>
+   <button id="hard-stop" class="danger" type="button">■ Hard Stop — My Owned Devices</button>
+   <button id="quit-app" class="danger" type="button">⏻ Quit App — Release All Owned Resources</button>
   </div>
  </aside>
  <div class="workspace">
@@ -395,7 +397,7 @@
    </section>
    <section id="view-settings" class="view"><div class="eyebrow">HARDWARE & PRIVACY</div><h1>Permission-controlled local operation</h1>
     <article class="panel"><h2>Capabilities</h2><div id="capabilities" class="stage-list"></div><p class="fine muted">Native SDR GNSS decoding, raw IQ capture, GNSS-SDR/RTK backend, autonomous background sessions and multi-client network receiver control are not provided by the browser-only version.</p></article>
-    <article class="panel"><h2>Stop and storage</h2><p>Hard Stop cancels this app's own Web Serial reader, releases any locally claimed interfaces, removes live device handles and stops active operations. It does not kill readsb, Gqrx, other browser tabs or unrelated radio software.</p>
+    <article class="panel"><h2>Stop and storage</h2><p>Stop RF Module releases this tab's owned RTL-SDR session and cancels RF survey calculations; the TV bridge and non-RF map continue. Hard Stop cancels all owned acquisition/clients in this tab without exiting the UI. Quit App also stops UI-owned timers, orbit/catalog requests, serial readers, authorized native DVB scan requests and client bridge connections. Hard Stop and Quit are terminal for acquisition until this page is reloaded. They never terminate readsb, tar1090, Gqrx or an independent local companion service. A PWA tab close, crash or OS kill offers only best-effort cleanup; native server process Quit is authoritative for an app-owned DVB worker. No GPS/TDOA location result is inferred by shutdown.</p>
        <button id="clear-local" class="secondary">Clear saved view preference / cached orbit</button>
        <p class="fine muted">No telemetry, cloud analytics or automatic background RF or orbital downloads. Service worker caches only same-origin application shell assets, never OSM tiles or private imported observation files.</p></article>
    </section>
