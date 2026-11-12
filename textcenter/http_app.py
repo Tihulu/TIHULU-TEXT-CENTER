@@ -151,6 +151,12 @@ class LocalServer(ThreadingHTTPServer):
                     proc = getattr(component, attr, None)
                     if proc is not None and proc.poll() is None:
                         errors.append(label + ": owned process still active")
+                for attr in ("lock_fd", "_lock_fd", "audio_read"):
+                    if getattr(component, attr, None) is not None:
+                        errors.append(label + ": owned receiver/audio descriptor still open")
+                recording = getattr(component, "record_file", None)
+                if recording is not None and not recording.closed:
+                    errors.append(label + ": owned recording handle still open")
             except Exception as exc:
                 errors.append(label + ": " + type(exc).__name__ +
                               " during cleanup (verify owned handles)")
