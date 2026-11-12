@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase4_four_of_six_complete_qa_evidence_only_satellite_pending",
+  "stage": "phase4_all_six_documentation_audits_complete_17_release_gates_still_open",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Four full Phase4 audit reviews source-verified; QA EVIDENCE-only partial update, Satellite no Phase4 commit. Scope and hardware/acceptance remain open; 17 regression gates, no releases/migrations and ETA unknown.",
+    "reason": "Six of six Phase4 source-based audit reports complete; no physical hardware or product feature acceptance, all 17 broad regression gates OPEN. Next phase app source fixes need explicit owner authorization, test-only coverage/migrations/installer effort unmeasured.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -541,7 +541,7 @@
   },
   "phase4_parallel_review": {
     "as_of_date": "2026-11-12",
-    "state": "FOUR_OF_SIX_PHASE4_REPORTS_VERIFIED_QA_EVIDENCE_ONLY_SATELLITE_PENDING",
+    "state": "ALL_SIX_PHASE4_AUDIT_REPORTS_COMMITTED_AND_SCOPE_VERIFIED_RELEASE_GATES_OPEN",
     "planning_document": "apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
     "workstreams": [
       {
@@ -599,8 +599,17 @@
           "apps/_coordination/workstreams/03/EVIDENCE.json"
         ],
         "focus": "Satellite 8-asset Pages parity, capture gaps, 1.024/2.048MSPS, zero-CADU and synthetic decode acceptance",
-        "status": "HANDOFF_POSTED_NO_PHASE4_COMMIT_VISIBLE",
-        "last_verified_head": "284944e1dc167f6b60bf762889a3c75bf28f47e2"
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
+        "previous_head": "284944e1dc167f6b60bf762889a3c75bf28f47e2",
+        "new_head": "6dc3ba6818f6e01f98d4782b1e8149b7eb2efd93",
+        "ahead_commits": 2,
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/03/REPORT.md",
+          "apps/_coordination/workstreams/03/EVIDENCE.json"
+        ],
+        "ci_run": 43137277119,
+        "ci_conclusion": "success",
+        "findings_summary": "Original Satellite PR #37 8 Pages/source mismatches, Meteor 1.024 vs 2.048 MS/s provenance, continuous-vs-segmented recording gaps, zero-CADU and stale image oracles; synthetic test cases proposed, none executed."
       },
       {
         "ws": "04",
@@ -656,21 +665,22 @@
           "apps/_coordination/workstreams/06/EVIDENCE.json"
         ],
         "focus": "Original #65-67 and #72-74 history, branding hashes, locale and URL/Pages/installer rollback release gates",
-        "status": "PHASE4_EVIDENCE_UPDATED_REPORT_NOT_YET_COMMITTED",
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
         "previous_head": "e69c2b6eac7deeca313925bf99af31f8c9434f34",
-        "partial_head": "cd19c6b19b9dbc61e2bb56763e70033b6a09f7f1",
-        "partial_changed_paths_verified": [
+        "ahead_commits": 2,
+        "ci_run": 43137330629,
+        "ci_conclusion": "in_progress_at_checkpoint",
+        "findings_summary": "12/12 QA-specific gates evidence reviewed, zero closed; original PR lineage/review history, five logo binary hashes, EN/TR/DE installed UI, Pages/URL routing, installers and Flight 0.3.1 rollback all open.",
+        "new_head": "75bf1a24133afea2dc93502ea8c0c249b5b16464",
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/06/REPORT.md",
           "apps/_coordination/workstreams/06/EVIDENCE.json"
-        ],
-        "ahead_commits": 1,
-        "ci_run": 43137068261,
-        "ci_conclusion": "success",
-        "findings_summary": "EVIDENCE.json extended with 12 QA gates reviewed, zero closed, original history/branding/locale/PWA/installer acceptance open. Phase 4 REPORT.md still unchanged from initial audit."
+        ]
       }
     ],
     "workers_expected": 6,
-    "workers_with_new_phase4_evidence": 4,
-    "coordinator_responsibility": "3/6 reviewed; validate future WS03/04/06 only after actual GitHub commit; 17 global gates remain open.",
+    "workers_with_new_phase4_evidence": 6,
+    "coordinator_responsibility": "All six workstream reports reconciled at exact SHAs, all changed paths confined to owned REPORT/EVIDENCE files; continue source preservation and stage future acceptance, no merge or release.",
     "permissions": "read-only/source-backed worker audit updates in assigned audit documents only; previously authorized isolated test-only PRs remain separate; no runtime source changes, hardware, workflow modifications, merges, migrations or releases.",
     "existing_seventeen_gates_open": 17,
     "no_automatic_chat_execution": true,
@@ -710,6 +720,7 @@
       }
     },
     "last_status_verified_date": "2026-11-12",
-    "workers_with_partial_phase4_evidence": 1
+    "workers_with_partial_phase4_evidence": 0,
+    "next_engineering_priority": "First resolve Flight external-service passive-exit P0 with separate source-fix approval; parallel scoped test-only and source parity gates for Text Media Satellite. QA history/packaging gates remain open."
   }
 }
