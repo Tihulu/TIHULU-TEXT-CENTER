@@ -216,7 +216,20 @@ def read_record(home, commit):
 
 
 def snapshot(home, source, commit):
-    plan = preflight(home, source, commit)
+    # A native build has already populated this versioned release prefix.
+    # Recheck source and existing ownership without treating that new build
+    # as a forbidden pre-existing release.
+    git_source(source, commit)
+    original = owned(home)
+    installed = package_version()
+    prior_deb = previous_deb(home, original, installed)
+    release = Path(home)/".local/opt/tihulu-media-center/releases"/commit[:12]
+    parents_safe(release, home)
+    marker = release/".tihulu-media-owned-release"
+    if (release.is_symlink() or marker.is_symlink() or not marker.is_file()
+        or marker.read_text().strip() != commit):
+        raise GuardError("Built Media release lacks verified source marker")
+    plan = {"existing": original, "previous_deb": prior_deb}
     location = record_path(home, commit)
     parents_safe(location, home)
     if location.parent.exists() or location.parent.is_symlink():
