@@ -109,7 +109,10 @@ class SyntheticPackagingTests(unittest.TestCase):
         self.assertFalse(result["dry_run"])
         root = self.home / ".local" / "opt" / pkg.APP_ID
         self.assertTrue((root / "bin" / "tihulu-rfgeo").is_file())
-        self.assertEqual(os.stat(root / "bin" / "tihulu-rfgeo").st_mode & 0o777, 0o755)
+        if os.name == "posix":  # POSIX executable bits cannot be meaningfully verified on Windows
+            self.assertEqual(os.stat(root / "bin" / "tihulu-rfgeo").st_mode & 0o777, 0o755)
+        else:
+            self.assertIn("rf_geolocation_center", (root / "bin" / "tihulu-rfgeo").read_text())
         self.assertTrue((root / "releases" / result["release"] / "rf_geolocation_center" / "index.html").is_file())
         for key, base in (("config", ".config"), ("cache", ".cache"), ("data", ".local/share")):
             self.assertTrue((self.home / base / pkg.APP_ID).is_dir())
