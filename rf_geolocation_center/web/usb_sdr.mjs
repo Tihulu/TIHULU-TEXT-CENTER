@@ -321,7 +321,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
      return;
    }
    // Explicit user click: free only this app's handle, then reconnect an
-   // already-authorized stick. No driver unload, systemctl or USB reset.
+   // already-authorized stick. No driver unload, external service stop or USB reset.
    notify("USB RECOVERY","Releasing this app's SDR control handle before one explicit reconnection. No OS services touched.");
    await release();
    await new Promise(resolve=>setTimeout(resolve,200));
