@@ -68,6 +68,7 @@ class LocalServer(ThreadingHTTPServer):
         self.lifecycle = "RUNNING"
         self._close_started = False
         self._close_finished = Event()
+        self._inflight_long_requests = 0
         self._close_report = {"lifecycle": "RUNNING", "errors": []}
         self.rds = FMRSDSupervisor(store)
         self.survey = FMSurveySupervisor(
@@ -161,6 +162,9 @@ class LocalServer(ThreadingHTTPServer):
                 errors.append(label + ": " + type(exc).__name__ +
                               " during cleanup (verify owned handles)")
         with self._lifecycle_lock:
+            if self._inflight_long_requests:
+                errors.append("HTTP: " + str(self._inflight_long_requests) +
+                              " in-process request(s) still active during Quit")
             self.lifecycle = "STOP_FAILED_PARTIAL" if errors else "STOPPED"
             self._close_report = {"lifecycle": self.lifecycle, "errors": errors}
             self._close_finished.set()
@@ -494,14 +498,28 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": "Internal error. See local server logs."})
 
     def do_POST(self):
-        # Lock start admission against full Quit. In-flight writes complete
-        # before STOPPING; no later task can be admitted afterwards.
+        # Start/Stop commands stay under the lifecycle lock so that Quit cannot
+        # race a late module Start. Potentially slow in-process translation,
+        # network refresh and DAB read-only requests must NOT hold the Quit
+        # lock: active ones are reported as incomplete if still alive at exit.
+        route=urlsplit(self.path).path
+        long_request=route in (
+            "/api/translation/text", "/api/transcripts/translate",
+            "/api/feeds/refresh", "/api/dab/refresh",
+        )
         with self.server._lifecycle_lock:
             if self.server.lifecycle != "RUNNING":
-                if urlsplit(self.path).path == "/api/quit":
+                if route == "/api/quit":
                     return self._post_guarded()  # authenticated idempotent Quit
                 return self._json(503, {"error": "Text Center is stopping; no new tasks accepted"})
+            if not long_request:
+                return self._post_guarded()  # atomic Start and Quit admission
+            self.server._inflight_long_requests+=1
+        try:
             return self._post_guarded()
+        finally:
+            with self.server._lifecycle_lock:
+                self.server._inflight_long_requests-=1
 
     def _post_guarded(self):
         route = urlsplit(self.path).path
