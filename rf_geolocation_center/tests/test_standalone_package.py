@@ -9,6 +9,7 @@ import io
 import json
 from pathlib import Path
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -266,6 +267,52 @@ class SyntheticPackagingTests(unittest.TestCase):
                 self.assertEqual(plan["policy"],
                                  "NO DEVICE, NO DRIVERS, NO READSB, NO FOREIGN APPLICATION ACCESS")
         self.assertFalse((self.home / ".local").exists())
+
+
+    def test_17_rollback_rejects_symlinked_parent_to_foreign_directory(self):
+        a, _ = self.bundle()
+        b, _ = self.bundle(revision=REV_B, name="rfgeo-b.tar.gz")
+        first = pkg.install_bundle(a, apply=True, home=self.home,
+                                   system="Linux", machine="x86_64")
+        newer = pkg.install_bundle(b, apply=True, home=self.home,
+                                   system="Linux", machine="x86_64")
+        root = self.home / ".local" / "opt" / pkg.APP_ID
+        previous_web = root / "releases" / first["release"] / "rf_geolocation_center" / "web"
+        external = self.work / "controlled-foreign-web"
+        shutil.move(str(previous_web), str(external))
+        previous_web.symlink_to(external, target_is_directory=True)
+        old_state = (root / "state.json").read_bytes()
+        with self.assertRaisesRegex(pkg.PackagingError, "symlink|Symlink|unsafe"):
+            pkg.rollback(home=self.home, system="Linux", machine="x86_64")
+        self.assertEqual((root / "state.json").read_bytes(), old_state)
+        self.assertEqual(json.loads(old_state)["active"], newer["release"])
+        self.assertTrue((external / "app.mjs").is_file())
+
+    def test_18_tampered_bundle_history_fails_closed(self):
+        a, _ = self.bundle()
+        b, _ = self.bundle(revision=REV_B, name="rfgeo-b.tar.gz")
+        pkg.install_bundle(a, apply=True, home=self.home,
+                           system="Linux", machine="x86_64")
+        pkg.install_bundle(b, apply=True, home=self.home,
+                           system="Linux", machine="x86_64")
+        state_path = self.home / ".local" / "opt" / pkg.APP_ID / "state.json"
+        state = json.loads(state_path.read_text())
+        state["bundles"] = ["malformed untrusted state"]
+        state_path.write_text(json.dumps(state))
+        with self.assertRaises(pkg.PackagingError):
+            pkg.rollback(home=self.home, system="Linux", machine="x86_64")
+
+    def test_19_tar_member_content_hash_tampering_is_detected(self):
+        source, _ = self.bundle()
+        malicious = self.work / "corrupt-content.tar.gz"
+        with tarfile.open(source, "r:gz") as original, tarfile.open(malicious, "w:gz") as output:
+            for member in original.getmembers():
+                raw = original.extractfile(member).read()
+                if member.name == "rf_geolocation_center/index.html":
+                    raw = bytes([raw[0] ^ 1]) + raw[1:]
+                output.addfile(member, io.BytesIO(raw))
+        with self.assertRaisesRegex(pkg.PackagingError, "hash"):
+            pkg.verify_bundle(malicious)
 
 
 if __name__ == "__main__":
