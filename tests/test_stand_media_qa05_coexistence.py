@@ -161,6 +161,37 @@ class CoexistenceTests(IndependentHomeFixture):
             guard.rollback(self.home, self.rev)
         self.assertEqual((pending / "foreign").read_bytes(), b"DO NOT DELETE")
 
+    def test_foreign_destination_arriving_after_preflight_is_never_overwritten(self):
+        real_write = guard.write_journal
+        foreign = guard.layout(self.home)["launcher"]
+        def create_race(home, sha, state):
+            real_write(home, sha, state)
+            if state["phase"] == "activating":
+                foreign.parent.mkdir(parents=True, exist_ok=True)
+                foreign.write_bytes(b"FOREIGN AFTER PREFLIGHT")
+        with patch.object(guard, "write_journal", side_effect=create_race):
+            with self.assertRaisesRegex(guard.Hold, "Foreign destination"):
+                guard.activate(self.home, self.source, self.rev, self.artifact)
+        self.assertEqual(foreign.read_bytes(), b"FOREIGN AFTER PREFLIGHT")
+        self.assertFalse(guard.layout(self.home)["current"].exists())
+        self.assertEqual(self.hash_stable(), self.stable_sha)
+        with self.assertRaisesRegex(guard.Hold, "User/foreign change"):
+            guard.rollback(self.home, self.rev)
+
+    def test_foreign_release_directory_arriving_after_preflight_is_preserved(self):
+        real_write = guard.write_journal
+        foreign_release = guard.release_path(self.home, self.rev)
+        def create_race(home, sha, state):
+            real_write(home, sha, state)
+            if state["phase"] == "activating":
+                foreign_release.mkdir(parents=True)
+                (foreign_release / "owner.txt").write_bytes(b"NOT OUR RELEASE")
+        with patch.object(guard, "write_journal", side_effect=create_race):
+            with self.assertRaisesRegex(guard.Hold, "Foreign release appeared"):
+                guard.activate(self.home, self.source, self.rev, self.artifact)
+        self.assertEqual((foreign_release / "owner.txt").read_bytes(), b"NOT OUR RELEASE")
+        self.assertEqual(self.hash_stable(), self.stable_sha)
+
     def test_missing_build_source_and_symlinked_owner_are_rejected(self):
         (self.source / "untracked-code.py").write_text("x=1\n")
         with self.assertRaisesRegex(guard.Hold, "Dirty"):
