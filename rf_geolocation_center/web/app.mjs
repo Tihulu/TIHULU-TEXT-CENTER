@@ -1103,10 +1103,12 @@ lifecycle.register("hardware-permissions","device",()=>hardware.stop());
 lifecycle.register("native-bridge-client","device",()=>bridge.quit());
 lifecycle.register("orbit-explorer","ui",()=>explorer.stop());
 lifecycle.register("catalog-discovery","ui",()=>catalog.stop());
-lifecycle.register("map-ui","ui",()=>{
+lifecycle.register("app-timers","ui",()=>{
  if(panFrame){cancelAnimationFrame(panFrame);panFrame=0;}
  if(resizeObserver){resizeObserver.disconnect();resizeObserver=null;}
  clearInterval(appTick);
+});
+lifecycle.register("map-ui","ui-controls",()=>{
  for(const [type,guard,options] of appListeners)window.removeEventListener(type,guard,options);
  appListeners.length=0;
  state.receiverHistory=[];state.references=[];state.autoOrbits=[];state.visible=[];
