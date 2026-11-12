@@ -92,7 +92,7 @@ class SyntheticPackagingTests(unittest.TestCase):
         archive, _ = self.bundle()
         plan = pkg.install_plan(archive, home=self.home, system="Linux", machine="x86_64")
         self.assertTrue(plan["dry_run"])
-        self.assertIn("EXTERNAL", plan["policy"])
+        self.assertIn("NO FOREIGN", plan["policy"])
         self.assertFalse((self.home / ".local").exists())
         self.assertFalse((self.home / ".config").exists())
         self.assertFalse((self.home / ".cache").exists())
