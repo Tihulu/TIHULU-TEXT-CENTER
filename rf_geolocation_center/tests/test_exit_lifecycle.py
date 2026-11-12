@@ -3,6 +3,7 @@
 No real DVB frontend, SDR, readsb/tar1090, port binding, sudo or model workload.
 """
 import unittest
+from threading import Event, Thread
 from unittest.mock import patch
 
 from rf_geolocation_center.dvb_bridge import DVBScanBridge, DEFAULT_PROFILE
@@ -138,6 +139,74 @@ class ExitLifecycleTests(unittest.TestCase):
         output = scanner.shutdown(timeout=0)
         self.assertEqual(output["state"], "STOP_FAILED_PARTIAL")
         self.assertTrue(output["owned_worker_alive"])
+
+
+    def test_ownerless_or_foreign_stop_is_denied_for_another_tabs_live_scan(self):
+        bridge = DVBScanBridge()
+        owner, foreign = "a" * 48, "b" * 48
+        bridge._owner = owner
+        bridge._data["state"] = "RUNNING"
+        own_child, unrelated_child = FakeProcess(), FakeProcess()
+        bridge._process = own_child
+        for claimed_owner in (None, "", foreign):
+            with self.subTest(claimed_owner=claimed_owner):
+                with self.assertRaisesRegex(PermissionError, "another client"):
+                    bridge.stop(owner=claimed_owner)
+        self.assertEqual(own_child.terminated, 0)
+        self.assertEqual(unrelated_child.terminated, 0)
+        self.assertEqual(bridge.stop(owner=owner)["state"], "STOPPING")
+        self.assertEqual(own_child.terminated, 1)
+        bridge.shutdown(timeout=0)
+        self.assertEqual(unrelated_child.terminated, 0)
+        self.assertEqual(unrelated_child.killed, 0)
+
+    def test_malformed_scan_owner_cannot_reach_device_enumeration_or_subprocess(self):
+        bridge = DVBScanBridge()
+        with patch("rf_geolocation_center.dvb_bridge.adapters") as enumerate_devices, \
+             patch("rf_geolocation_center.dvb_bridge.subprocess.Popen") as spawn:
+            for token in ("short", "z" * 48, 3, "a" * 47):
+                with self.subTest(token=token):
+                    with self.assertRaisesRegex(ValueError, "Invalid scan owner"):
+                        bridge.start(0, DEFAULT_PROFILE, owner=token)
+            enumerate_devices.assert_not_called()
+            spawn.assert_not_called()
+        self.assertEqual(bridge.status()["state"], "IDLE")
+
+    def test_quit_while_worker_prepares_scan_denies_late_owned_process_spawn(self):
+        """Barrier fixture executes native _run but NEVER launches a real process."""
+        bridge = DVBScanBridge()
+        bridge._owner = "a" * 48
+        bridge._data["state"] = "RUNNING"
+        entered, proceed = Event(), Event()
+        unrelated_child = FakeProcess()
+
+        def delayed_table(_destination):
+            entered.set()
+            if not proceed.wait(2):
+                raise RuntimeError("Synthetic preparation barrier timed out")
+
+        with patch("rf_geolocation_center.dvb_bridge._build_uhf_table",
+                   side_effect=delayed_table), \
+             patch("rf_geolocation_center.dvb_bridge.shutil.which",
+                   return_value="/mock/dvbv5-scan"), \
+             patch("rf_geolocation_center.dvb_bridge.subprocess.Popen") as spawn:
+            worker = Thread(target=bridge._run,
+                            args=(0, DEFAULT_PROFILE, [], bridge._cancel),
+                            name="synthetic-owned-dvb-worker", daemon=True)
+            bridge._worker = worker
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(2), "Mock preparation did not start")
+                outcome = bridge.shutdown(timeout=0)
+                self.assertEqual(outcome["state"], "STOP_FAILED_PARTIAL")
+                self.assertTrue(outcome["owned_worker_alive"])
+                self.assertEqual(unrelated_child.terminated, 0)
+            finally:
+                proceed.set()
+                worker.join(2)
+            self.assertFalse(worker.is_alive(), "Cancelled worker should join after release")
+            spawn.assert_not_called()
+        self.assertEqual(unrelated_child.killed, 0)
 
 
 if __name__ == "__main__":
