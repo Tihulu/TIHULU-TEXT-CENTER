@@ -11,13 +11,14 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import select
 import shutil
 import subprocess
 import sys
 import threading
 
-ROOT = Path.home() / ".local/share/tihulu-tv-center/cuda-faster-whisper"
+ROOT = media_paths().data / "cuda-faster-whisper"
 MODEL_ID = "dropbox-dash/faster-whisper-large-v3-turbo"
 REVISION = "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"
 MODEL_SHA256 = "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da"
@@ -33,7 +34,7 @@ class FasterWhisperCUDA:
             from .ai_settings import AISettings
             model_dir = AISettings().values.get("model_dir", "")
         base = (Path(model_dir).expanduser() if model_dir else
-                Path.home()/".local/share/tihulu-tv-center")
+                media_paths().data)
         self.model_dir = base / "faster-whisper-models" / "large-v3-turbo"
 
     @property
