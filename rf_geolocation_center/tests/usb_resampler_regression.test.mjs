@@ -31,7 +31,10 @@ test("samples never race with another USB operation and release waits for in-fli
  assert.match(scan,/finally\{sampling=false;busy=false;endSample\(\)\}/);
  assert.match(capture,/finally\{sampling=false;busy=false;endSample\(\)\}/);
  assert.match(release,/const inFlight=pendingSample/);
- assert.match(release,/await Promise\.race\(\[inFlight/);
+ assert.match(release,/const drained=await Promise\.race\(\[/);
+ assert.match(release,/inFlight\.then\(\(\)=>true\)/);
+ assert.match(release,/2500 ms/);
+ assert.match(release,/1600 ms/);
  assert.match(release,/configuredRate=0;configuredFrequencyHz=0;configuredGain=null/);
 });
 test("GNSS scan returns real I/Q from library SampleBlock.data, never claims GNSS fix",()=>{
