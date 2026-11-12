@@ -2106,5 +2106,1333 @@
       "migrations": 0,
       "releases": 0
     }
+  },
+  "phase4_parallel_flight_review_2026_11_12": {
+    "reviewed_utc_date": "2026-11-12",
+    "assignment_source": {
+      "comment": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77#issuecomment-6811690635",
+      "coordinator_document": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
+      "coordinator_document_blob_sha": "fc29b87b0c4abdb7a3a2ff694a270a48cf05750f"
+    },
+    "audit_worker_branch": "audit/ws02-flight-standalone-2026-11-11",
+    "test_only_pr": {
+      "number": 14,
+      "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/14",
+      "head_sha": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+      "base_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+      "draft": true,
+      "merged": false,
+      "commit_count": 1,
+      "changed_files": [
+        "tests/test_stage3_isolated_receiver_ownership.py"
+      ],
+      "test_file_blob_sha": "311eb49a69825c34d8e7876efa210282abaf96ce",
+      "actual_test_functions": 8,
+      "test_file_lines": 107,
+      "app_source_changes": 0
+    },
+    "comparison": {
+      "canonical_main": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+      "unmerged_pr7": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+      "unmerged_pr13": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+      "pr7_diverged_from_main": {
+        "ahead": 10,
+        "behind": 485
+      },
+      "pr13_ahead_of_main": 316,
+      "pr13_control_blob_identical_to_main": "0f65907feb17c95ccff3dab9617d982ac6a0c164",
+      "pr14_ahead_of_main": 1,
+      "pr14_has_prod_patch": false,
+      "pr14_app_code_unchanged": true
+    },
+    "ci_historical_evidence": {
+      "run_url": "https://github.com/Tihulu/tihulu-flight-radar/actions/runs/43133741667",
+      "run_id": 43133741667,
+      "head_sha": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+      "result": "success",
+      "jobs": [
+        "Debian 12 x64 source compatibility and preview",
+        "build (windows-2025, windows-x64)",
+        "build (ubuntu-24.04, linux-x64)",
+        "build (macos-15, macos-apple-silicon)"
+      ],
+      "jobs_all_concluded_success": true,
+      "ubuntu_result": {
+        "passed": 79,
+        "xfailed": 1,
+        "xfail_strict": true,
+        "counts_source": "coordinator Phase 4 document reports inspected Ubuntu output; GitHub Actions job confirms success; full step stdout not independently retrieved by this worker"
+      },
+      "pi_run_url": "https://github.com/Tihulu/tihulu-flight-radar/actions/runs/43133741622",
+      "pi_job": "arm64",
+      "pi_result": "success",
+      "worker_executed_tests": 0,
+      "hardware_tests": 0,
+      "real_systemd_sudo_actions": 0
+    },
+    "strict_xfail_review": {
+      "test_ref": {
+        "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+        "path": "tests/test_stage3_isolated_receiver_ownership.py",
+        "line_start": 35,
+        "line_end": 44,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L35-L44"
+      },
+      "source_ref": {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/control.py",
+        "line_start": 253,
+        "line_end": 259,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L253-L259"
+      },
+      "paired_argv_ref": {
+        "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "path": "tihulu_flight_radar/control.py",
+        "line_start": 100,
+        "line_end": 104,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L100-L104"
+      },
+      "verdict": "valid known main regression expectation, not a fix",
+      "caveat": "strict xfail has no raises assertion so any exception is accepted; future merge review should strengthen failure-kind characterization and remove mark only when fixed",
+      "old_pr7_signature_mismatch": "PR #7 ReceiverController.close(self) lacks release_local_service kwarg; direct test reuse unchanged can XFAIL due TypeError, not validate fix",
+      "gate_status": "REG-03_open"
+    },
+    "unit_tests": [
+      {
+        "name": "test_existing_service_exit_opt_out_never_stops_external",
+        "test_lines": [
+          27,
+          32
+        ],
+        "reported": "pass_in_Ubuntu_CI_total",
+        "observation": "R+T default on; release OFF; zero mocked service_action calls",
+        "limitations": "Does not assess app-owned release OFF case",
+        "source_anchor": {
+          "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+          "path": "tests/test_stage3_isolated_receiver_ownership.py",
+          "line_start": 27,
+          "line_end": 32,
+          "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L27-L32"
+        }
+      },
+      {
+        "name": "test_external_readsb_should_survive_exit_release_opt_in",
+        "test_lines": [
+          35,
+          44
+        ],
+        "reported": "strict_XFAIL_in_Ubuntu_CI",
+        "observation": "R+T preexisting, owner false; expects no stop on release ON; main invokes paired stop",
+        "limitations": "Unscoped strict xfail accepts any failure/exception, and old PR #7 close has a different signature; XFAIL must not count as fixed",
+        "source_anchor": {
+          "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+          "path": "tests/test_stage3_isolated_receiver_ownership.py",
+          "line_start": 35,
+          "line_end": 44,
+          "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L35-L44"
+        }
+      },
+      {
+        "name": "test_explicit_stop_uses_shared_service_action",
+        "test_lines": [
+          47,
+          53
+        ],
+        "reported": "pass_in_Ubuntu_CI_total",
+        "observation": "Stop invokes mocked paired service_action stop and clears owner flag",
+        "limitations": "No actual unit state transitions or user confirmation",
+        "source_anchor": {
+          "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+          "path": "tests/test_stage3_isolated_receiver_ownership.py",
+          "line_start": 47,
+          "line_end": 53,
+          "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L47-L53"
+        }
+      },
+      {
+        "name": "test_start_with_preexisting_service_does_not_claim_ownership",
+        "test_lines": [
+          56,
+          62
+        ],
+        "reported": "pass_in_Ubuntu_CI_total",
+        "observation": "Canonical main still invokes service_action start on preexisting R, while not claiming ownership",
+        "limitations": "Current test preserves this side effect; proposed safer no-op would require a new acceptance test",
+        "source_anchor": {
+          "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+          "path": "tests/test_stage3_isolated_receiver_ownership.py",
+          "line_start": 56,
+          "line_end": 62,
+          "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L56-L62"
+        }
+      },
+      {
+        "name": "test_start_after_inactive_service_records_app_ownership",
+        "test_lines": [
+          65,
+          72
+        ],
+        "reported": "pass_in_Ubuntu_CI_total",
+        "observation": "Fixture R off, mocked start action recorded, owner flag true",
+        "limitations": "Mock never flips active R to true and bypasses stable transition; not a valid state change/USB acquisition test",
+        "source_anchor": {
+          "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+          "path": "tests/test_stage3_isolated_receiver_ownership.py",
+          "line_start": 65,
+          "line_end": 72,
+          "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L65-L72"
+        }
+      },
+      {
+        "name": "test_failed_start_does_not_claim_service",
+        "test_lines": [
+          75,
+          82
+        ],
+        "reported": "pass_in_Ubuntu_CI_total",
+        "observation": "Fake service_action raises DataError; owner false",
+        "limitations": "Fixture R remains initially active; does not exercise failed start from inactive nor partially successful start",
+        "source_anchor": {
+          "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+          "path": "tests/test_stage3_isolated_receiver_ownership.py",
+          "line_start": 75,
+          "line_end": 82,
+          "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L75-L82"
+        }
+      },
+      {
+        "name": "test_remote_exit_never_stops_local_even_if_release_enabled",
+        "test_lines": [
+          85,
+          90
+        ],
+        "reported": "pass_in_Ubuntu_CI_total",
+        "observation": "Remote JSON release ON has no mocked service action",
+        "limitations": "Does not verify after switching to remote from owned Linux service",
+        "source_anchor": {
+          "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+          "path": "tests/test_stage3_isolated_receiver_ownership.py",
+          "line_start": 85,
+          "line_end": 90,
+          "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L85-L90"
+        }
+      },
+      {
+        "name": "test_service_stop_builds_restricted_argv_without_systemctl",
+        "test_lines": [
+          93,
+          107
+        ],
+        "reported": "pass_in_Ubuntu_CI_total",
+        "observation": "Captured exact paired sudo argv ['/usr/bin/sudo','-n','/usr/bin/systemctl','stop','readsb.service','tar1090.service']",
+        "limitations": "This is explicit service_action, NOT passive Exit; no real sudoers validation or privilege-denied branch",
+        "source_anchor": {
+          "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+          "path": "tests/test_stage3_isolated_receiver_ownership.py",
+          "line_start": 93,
+          "line_end": 107,
+          "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L93-L107"
+        }
+      }
+    ],
+    "explicit_compatibility_cases": [
+      {
+        "id": "P4-L01",
+        "case_name": "External R+T active; passive Exit, preference ON",
+        "observed_main_source": "Paired stop R+T if readsb active",
+        "draft7_unmerged": "No stop if not owned",
+        "draft13_unmerged": "Same control blob as main",
+        "pr14_test_coverage": "strict XFAIL test L38–44; coupled with separate paired argv L93–107",
+        "required_future_behavior": "No external stop, regardless of ON flag",
+        "associated_fix_ids": [
+          "P4-FIX-01",
+          "P4-FIX-02"
+        ],
+        "source_anchors": [
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 35,
+            "line_end": 44,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L35-L44"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 253,
+            "line_end": 259,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L253-L259"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 100,
+            "line_end": 105,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L100-L105"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L02",
+        "case_name": "External R+T active; passive Exit, preference OFF",
+        "observed_main_source": "No stop",
+        "draft7_unmerged": "No stop (no preference UI in old PR)",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "PASS, L27–32",
+        "required_future_behavior": "No stop; preserve persisted opt-out",
+        "associated_fix_ids": [
+          "P4-FIX-02",
+          "P4-FIX-10"
+        ],
+        "source_anchors": [
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 27,
+            "line_end": 32,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L27-L32"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 317,
+            "line_end": 324,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L317-L324"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L03",
+        "case_name": "External R only active; passive Exit, preference ON",
+        "observed_main_source": "Paired stop attempts R+T (including inactive viewer)",
+        "draft7_unmerged": "No stop if unowned",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "Not independently tested for T=false",
+        "required_future_behavior": "No service action",
+        "associated_fix_ids": [
+          "P4-FIX-01",
+          "P4-FIX-02"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 234,
+            "line_end": 260,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L234-L260"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 240,
+            "line_end": 259,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L240-L259"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L04",
+        "case_name": "External T only active, R inactive; passive Exit",
+        "observed_main_source": "readsb-active condition false; no paired stop",
+        "draft7_unmerged": "Unowned; no stop",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "Not tested: fixture starts R+T active",
+        "required_future_behavior": "Viewer untouched, independent of receiver",
+        "associated_fix_ids": [
+          "P4-FIX-02"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 253,
+            "line_end": 259,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L253-L259"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L05",
+        "case_name": "App-owned R started, external T already active, passive Exit ON",
+        "observed_main_source": "Paired stop R+T including external viewer",
+        "draft7_unmerged": "Single readsb stop, T unaffected",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "No app-owned exit case",
+        "required_future_behavior": "Stop only owned R, never external T",
+        "associated_fix_ids": [
+          "P4-FIX-02",
+          "P4-FIX-03"
+        ],
+        "source_anchors": [
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 101,
+            "line_end": 120,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L101-L120"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 88,
+            "line_end": 112,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L88-L112"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L06",
+        "case_name": "App-owned R; passive Exit OFF",
+        "observed_main_source": "No paired service stop even if owned",
+        "draft7_unmerged": "Always owned-R stop; old PR has no saved opt-out",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "Not tested (existing main test_control L58–69 only)",
+        "required_future_behavior": "Preserve explicit OFF preference until separately approved policy change",
+        "associated_fix_ids": [
+          "P4-FIX-02",
+          "P4-FIX-10"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tests/test_control.py",
+            "line_start": 58,
+            "line_end": 69,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tests/test_control.py#L58-L69"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 141,
+            "line_end": 149,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L141-L149"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L07",
+        "case_name": "Explicit Stop with external R+T",
+        "observed_main_source": "Paired stop and clear flag",
+        "draft7_unmerged": "Paired stop and clear flag",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "PASS L47–53 + paired argv L93–107",
+        "required_future_behavior": "Intentionally paired only on explicit action; warn/confirm external impact",
+        "associated_fix_ids": [
+          "P4-FIX-04"
+        ],
+        "source_anchors": [
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 47,
+            "line_end": 53,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L47-L53"
+          },
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 93,
+            "line_end": 107,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L93-L107"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 205,
+            "line_end": 211,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L205-L211"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L08",
+        "case_name": "Explicit Restart with external R+T",
+        "observed_main_source": "Paired Stop then Start, may claim ownership",
+        "draft7_unmerged": "Paired Stop then Start, can become app-owned",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "Not covered",
+        "required_future_behavior": "No covert auto-restart; correct ownership provenance and user warning",
+        "associated_fix_ids": [
+          "P4-FIX-04",
+          "P4-FIX-06"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 198,
+            "line_end": 211,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L198-L211"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 204,
+            "line_end": 217,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L204-L217"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L09",
+        "case_name": "Start while external R active",
+        "observed_main_source": "Still invokes paired service start; remains unowned flag",
+        "draft7_unmerged": "No command; returns already running and unowned",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "PASS L56–62 explicitly characterizes main's action dispatch",
+        "required_future_behavior": "No paired start or tar1090 side effect; keep unowned",
+        "associated_fix_ids": [
+          "P4-FIX-05"
+        ],
+        "source_anchors": [
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 56,
+            "line_end": 62,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L56-L62"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 156,
+            "line_end": 164,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L156-L164"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 162,
+            "line_end": 170,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L162-L170"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L10",
+        "case_name": "Start from confirmed inactive R",
+        "observed_main_source": "Paired service start; owner flag after success",
+        "draft7_unmerged": "Paired service start; owner flag after success",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "PASS L65–72, but mocked action does not transition systemd state",
+        "required_future_behavior": "Claim app ownership after verified stable running state, preserve tar1090 independence",
+        "associated_fix_ids": [
+          "P4-FIX-01",
+          "P4-FIX-06"
+        ],
+        "source_anchors": [
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 65,
+            "line_end": 72,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L65-L72"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 59,
+            "line_end": 85,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L59-L85"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L11",
+        "case_name": "Failed Start with R initially inactive",
+        "observed_main_source": "Main flag set only after successful service_action; partial unit activation possible",
+        "draft7_unmerged": "Old #7 same potential partial-start ownership gap",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "PASS L75–82 uses DEFAULT R=active fixture, not inactive failure; insufficient negative test",
+        "required_future_behavior": "Simulate inactive -> sudo nonzero/timeout, stable-state failure, partial active, preserve correct owner ledger",
+        "associated_fix_ids": [
+          "P4-FIX-06"
+        ],
+        "source_anchors": [
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 15,
+            "line_end": 24,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L15-L24"
+          },
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 75,
+            "line_end": 82,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L75-L82"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 156,
+            "line_end": 164,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L156-L164"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L12",
+        "case_name": "systemctl is-active returns unknown/transient state",
+        "observed_main_source": "_unit_active maps OSError/timeout to False, so start may mistake unknown for inactive",
+        "draft7_unmerged": "Same underlying tri-state issue",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "No test",
+        "required_future_behavior": "Treat unknown as unknown not proven safe to start/claim ownership",
+        "associated_fix_ids": [
+          "P4-FIX-01",
+          "P4-FIX-06"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 20,
+            "line_end": 30,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L20-L30"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 59,
+            "line_end": 85,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L59-L85"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L13",
+        "case_name": "Owned readsb exit single-unit stop denied under old sudoers",
+        "observed_main_source": "Main paired sudoer only; paired close may warn then close",
+        "draft7_unmerged": "PR#7 requires exact new single-unit sudo policy; close error can cancel Qt exit",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "Mocked service_action stop argv only; no permission denial test",
+        "required_future_behavior": "Do not silently release; explicit failure + safe retry; installer policy migration separately authorized",
+        "associated_fix_ids": [
+          "P4-FIX-03",
+          "P4-FIX-08"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "scripts/install-linux.sh",
+            "line_start": 122,
+            "line_end": 129,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/scripts/install-linux.sh#L122-L129"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "scripts/install-linux.sh",
+            "line_start": 55,
+            "line_end": 64,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/scripts/install-linux.sh#L55-L64"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 710,
+            "line_end": 720,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/app.py#L710-L720"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L14",
+        "case_name": "In-flight asynchronous Start/Restart while classic Qt closes",
+        "observed_main_source": "shutdown(wait=False), no action_future drain",
+        "draft7_unmerged": "Old #7 tries bounded future result timeout=35 before cleanup",
+        "draft13_unmerged": "Main Qt same as #13",
+        "pr14_test_coverage": "No Qt race test",
+        "required_future_behavior": "Serialize actions + close to prevent start-after-close, keep cancel/retry UI",
+        "associated_fix_ids": [
+          "P4-FIX-08"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 418,
+            "line_end": 428,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L418-L428"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 739,
+            "line_end": 752,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L739-L752"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 701,
+            "line_end": 721,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/app.py#L701-L721"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L15",
+        "case_name": "Native Qt startup future still pending at exit",
+        "observed_main_source": "Sets _exit_requested and delays exit until startup future finishes, but cleanup may still warn+close",
+        "draft7_unmerged": "Old #7 classic only; lacks newer native/classic ABI",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "No native Qt test",
+        "required_future_behavior": "Preserve native startup drain and proper stop/cancel on owned-release failure",
+        "associated_fix_ids": [
+          "P4-FIX-08"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 191,
+            "line_end": 229,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L191-L229"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 296,
+            "line_end": 319,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L296-L319"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L16",
+        "case_name": "Native primary + classic secondary window share receiver",
+        "observed_main_source": "Primary owns, classic instantiated with owns_receiver=False",
+        "draft7_unmerged": "Old #7 RadarWindow __init__ lacks controller/owns_receiver args",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "No Qt shared-controller test",
+        "required_future_behavior": "Preserve main native constructor ABI and release exactly once",
+        "associated_fix_ids": [
+          "P4-FIX-07"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 269,
+            "line_end": 277,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L269-L277"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 140,
+            "line_end": 151,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L140-L151"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 140,
+            "line_end": 150,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/app.py#L140-L150"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L17",
+        "case_name": "Switch from app-owned Linux services into Remote JSON before passive Exit",
+        "observed_main_source": "configure changes mode without clearing owned flag; close only releases if current mode Linux services",
+        "draft7_unmerged": "Same structural mode-specific ownership exit concern",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "Remote L85–90 tests only initially configured remote",
+        "required_future_behavior": "Require explicit service stop/handoff before switching; remote must never acquire new local service",
+        "associated_fix_ids": [
+          "P4-FIX-09"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 128,
+            "line_end": 136,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L128-L136"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 234,
+            "line_end": 259,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L234-L259"
+          },
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 85,
+            "line_end": 91,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L85-L91"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L18",
+        "case_name": "App-owned direct readsb child, close ON/OFF",
+        "observed_main_source": "Child terminated and temp cleaned regardless of saved preference",
+        "draft7_unmerged": "Same direct cleanup",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "No direct child exit PID test",
+        "required_future_behavior": "Stop only child's PID; preserve no competition with systemd and no external kill",
+        "associated_fix_ids": [
+          "P4-FIX-11"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 165,
+            "line_end": 196,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L165-L196"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 212,
+            "line_end": 223,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L212-L223"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L19",
+        "case_name": "Remote JSON mode, passive Exit ON",
+        "observed_main_source": "No local stop by mode guard",
+        "draft7_unmerged": "No local stop; no app ownership",
+        "draft13_unmerged": "Same as main",
+        "pr14_test_coverage": "PASS L85–90",
+        "required_future_behavior": "No local sudo, no remote write, Internet feed unchanged",
+        "associated_fix_ids": [
+          "P4-FIX-11"
+        ],
+        "source_anchors": [
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 85,
+            "line_end": 90,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L85-L90"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 137,
+            "line_end": 141,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L137-L141"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      },
+      {
+        "id": "P4-L20",
+        "case_name": "Physical RTL-SDR release and live tar1090 map",
+        "observed_main_source": "No physical evidence from systemd state",
+        "draft7_unmerged": "No physical evidence from old #7 CI",
+        "draft13_unmerged": "No hardware ownership fix",
+        "pr14_test_coverage": "No physical devices exercised in PR14",
+        "required_future_behavior": "Require later owner-approved SDR and existing service provenance/USB lease tests",
+        "associated_fix_ids": [
+          "P4-FIX-01",
+          "P4-FIX-11"
+        ],
+        "source_anchors": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 20,
+            "line_end": 29,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L20-L29"
+          },
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 1,
+            "line_end": 5,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L1-L5"
+          }
+        ],
+        "acceptance_status": "proposed_not_executed_by_this_worker"
+      }
+    ],
+    "proposed_fix_matrix": [
+      {
+        "id": "P4-FIX-01",
+        "severity": "P0",
+        "title": "Ownership provenance is a session-scoped state machine",
+        "proposal": "Record external/pre-existing, app-started, unknown and direct-child states separately. Claim readsb ownership only after an observed-inactive preflight, successful explicit app Start and stable-active verification; unknown/error states must not be interpreted as permission to stop external hardware.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 20,
+            "line_end": 29,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L20-L29"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 156,
+            "line_end": 164,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L156-L164"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 162,
+            "line_end": 170,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L162-L170"
+          }
+        ],
+        "acceptance": "Pre-existing ON and unknown state cannot be claimed or passively stopped; app-owned begins only after successful verified Start."
+      },
+      {
+        "id": "P4-FIX-02",
+        "severity": "P0",
+        "title": "Exit must not stop external readsb or tar1090",
+        "proposal": "Retain current saved release_sdr_on_exit preference but scope exit auto-release to provably app-owned readsb only; always preserve externally owned readsb and tar1090. App-owned direct child always released as before. Main ON default retains intent, while an explicit OFF retains user's chosen persistence until owner separately approves a change.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 234,
+            "line_end": 263,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L234-L263"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 317,
+            "line_end": 324,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L317-L324"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 141,
+            "line_end": 149,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L141-L149"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 240,
+            "line_end": 259,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L240-L259"
+          }
+        ],
+        "acceptance": "ON + external => no privileged action; ON + app-owned => only readsb stop; OFF => no systemd auto-stop; direct child always stopped."
+      },
+      {
+        "id": "P4-FIX-03",
+        "severity": "P0",
+        "title": "Exit-only readsb command needs exact least-privilege policy",
+        "proposal": "For future explicitly authorized code+installer review, use exact single-service sudo argv (never generic shell, killall or broad sudo) for ownership-qualified readsb release. Existing canonical sudoers authorizes paired readsb+tar1090 only; separately plan policy migration/rollback and fail safely on old installations.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 88,
+            "line_end": 116,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L88-L116"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "scripts/install-linux.sh",
+            "line_start": 122,
+            "line_end": 129,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/scripts/install-linux.sh#L122-L129"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 101,
+            "line_end": 120,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L101-L120"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "scripts/install-linux.sh",
+            "line_start": 55,
+            "line_end": 64,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/scripts/install-linux.sh#L55-L64"
+          }
+        ],
+        "acceptance": "No sudo success assumed without policy; denial leaves clear user-visible warning and retry; no tar1090 process is stopped."
+      },
+      {
+        "id": "P4-FIX-04",
+        "severity": "P0",
+        "title": "Explicit Stop/Restart distinct from passive Exit",
+        "proposal": "Preserve existing user-invoked paired Stop/Restart contract pending explicit product decision, with clear warning it can stop pre-existing readsb+tar1090. Passive Exit MUST NOT invoke paired service_action('stop'). Reconcile Restart attribution following Stop/Start; no automatic ownership of externally restarted unrelated services.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 198,
+            "line_end": 211,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L198-L211"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 100,
+            "line_end": 110,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L100-L110"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 204,
+            "line_end": 217,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L204-L217"
+          }
+        ],
+        "acceptance": "Explicit Stop paired; no Exit paired; external Restart requires confirmation and ownership ledger correct after success/failure."
+      },
+      {
+        "id": "P4-FIX-05",
+        "severity": "P0",
+        "title": "Start no-op on active externally managed readsb",
+        "proposal": "When pre-existing readsb is active, the app should observe it without issuing paired systemctl start. Preserve non-owning status and avoid unnecessarily restarting or touching external tar1090. Only an explicit user Start from confirmed inactive may acquire ownership.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 156,
+            "line_end": 164,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L156-L164"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 162,
+            "line_end": 170,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/control.py#L162-L170"
+          },
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 56,
+            "line_end": 72,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L56-L72"
+          }
+        ],
+        "acceptance": "No sudo command and owner=false on pre-existing services; no false owned state on start failure."
+      },
+      {
+        "id": "P4-FIX-06",
+        "severity": "P0",
+        "title": "Handle partial start, timeout and verification failure",
+        "proposal": "Separate attempted command, stable service state and owned provenance. Simulate service start succeeds but _verify_transition raises, sudo nonzero, concurrent external start, unknown is-active and post-start crash; report ambiguous partial ownership without silently killing external services or falsely indicating device released.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 59,
+            "line_end": 85,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L59-L85"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 100,
+            "line_end": 112,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L100-L112"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 156,
+            "line_end": 164,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L156-L164"
+          },
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 65,
+            "line_end": 82,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L65-L82"
+          }
+        ],
+        "acceptance": "No false success, no accidental external stop, persisted actionable error and deterministic recovery path."
+      },
+      {
+        "id": "P4-FIX-07",
+        "severity": "P0",
+        "title": "Qt constructor and multiwindow lifecycle ABI preservation",
+        "proposal": "Preserve current RadarWindow(controller=None, owns_receiver=True) and native embedded classic non-owner. Only owning primary window releases controller. Do NOT transplant old PR #7 RadarWindow constructor or remove shared map/bridge features.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 140,
+            "line_end": 151,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L140-L151"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 269,
+            "line_end": 277,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L269-L277"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 140,
+            "line_end": 150,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/app.py#L140-L150"
+          }
+        ],
+        "acceptance": "Closing secondary window never kills shared readsb; primary close uses one release operation; no Qt TypeError."
+      },
+      {
+        "id": "P4-FIX-08",
+        "severity": "P0",
+        "title": "Serialized Start/Stop/Restart/Close + clear failure UI",
+        "proposal": "Coordinate classic action_future and native _startup_future/receiver_lock before passive release, prevent start-after-close, do not close and destroy map/UI before release status is known; on qualified owned-stop failure cancel/retry close without claiming SDR available. Bounded wait must not freeze UI indefinitely.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 418,
+            "line_end": 428,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L418-L428"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 739,
+            "line_end": 752,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L739-L752"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 191,
+            "line_end": 229,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L191-L229"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 296,
+            "line_end": 319,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L296-L319"
+          },
+          {
+            "ref": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 701,
+            "line_end": 721,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3/tihulu_flight_radar/app.py#L701-L721"
+          }
+        ],
+        "acceptance": "No background start after application closes; map server remains valid if close cancelled; failure remains user visible."
+      },
+      {
+        "id": "P4-FIX-09",
+        "severity": "P0",
+        "title": "Do not lose ownership when changing receiver mode",
+        "proposal": "Before switching from locally app-owned Linux services into Remote JSON / Direct mode, require explicit stop/handoff or keep a mode-independent owned-service cleanup record. Existing configure can change mode while owner flag stays true; current close tests only current mode.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 119,
+            "line_end": 136,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L119-L136"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 234,
+            "line_end": 259,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L234-L259"
+          }
+        ],
+        "acceptance": "No orphaned app-started service after mode switch; Remote JSON never manages unrelated services."
+      },
+      {
+        "id": "P4-FIX-10",
+        "severity": "P1",
+        "title": "Preserve explicit saved opt-out and EN/TR/DE communication",
+        "proposal": "Retain release_sdr_on_exit key and EN-default label; future locale coverage EN/TR/DE must explain app-owned versus external, map viewer independence, explicit Stop impact and denied sudo. Do not conflate boot enable/disable with active receiver ownership.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/app.py",
+            "line_start": 313,
+            "line_end": 333,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/app.py#L313-L333"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/native.py",
+            "line_start": 127,
+            "line_end": 149,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/native.py#L127-L149"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 88,
+            "line_end": 116,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L88-L116"
+          }
+        ],
+        "acceptance": "Saved OFF persists across restart, default ON preserved, localized warnings have equivalent safety meaning."
+      },
+      {
+        "id": "P4-FIX-11",
+        "severity": "P0",
+        "title": "Keep Direct and Remote mode guards and ownership separate",
+        "proposal": "Direct readsb child belongs to app and must exit via terminate/wait/kill scoped to its own PID/temp data; Remote JSON Start/Stop are forbidden and exit must do no local sudo; no hardware release claim from mocked process exit.",
+        "source": [
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 137,
+            "line_end": 154,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L137-L154"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 165,
+            "line_end": 196,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L165-L196"
+          },
+          {
+            "ref": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+            "path": "tihulu_flight_radar/control.py",
+            "line_start": 205,
+            "line_end": 223,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L205-L223"
+          },
+          {
+            "ref": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+            "path": "tests/test_stage3_isolated_receiver_ownership.py",
+            "line_start": 85,
+            "line_end": 91,
+            "url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L85-L91"
+          }
+        ],
+        "acceptance": "Fake child stop and remote no-side-effects, plus separate later authorized physical SDR claim/release test."
+      }
+    ],
+    "missing_test_gaps": [
+      {
+        "id": "P4-GAP-01",
+        "priority": "P0",
+        "text": "No independent external R-only, T-only, mixed app R / external T passive-exit fixtures; tar1090 preservation remains unproved by new tests."
+      },
+      {
+        "id": "P4-GAP-02",
+        "priority": "P0",
+        "text": "Strict XFAIL lacks raises/match constraint and will also XFAIL for unrelated TypeError/exception; cannot run unchanged against old PR #7 close signature."
+      },
+      {
+        "id": "P4-GAP-03",
+        "priority": "P0",
+        "text": "Failed Start fixture begins with active R; does not cover initial-inactive then sudo failure, partial activation, transition timeout or stale ownership."
+      },
+      {
+        "id": "P4-GAP-04",
+        "priority": "P0",
+        "text": "No stop-only-readsb sudo argument/policy negative, missing older sudoers, full timeout or failed stop/Qt close-cancellation fixture."
+      },
+      {
+        "id": "P4-GAP-05",
+        "priority": "P0",
+        "text": "No Qt RadarWindow(controller, owns_receiver), native release preference parity, settings persistence, secondary close, or Start/Restart/Exit concurrency tests."
+      },
+      {
+        "id": "P4-GAP-06",
+        "priority": "P0",
+        "text": "No unknown systemd status / role handoff / mode switch / remote-after-owned guard tests; no verified service action ownership reconciliation."
+      },
+      {
+        "id": "P4-GAP-07",
+        "priority": "P0",
+        "text": "No direct child subprocess terminate/wait/kill + only-owned-PID cleanup / USB release confirmation."
+      },
+      {
+        "id": "P4-GAP-08",
+        "priority": "P0",
+        "text": "PR #13 contains no ownership fix (same control.py blob as main); PR #7 diverged and old Qt/install shell cannot be merged wholesale."
+      },
+      {
+        "id": "P4-GAP-09",
+        "priority": "P0",
+        "text": "79 pass/1 XFAIL on Ubuntu is software/mock CI, not real Pop!_OS readsb/tar1090/NooElec acceptance; four OS jobs and Pi bridge run do not establish device safety."
+      },
+      {
+        "id": "P4-GAP-10",
+        "priority": "P1",
+        "text": "No installed EN(default)/TR/DE text/error parity checks or explicit Stop warning and saved exit option compatibility."
+      },
+      {
+        "id": "P4-GAP-11",
+        "priority": "P0",
+        "text": "Existing XFAIL must become an ordinary passing test only after separately approved production fix; retaining strict mark after passing causes XPASS(strict) CI failure."
+      }
+    ],
+    "current_source_hazards": [
+      "Main source uses release_local_service=True even when preexisting; _service_started_by_app ignored on exit",
+      "Main action Stop acts on two units, not just readsb",
+      "Main installer sudoers only authorizes paired stop; PR7 adds separate readsb stop",
+      "Main native + classic share controller via constructor that PR7 lacks",
+      "Main prior setting key release_sdr_on_exit defaults ON; PR7 removes preference",
+      "Changing current mode can strand app-owned Linux service flag before exit",
+      "No physical device evidence or radio service action authorized"
+    ],
+    "regression_gate": "REG-03 (open); cross-links REG-04, REG-12, REG-14, REG-13",
+    "acceptance_status": "test_only_source_plus_historical_CI_review_not_production_fix",
+    "phase4_new_tests_executed_by_worker": 0,
+    "phase4_device_tests": 0,
+    "proposed_test_count": 20,
+    "safety": {
+      "application_code_changed": false,
+      "tests_changed": false,
+      "real_services_hardware_touched": false,
+      "main_changed": false,
+      "other_branch_changed": false,
+      "installer_changed": false,
+      "releases_or_merges": false,
+      "history_or_user_data_changed": false
+    },
+    "ui_contract": {
+      "engineering": "English",
+      "gui": [
+        "en-default",
+        "tr",
+        "de"
+      ],
+      "translation_runtime_verified": false
+    },
+    "hours_remaining_estimate": null
   }
 }
