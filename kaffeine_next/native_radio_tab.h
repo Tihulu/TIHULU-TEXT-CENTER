@@ -2991,12 +2991,12 @@ private:
 		return QLatin1String("http://127.0.0.1:") + QString::number(port_);
 	}
 	QString binaryPath() const {
-		return QDir::homePath() + QLatin1String("/.local/opt/tihulu-welle/bin/welle-cli");
+		return QDir::homePath() + QLatin1String("/.local/opt/tihulu-media-center-welle/bin/welle-cli");
 	}
 	bool prepared() const {
 		return QFile::exists(binaryPath()) &&
 			QFile::exists(QDir::homePath() +
-			  QLatin1String("/.local/opt/tihulu-welle/.tihulu-loopback-welle-revision"));
+			  QLatin1String("/.local/opt/tihulu-media-center-welle/.tihulu-loopback-welle-revision"));
 	}
 	bool active() const { return backend_.state() == QProcess::Running; }
 
@@ -3463,7 +3463,7 @@ private:
 		if (!prepared()) {
 			QMessageBox::information(this,tr("Optional local DAB+ receiver"),
 				tr("Install the pinned loopback-only welle-cli backend first:\n"
-				   "bash ~/.local/share/tihulu-kaffeine/install_welle.sh\n"
+				   "bash ~/.local/share/tihulu-media-center/native/install_welle.sh\n"
 				   "Or run the documented TIHULU install_welle.sh from the repo.\n\n"
 				   "A DAB-capable RTL-SDR/SoapySDR device is required."));
 			return;
