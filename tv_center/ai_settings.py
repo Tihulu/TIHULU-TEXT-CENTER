@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from .paths import media_paths, discover_legacy
 import tempfile
 
 DEFAULTS = {
     "version": 1, "asr_enabled": False, "translation_enabled": False,
     "backend": "auto", "model_path": "", "model_dir": "",
+    "recording_dir": "", "cache_dir": "",
     "translation_model": "argos",
     "active_profile": "", "remote_gpu_enabled": False,
     "remote_gpu_url": "", "remote_gpu_fallback": True,
@@ -17,7 +19,7 @@ DEFAULTS = {
 
 class AISettings:
     def __init__(self, path=None):
-        self.path = Path(path or Path.home()/".config/tihulu-tv-center/ai-settings.json")
+        self.path = Path(path or media_paths().ai_settings)
         self.values = dict(DEFAULTS)
         if self.path.is_file():
             if self.path.stat().st_size > 16384:
@@ -53,7 +55,7 @@ class AISettings:
             raise ValueError("Enable remote GPU explicitly before selecting it")
         if type(updated["pi_cpu_threads"]) is not int or not 1 <= updated["pi_cpu_threads"] <= 4:
             raise ValueError("Raspberry Pi CPU threads must be 1–4")
-        for field in ("model_path", "model_dir", "hailo_encoder_hef",
+        for field in ("model_path", "model_dir", "recording_dir", "cache_dir", "hailo_encoder_hef",
                       "hailo_decoder_hef", "hailo_npy_dir"):
             if not isinstance(updated[field], str) or len(updated[field]) > 1024:
                 raise ValueError("Model paths must be strings")
@@ -61,6 +63,11 @@ class AISettings:
         if persist:
             self.save()
         return self.values
+
+    @staticmethod
+    def legacy_candidates():
+        """Read-only preview. Never loads or migrates legacy secrets/weights."""
+        return discover_legacy()
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
