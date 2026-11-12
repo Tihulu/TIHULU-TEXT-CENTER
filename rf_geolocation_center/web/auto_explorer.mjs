@@ -56,7 +56,11 @@ function cached(){
  return null;
 }
 export function initAutoExplorer(){
- if(!$("live-find"))return;
+ if(!$("live-find"))return {stop:()=>{}};
+ let closed=false,fetchAbort=null,orbitTimer=null;
+ const listeners=[];
+ const listen=(target,event,callback)=>{target.addEventListener(event,callback);listeners.push([target,event,callback]);};
+
  let lastKnown=null;
  try{
    const saved=JSON.parse(localStorage.getItem("tihulu.rfgeo.last-known-position.v1")||"null");
@@ -137,6 +141,7 @@ export function initAutoExplorer(){
   $("live-sky-source").textContent=state.satellites.length?"SGP4 PREDICTION":"ORBITS UNAVAILABLE";
  }
  function recalc(){
+  if(closed)return;
   if(!state.lib||!state.satellites.length){state.visible=[];drawSky();return}
   const now=new Date();
   state.visible=state.satellites.map(s=>{
@@ -149,8 +154,10 @@ export function initAutoExplorer(){
   $("live-epoch").textContent="Median orbit epoch age "+median.toFixed(1)+" days"+(median>7?" · STALE":"");
  }
  async function ingest(raw,label,time){
+  if(closed)return;
   const parsed=tleCatalog(raw);
   if(!state.lib)state.lib=await import("https://esm.sh/satellite.js@6.0.1?bundle");
+  if(closed)return;
   state.satellites=parsed.map(s=>{
     try{const rec=state.lib.twoline2satrec(s.line1,s.line2);
       return !rec||rec.error?null:{...s,rec,group:constellation(s.name)}
@@ -162,7 +169,7 @@ export function initAutoExplorer(){
   recalc();
  }
  async function fetchCatalog(force=false){
-  if(state.loading)return;
+  if(state.loading||closed)return;
   state.loading=true;$("live-refresh").disabled=true;
   const cache=cached();
   try{
@@ -174,19 +181,23 @@ export function initAutoExplorer(){
    if(cache&&!force&&Date.now()-cache.time<DAY)return;
    $("live-orbit-status").textContent="Automatically fetching current GNSS orbital data from CelesTrak…";
    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),13000);
+   fetchAbort=ctrl;
    let response;
-   try{response=await fetch(SOURCE,{mode:"cors",cache:"no-store",signal:ctrl.signal})}finally{clearTimeout(timer)}
+   try{response=await fetch(SOURCE,{mode:"cors",cache:"no-store",signal:ctrl.signal})}finally{clearTimeout(timer);if(fetchAbort===ctrl)fetchAbort=null}
+   if(closed)return;
    if(!response.ok)throw Error("HTTP "+response.status);
    const raw=await response.text();
    if(tleCatalog(raw).length<10)throw Error("GNSS catalog unexpectedly small");
    await ingest(raw,"CelesTrak updated",Date.now());
+   if(closed)return;
    try{localStorage.setItem(STORAGE,JSON.stringify({time:Date.now(),raw}))}catch{}
   }catch(error){
+   if(closed)return;
    $("live-orbit-status").textContent=cache&&state.satellites.length?
     "Online refresh failed ("+error.message+"); using cached orbits.":
     "GNSS orbit download failed: "+error.message+". Retry when online.";
    if(!state.satellites.length){$("live-total").textContent="Unavailable";drawSky()}
-  }finally{state.loading=false;$("live-refresh").disabled=false}
+  }finally{state.loading=false;if(!closed)$("live-refresh").disabled=false}
  }
  $("live-refresh").addEventListener("click",()=>{void fetchCatalog(true)});
  $("live-find").addEventListener("click",()=>{
@@ -199,7 +210,7 @@ export function initAutoExplorer(){
    if(state.rfOnly)window.dispatchEvent(new Event("tihulu:rf-fit-map"));
    else $("earth-fit-evidence")?.click();
  });
- window.addEventListener("tihulu:rf-only-mode",event=>{
+ listen(window,"tihulu:rf-only-mode",event=>{
    state.rfOnly=!!event.detail?.enabled;
    if(state.rfOnly){
      if(!state.previousPos)state.previousPos=state.pos;
@@ -211,7 +222,7 @@ export function initAutoExplorer(){
    }
    updateMap();recalc();
  });
- window.addEventListener("tihulu:rf-survey-updated",event=>{
+ listen(window,"tihulu:rf-survey-updated",event=>{
    if(!state.rfOnly)return;
    const d=event.detail||{},s=Array.isArray(d.sources)?d.sources:[];
    const candidate=d.solution&&Number.isFinite(d.solution.lat)&&Number.isFinite(d.solution.lon)?d.solution:s.find(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
@@ -221,23 +232,23 @@ export function initAutoExplorer(){
    }
    updateMap();recalc();
  });
- window.addEventListener("offline",()=>{updateMap();$("live-position-status").textContent="Offline map mode: cached/device coordinates with local grid. Device GNSS may still work without Internet."});
- window.addEventListener("online",()=>{updateMap()});
- window.addEventListener("tihulu:reference-position",e=>{
+ listen(window,"offline",()=>{updateMap();$("live-position-status").textContent="Offline map mode: cached/device coordinates with local grid. Device GNSS may still work without Internet."});
+ listen(window,"online",()=>{updateMap()});
+ listen(window,"tihulu:reference-position",e=>{
    const p=e.detail;
    if(!p||![p.lat,p.lon].every(Number.isFinite))return;
    if(state.rfOnly)return;
    state.pos={lat:p.lat,lon:p.lon,source:p.kind||"Offline reference (NOT A FIX)",measured:false};
    updateMap();recalc();
  });
- window.addEventListener("tihulu:position",e=>{
+ listen(window,"tihulu:position",e=>{
    const p=e.detail;if(!p||![p.lat,p.lon].every(Number.isFinite)||Math.abs(p.lat)>90||Math.abs(p.lon)>180)return;
    if(state.rfOnly){state.previousPos={lat:p.lat,lon:p.lon,alt:p.alt||0,source:p.provider||"Device location",measured:true};return}
    state.pos={lat:p.lat,lon:p.lon,alt:p.alt||0,source:p.provider||"Device location",measured:true};
    $("live-position-status").textContent="Position acquired: "+state.pos.source+"; sky recalculated.";
    updateMap();recalc();
  });
- window.addEventListener("tihulu:receiver-status",e=>{
+ listen(window,"tihulu:receiver-status",e=>{
    $("live-usb-status").textContent=e.detail?.status||"Not connected";
    $("live-usb-detail").textContent=e.detail?.message||"No radio activity";
  });
@@ -249,5 +260,17 @@ export function initAutoExplorer(){
  }
  updateMap();drawSky();void fetchCatalog();
  // Periodic geometry recalculation only; no network refresh, new permissions or RF scan.
- setInterval(()=>{if(document.visibilityState==="visible"&&state.satellites.length)recalc()},60000);
+ orbitTimer=setInterval(()=>{if(!closed&&document.visibilityState==="visible"&&state.satellites.length)recalc()},60000);
+
+ function stop(){
+  if(closed)return;
+  closed=true;
+  fetchAbort?.abort();fetchAbort=null;
+  if(orbitTimer!==null){clearInterval(orbitTimer);orbitTimer=null;}
+  for(const [target,event,callback] of listeners)target.removeEventListener(event,callback);
+  listeners.length=0;
+  state.lib=null;state.raw=null;state.satellites=[];state.visible=[];
+  state.previousPos=null;state.loading=false;
+ }
+ return {stop};
 }
