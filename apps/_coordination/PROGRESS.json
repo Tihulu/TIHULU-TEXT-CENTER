@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase5_additional_owner_P0_full_exit_RAM_VRAM_model_release_recorded_original_17_gates_still_open",
+  "stage": "phase6_exit01_six_cross_app_implementation_handoffs_ready_waiting_user_to_start_workers",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Additional cross-application owner P0 RQ-098 / EXIT-01 now logged, no source fixes or acceptance performed for it; original 97 source-audited and 17 existing gates untouched. Flight PR15 software CI green, Text/Media test-only expansions green, no hardware acceptance, installer certification, release or migration; remaining ETA unknown.",
+    "reason": "Six implementation agents have documented, non-overlapping RQ-098/EXIT-01 handoffs but no new implementation branches or CI verified; owner must start the six chats. Original 17 acceptance gates plus EXIT-01 open, no measured release ETA or live RAM/VRAM verification.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -882,5 +882,90 @@
     "additional_proposed_gate_open": true,
     "all_new_requirement_acceptance_verified": false,
     "note": "Do not modify original 97/97 source-audited or original 17-gate counts before formal registry/CI contract reconciliation; new owner requirement independently P0 and unaccepted."
+  },
+  "exit01_six_agent_execution": {
+    "as_of": "2026-11-12",
+    "status": "IMPLEMENTATION_HANDOFFS_PREPARED_NOT_YET_AUTONOMOUSLY_STARTED",
+    "owner_requirement": "RQ-098",
+    "new_proposed_p0_gate": "EXIT-01",
+    "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
+    "worker_count": 6,
+    "workers": [
+      {
+        "id": "A1",
+        "area": "Media CUDA/Whisper/Qt",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": 67,
+        "source_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+        "new_branch": "fix/exit01-media-model-unload-2026-11-12",
+        "handoff_issue": 76,
+        "comment_id": 6813718607,
+        "status": "PROMPT_PENDING_USER_SEND"
+      },
+      {
+        "id": "A2",
+        "area": "Flight service/worker safe Quit",
+        "repo": "Tihulu/tihulu-flight-radar",
+        "original_pr": 15,
+        "source_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
+        "new_branch": "fix/exit01-flight-clean-exit-2026-11-12",
+        "handoff_issue": 77,
+        "comment_id": 6813719331,
+        "status": "PROMPT_PENDING_USER_SEND"
+      },
+      {
+        "id": "A3",
+        "area": "Satellite capture/scheduler/decoder cleanup",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": 37,
+        "source_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+        "new_branch": "fix/exit01-satellite-lease-release-2026-11-12",
+        "handoff_issue": 78,
+        "comment_id": 6813720095,
+        "status": "PROMPT_PENDING_USER_SEND"
+      },
+      {
+        "id": "A4",
+        "area": "RF Geolocation SDR leases and RF worker close",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": 16,
+        "source_sha": "6664a04a6247826d71f6adeb795b137fd26de213",
+        "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
+        "handoff_issue": 79,
+        "comment_id": 6813720769,
+        "status": "PROMPT_PENDING_USER_SEND"
+      },
+      {
+        "id": "A5",
+        "area": "Text Center RAM/ASR/HTTP/receiver cleanup",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": null,
+        "source_branch": "main",
+        "new_branch": "fix/exit01-text-asr-quit-2026-11-12",
+        "handoff_issue": 80,
+        "comment_id": 6813721489,
+        "status": "PROMPT_PENDING_USER_SEND"
+      },
+      {
+        "id": "A6",
+        "area": "Survival Kit AI/model manager owned lifecycle",
+        "repo": "Tihulu/tihulu-survival-kit",
+        "original_pr": 1,
+        "source_sha": "9384788153a5c01dbb20692895057d091346996d",
+        "new_branch": "fix/exit01-survival-owned-model-supervisor-2026-11-12",
+        "handoff_repo": "Tihulu/tihulu-survival-kit",
+        "handoff_pr": 1,
+        "comment_id": 6813722178,
+        "status": "PROMPT_PENDING_USER_SEND"
+      }
+    ],
+    "new_draft_prs_created": 0,
+    "new_ci_executed": 0,
+    "source_code_modified_by_coordinator": false,
+    "preexisting_original_gates_open": 17,
+    "additional_exit01_gate_open": true,
+    "owner_must_start_worker_chats": true,
+    "scope": "New independent app-specific feature Draft PR per worker; only app-owned resources, mock tests, no real GPU/NPU/SDR or external service stop/merge",
+    "qa_supervision": "Coordinator handles QA/History Issue #81 and confirms app-owned worker, GPU VRAM, NPU resources after separately approved physical acceptance"
   }
 }
