@@ -233,7 +233,7 @@ class LiveFM:
             except OSError:pass
         self.record_file=None
         speech_result=self.speech.stop(wait=True) if self.speech is not None else None
-        if speech_result and speech_result["worker_alive"]:
+        if speech_result and (speech_result["worker_alive"] or speech_result["child_alive"]):
             status="stop_failed_partial"
             reason="Speech worker did not stop within the bounded timeout"
         else:
@@ -259,7 +259,7 @@ class LiveFM:
                 self._shutdown("stopped")
             elif self.speech is not None:
                 result=self.speech.stop(wait=True)
-                if result["worker_alive"]:
+                if result["worker_alive"] or result["child_alive"]:
                     self.state.update(status="stop_failed_partial",
                         error="Speech worker still running")
                 else:
