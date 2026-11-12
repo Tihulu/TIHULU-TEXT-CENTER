@@ -844,7 +844,7 @@ def main(argv=None):
     endpoint = validate_socket(argv[1])
     from .caption_control import CaptionServiceControl
     from tv_center.language_codes import language_code
-    from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
+    from tv_center.media_backend.compute import LANGUAGES as WHISPER_LANGUAGES
     pid = int(endpoint.stem.rsplit("-", 1)[-1])
     if CaptionServiceControl.request_show(endpoint.parent, pid):
         # Reopening the TIHULU AI menu focuses the existing controller.
