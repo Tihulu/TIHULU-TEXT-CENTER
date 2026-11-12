@@ -43,7 +43,8 @@ def _whisper_model(profile):
     return str(p) if p else None
 
 
-def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
+def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict,*,
+                   cancel_event=None,on_process=None)->str:
     if not pcm:
         raise SpeechError("Empty received audio")
     if backend not in ("cpu","gpu","npu"):
@@ -139,13 +140,37 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict)->str:
         src.write_bytes(_wav_bytes(pcm))
         argv=[executable,"-m",model,"-f",str(src),"-l",language,
               "-nt","-otxt","-of",str(out)]
+        child=None
         try:
-            result=subprocess.run(argv,stdin=subprocess.DEVNULL,
-                                  stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
-                                  timeout=65,check=False)
-        except (OSError,subprocess.TimeoutExpired) as exc:
-            raise SpeechError("Local speech inference timed out or failed") from exc
-        if result.returncode!=0 or not (root/"transcript.txt").is_file():
+            child=subprocess.Popen(argv,stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                start_new_session=True,close_fds=True)
+            if on_process is not None:
+                on_process(child)
+            if cancel_event is not None and cancel_event.is_set():
+                raise SpeechError("Local speech inference cancelled")
+            try:
+                code=child.wait(timeout=65)
+            except subprocess.TimeoutExpired as exc:
+                raise SpeechError("Local speech inference timed out") from exc
+            if cancel_event is not None and cancel_event.is_set():
+                raise SpeechError("Local speech inference cancelled")
+        except OSError as exc:
+            raise SpeechError("Local speech inference failed") from exc
+        finally:
+            if child is not None and child.poll() is None:
+                try:
+                    child.terminate()
+                    child.wait(timeout=0.8)
+                except (OSError,subprocess.TimeoutExpired):
+                    try:
+                        child.kill()
+                        child.wait(timeout=0.8)
+                    except (OSError,subprocess.TimeoutExpired):
+                        pass
+            if on_process is not None:
+                on_process(None)
+        if code!=0 or not (root/"transcript.txt").is_file():
             raise SpeechError("whisper.cpp returned no successful transcript file")
         return re.sub(r"\s+"," ",(root/"transcript.txt").read_text(
             encoding="utf-8",errors="replace")[:5000]).strip()[:3000]
@@ -176,6 +201,7 @@ class SpeechPipeline:
             lambda text,src,dst:translate_offline(text,src,dst,backend=translation_backend))
         self._gate=RLock()
         self.lifecycle="RUNNING"
+        self._active_child=None
         self.buffer=bytearray()
         self.samples=0
         self.queue=queue.Queue(maxsize=2)
@@ -203,6 +229,15 @@ class SpeechPipeline:
                     self.dropped+=1
             return True
 
+    def _register_child(self,proc):
+        with self._gate:
+            if proc is None:
+                self._active_child=None
+            else:
+                self._active_child=proc
+                if self.stopping.is_set() and proc.poll() is None:
+                    proc.terminate()
+
     def _worker(self):
         try:
             while not self.stopping.is_set():
@@ -215,7 +250,11 @@ class SpeechPipeline:
                     # a completed transcript after cancellation.
                     if self.stopping.is_set():
                         continue
-                    text=self.transcriber(pcm,self.lang,self.backend,self.profile)
+                    if self.transcriber is transcribe_pcm:
+                        text=self.transcriber(pcm,self.lang,self.backend,self.profile,
+                            cancel_event=self.stopping,on_process=self._register_child)
+                    else:
+                        text=self.transcriber(pcm,self.lang,self.backend,self.profile)
                     if self.stopping.is_set() or not isinstance(text,str) or not text.strip():
                         continue
                     translated=None
@@ -262,6 +301,7 @@ class SpeechPipeline:
             self.stopping.set()
             self.lifecycle="STOPPING" if self.thread.is_alive() else "STOPPED"
             self.buffer.clear()
+            child=self._active_child
             while True:
                 try:
                     self.queue.get_nowait()
@@ -269,6 +309,11 @@ class SpeechPipeline:
                     break
                 else:
                     self.queue.task_done()
+        if child is not None and child.poll() is None:
+            try:
+                child.terminate()  # held process handle, not a global process search
+            except (OSError,ProcessLookupError):
+                pass
         if wait and self.thread.is_alive() and current_thread()!=self.thread:
             self.thread.join(timeout=max(0.0,min(float(timeout),10.0)))
         with self._gate:
