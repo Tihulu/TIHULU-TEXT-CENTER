@@ -1,0 +1,251 @@
+{
+  "schema": "tihulu-stand-sat-native-manifest-v1",
+  "intent": "PINNED_SOURCE_PREVIEW_ONLY_NOT_INSTALLABLE",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "provenance": {
+    "original_satellite_pr37": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+    "native_exit01_pr92": "4e35bf27abba8a4eee7ac27f9c099ea51ede711c",
+    "native_test_pr104": "4efce1457c8edd2c73523a30842ce3a966f0f51f"
+  },
+  "source_commit": "4e35bf27abba8a4eee7ac27f9c099ea51ede711c",
+  "source_prefix": "satellite_center/",
+  "package_root": "satellite_center/",
+  "capture_policy": {
+    "mode": "ON_DEMAND",
+    "physical_usb_tested": false,
+    "foreign_services": "NEVER_STOP_OR_UNBIND",
+    "shared_lease_status": "HOLD_LEGACY_TEXT_NAMESPACE",
+    "quit_contract": "STOPPING_SYNCHRONOUS_BOUNDED_OWNED_ONLY",
+    "unverified_rate_regression": "REG-06 native capture 2048000 versus SatDump --samplerate 1024000"
+  },
+  "entrypoints": {
+    "default": "python3 -m satellite_center desktop",
+    "widget_fallback": "python3 -m satellite_center desktop-widgets",
+    "no_device_diagnostic": "python3 -m satellite_center doctor",
+    "explicit_loopback_only": "python3 -m satellite_center serve"
+  },
+  "selection": {
+    "from_pinned_git_tree": "all regular satellite_center/*.py; all regular satellite_center/browser/** and satellite_center/assets/**; satellite_center/index.html, native_desktop_bridge.js, README.md; exactly the packager-owned contents, excluding other TIHULU applications",
+    "patterns": [
+      "satellite_center/*.py",
+      "satellite_center/browser/**",
+      "satellite_center/assets/**"
+    ],
+    "regular_files_only": true,
+    "symlinks": "REJECT",
+    "tracked_files_only": true,
+    "required_known_blobs": 32,
+    "source_git_commit_must_match": true,
+    "dirty_tree": "REJECT",
+    "no_other_tihulu_packages": true
+  },
+  "required_blobs": [
+    {
+      "path": "satellite_center/__init__.py",
+      "git_blob_sha1": "83b147c3d9ffdd0d4066260f266376f3aa059b5b"
+    },
+    {
+      "path": "satellite_center/__main__.py",
+      "git_blob_sha1": "946667db42fea131f9bfe776cd2d9277f11c922e"
+    },
+    {
+      "path": "satellite_center/bridge.py",
+      "git_blob_sha1": "2f4439666462b13dc89331f23bff47b4e96468a6"
+    },
+    {
+      "path": "satellite_center/desktop.py",
+      "git_blob_sha1": "ee4853a3c13086a25beef3187bc1c488563fa783"
+    },
+    {
+      "path": "satellite_center/native_web_shell.py",
+      "git_blob_sha1": "9aef09aaca9333fe51ff352c241c325568e74670"
+    },
+    {
+      "path": "satellite_center/native_orbit.py",
+      "git_blob_sha1": "c75b04059efd89248e1f752aab0ddb90c3a96a09"
+    },
+    {
+      "path": "satellite_center/native_maps.py",
+      "git_blob_sha1": "775f535e2c3c8d6f4afe04745c58e7214d201a32"
+    },
+    {
+      "path": "satellite_center/native_locations.py",
+      "git_blob_sha1": "d372b3b2ce3b3c99337d4ac57aac7ddcb85f4410"
+    },
+    {
+      "path": "satellite_center/native_analysis.py",
+      "git_blob_sha1": "f55e887588cd19450557ca4032bccc9ac900fca5"
+    },
+    {
+      "path": "satellite_center/native_signal_tools.py",
+      "git_blob_sha1": "5d887bde356d90a68be6928da7ebfc5b54e7c24b"
+    },
+    {
+      "path": "satellite_center/native_imagery.py",
+      "git_blob_sha1": "69aa9616f278813b43ac0c67149f24cfaf4c0d21"
+    },
+    {
+      "path": "satellite_center/native_protocols.py",
+      "git_blob_sha1": "540eed82da7081d10df8c444ab2be031db97de47"
+    },
+    {
+      "path": "satellite_center/native_osm_tiles.py",
+      "git_blob_sha1": "835adb68bbf76cebb81f1c5611473286093891e0"
+    },
+    {
+      "path": "satellite_center/compute_backends.py",
+      "git_blob_sha1": "15aa745b9087beec4228f3e64a33736df8039288"
+    },
+    {
+      "path": "satellite_center/npu_sstv.py",
+      "git_blob_sha1": "95e765201a3d65141b8fa73b2cdd25aa3387c084"
+    },
+    {
+      "path": "satellite_center/capture_budget.py",
+      "git_blob_sha1": "a7aeef899b89902a63d302d88dd6e0d9a5d4a170"
+    },
+    {
+      "path": "satellite_center/capture_naming.py",
+      "git_blob_sha1": "f5b18b313ddec8cddbb54afcffcaa8321cc06e4f"
+    },
+    {
+      "path": "satellite_center/sstv_series35.py",
+      "git_blob_sha1": "a6a660db144437705a8d65ddf09bfa158281afef"
+    },
+    {
+      "path": "satellite_center/window_visibility.py",
+      "git_blob_sha1": "ffae74b78ffe6c28919a6ebd012ec63ad6adc31b"
+    },
+    {
+      "path": "satellite_center/planning_store.py",
+      "git_blob_sha1": "c2c737350f138a52d328a362a97882409e3a896c"
+    },
+    {
+      "path": "satellite_center/desktop_shortcuts.py",
+      "git_blob_sha1": "88882f22d720d2df7321b09c99218968a2bef4e8"
+    },
+    {
+      "path": "satellite_center/native_data_labels.py",
+      "git_blob_sha1": "07fa7f8f4b7872a03f631728d7f9129557b71e9b"
+    },
+    {
+      "path": "satellite_center/media_catalog.py",
+      "git_blob_sha1": "662e6b262dbcac9edce646de8750e8d1e9aa0394"
+    },
+    {
+      "path": "satellite_center/native_geocoding.py",
+      "git_blob_sha1": "f18fa6fa731ba3a783f20bd627f57a30ee05718a"
+    },
+    {
+      "path": "satellite_center/native_pass_filters.py",
+      "git_blob_sha1": "6fe664f7a423c7b4fca1e785dab0e36e897d1040"
+    },
+    {
+      "path": "satellite_center/native_map_parity.py",
+      "git_blob_sha1": "ececdd65fd8e34559f158d27b8d1fb3d1617c153"
+    },
+    {
+      "path": "satellite_center/native_desktop_bridge.js",
+      "git_blob_sha1": "7f30304b4691ff3928d444ae2d9a2c871f600696"
+    },
+    {
+      "path": "satellite_center/index.html",
+      "git_blob_sha1": "a226fc8dedfe87b7d34e544184bd7ce5a89f375f"
+    },
+    {
+      "path": "satellite_center/README.md",
+      "git_blob_sha1": "722f18dc765ae147a4d53fa42cdf9226802db9a7"
+    },
+    {
+      "path": "satellite_center/assets/tihulu-satellite.svg",
+      "git_blob_sha1": "548c7d77a8c6e997a5abf62cd590e84a23e0c6cc"
+    },
+    {
+      "path": "satellite_center/assets/tihulu-satellite.png",
+      "git_blob_sha1": "3414283ed2c2e36a6802cef4825de6563812f0af"
+    },
+    {
+      "path": "satellite_center/packaging/debian/build.sh",
+      "git_blob_sha1": "17dbac5c7dc13455ebf78c393035b82ffe7ccf05"
+    }
+  ],
+  "dependencies": {
+    "runtime_required": [
+      "Python >=3.11",
+      "PyQt5 QtWidgets",
+      "PyQt5.QtWebEngineCore / QtWebEngineWidgets",
+      "PyQt5.QtWebChannel",
+      "NumPy",
+      "Skyfield"
+    ],
+    "receiver_optional": [
+      "rtl_sdr / rtl_test / rtl_power / rtl_fm native command-line tools",
+      "multimon-ng APRS",
+      "SatDump for Meteor CU8 decode",
+      "QSSTV external visual tool"
+    ],
+    "compute_optional": [
+      "CuPy with compatible CUDA runtime",
+      "Intel OpenVINO NPU"
+    ],
+    "offline_assets": [
+      "browser/natural-earth-land-110m.geojson",
+      "browser/cities-de-tr.json",
+      "user-supplied/cached TLE"
+    ]
+  },
+  "platform_status": {
+    "linux-debian-ubuntu-pop-x64": "Debian source build + synthetic Debian 12 apt/loopback CI; NOT live installed receiver",
+    "linux-debian-ubuntu-arm64": "Ubuntu ARM64 runtime CI; .deb architecture=all only; NOT Pi hardware proof",
+    "raspberry-pi-os-arm64": "HOLD: Pi native QtWebEngine/rtl-sdr/CPU/memory/SD card acceptance missing",
+    "windows-x64": "HOLD: current install.ps1 launches 8791 HTTP browser, no native Qt installer",
+    "macos-apple-silicon": "HOLD: user-local script omits PyQtWebEngine and lacks signed .app installer"
+  },
+  "independent_paths": {
+    "linux": {
+      "application": "/usr/share/tihulu-satellite-center",
+      "per_user_install": "~/.local/share/tihulu-satellite-center-app",
+      "data": "~/.local/share/tihulu-satellite-center",
+      "cache": "~/.cache/tihulu-satellite-center/osm"
+    },
+    "macos": {
+      "application": "~/Applications/TIHULU Satellite Center.command [current launcher only]",
+      "data": "~/Library/Application Support/TihuluSatelliteCenter",
+      "cache": "~/.cache/tihulu-satellite-center/osm"
+    },
+    "windows": {
+      "application": "%LOCALAPPDATA%\\Tihulu\\SatelliteCenterApp",
+      "data": "%LOCALAPPDATA%\\Tihulu\\SatelliteCenter",
+      "cache": "per-app cache must be audited"
+    }
+  },
+  "rollback_safety": {
+    "owned_code_only": true,
+    "delete_user_data": false,
+    "delete_records": false,
+    "protected_file_extensions": [
+      ".cu8",
+      ".wav",
+      ".png",
+      ".jpg",
+      ".tle",
+      ".json"
+    ],
+    "foreign_paths": [
+      "~/.local/share/tihulu-text-center",
+      "~/.local/share/tihulu-media-center",
+      "~/.local/share/tihulu-flight-radar",
+      "~/.local/share/tihulu-rfgeo",
+      "~/.local/share/tihulu-survival-kit"
+    ],
+    "restore_old_installed_payload_only_after_explicit_approval": true,
+    "shared_lease": "NEVER_DELETE_OR_RELOCATE_AUTOMATICALLY"
+  },
+  "source_composition": {
+    "native_branch_only": true,
+    "browser_from_native_source_commit": true,
+    "webusb_pr101_unintegrated": true,
+    "combined_native_plus_web_runtime_ci": "NOT_RUN_HOLD",
+    "note": "The native #92 and WebUSB #101 are sibling branches. A read-only export plan is not an integration test or usable installer."
+  }
+}
