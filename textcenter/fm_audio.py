@@ -69,6 +69,7 @@ class FMPreview:
         self.max_duration = max_duration
         self._mutex = Lock()
         self._stop = Event()
+        self._closed = False
         self._thread: Thread | None = None
         self._lock_fd: int | None = None
         self._process: subprocess.Popen | None = None
@@ -108,6 +109,8 @@ class FMPreview:
         if duration > self.max_duration:
             raise ValueError("FM audio preview limited to 20 seconds")
         with self._mutex:
+            if self._closed:
+                raise AudioError("FM preview has quit")
             if self._state["active"]:
                 raise AudioError("A listening preview is already in progress")
             ready = self.availability()
@@ -169,6 +172,21 @@ class FMPreview:
             result=self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=3)
+        if wait:
+            with self._mutex:
+                if thread and thread.is_alive():
+                    self._state.update(status="stop_failed_partial",
+                        error="FM preview worker did not stop in time")
+                result=self._snapshot()
+        return result
+
+    def quit(self):
+        with self._mutex:
+            self._closed=True
+        result=self.stop(wait=True)
+        with self._mutex:
+            self._wav=None
+            self._state["clip_ready"]=False
         return result
 
     @staticmethod
@@ -193,6 +211,9 @@ class FMPreview:
         error=None
         samples=bytearray()
         try:
+            if self._stop.is_set():
+                status="cancelled"
+                return
             if self.conflicts():
                 raise AudioError("Receiver is now in use; preview refused")
             executable=self.lookup("rtl_fm")
@@ -239,6 +260,8 @@ class FMPreview:
                 process.stdout.close()
             with self._mutex:
                 self._process=None
+                if self._stop.is_set():
+                    status="cancelled"
                 if status=="completed":
                     try:
                         self._wav=pcm_to_wav(bytes(samples[:MAX_BYTES]))
