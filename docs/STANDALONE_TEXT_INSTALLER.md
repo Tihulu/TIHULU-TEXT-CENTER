@@ -19,11 +19,13 @@ These are examples for a future approved source checkout. They do not control a 
     python3 scripts/text_standalone.py package --source-root . --output ./text-center-0.6.0-pinned.zip
     python3 scripts/text_standalone.py install --archive ./text-center-0.6.0-pinned.zip
 
-The **check** command only reads Python/OS version and whether optional program executables appear on PATH. Executable presence is not a runnable decoder or valid RF signal. The **package** command intentionally writes only to the explicitly named output file and refuses to overwrite a different file. The **install** command performs cryptographic archive validation and prints its proposed actions, but is **DRY_RUN by default**, makes no directories and starts nothing.
+The **check** command reads Python/OS version, optional executable presence, optional Python package metadata without loading a model, and whether model-path environment variables are set. Neither a program or package's presence nor a configured path establishes runnable speech/translation, actual hardware reception, an Argos directed language pair, or a validated CUDA/NPU session. The **package** command intentionally writes only to the explicitly named output file and refuses to overwrite a different file. The **install** command performs cryptographic archive validation and prints its proposed actions, but is **DRY_RUN by default**, makes no directories and starts nothing.
 
 Activation and rollback use an explicit **--apply** switch. **Do not use --apply on a real machine during this task; it is implemented only for later authorized review and synthetic temp-directory tests.**
 
 ## Proposed Text-owned install layout
+
+Before importing the selected Text release, the foreground launcher re-verifies the saved original ZIP SHA-256, its embedded manifest and every installed source-file SHA-256. A modified package or local source fails closed before any application import.
 
 Default runtime prefix: **~/.local/share/tihulu-text-center/runtime/**. Only the following app-specific private entries are created by an explicitly applied install in a future authorized session:
 
