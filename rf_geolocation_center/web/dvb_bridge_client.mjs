@@ -240,7 +240,7 @@ export function initDVBBridge(){
  $("tv-show-map").addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:show-tv-on-map")));
  $("radio-read-rds")?.addEventListener("click",()=>{void readRadioMetadata()});
  // Pairing secret is transient and delivered via explicit localhost approval;
- // no localStorage, cookies, periodic scans or automatic credential submission.
+ // no browser persistence, cookies, periodic scans or automatic credential submission.
  window.addEventListener("pagehide",()=>{void quit().catch(()=>{})});
  toggle();
  return {quit,stop};
