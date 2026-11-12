@@ -173,16 +173,17 @@ class LiveFM:
 
     @staticmethod
     def _terminate(proc):
+        """Terminate only a held app-created child, not a system process group."""
         if proc is None or proc.poll() is not None:
             return
         try:
-            os.killpg(proc.pid,signal.SIGTERM)
+            proc.terminate()
             proc.wait(timeout=0.6)
-        except (OSError,subprocess.TimeoutExpired):
+        except (OSError, subprocess.TimeoutExpired):
             try:
-                os.killpg(proc.pid,signal.SIGKILL)
+                proc.kill()
                 proc.wait(timeout=0.4)
-            except (OSError,subprocess.TimeoutExpired):
+            except (OSError, subprocess.TimeoutExpired):
                 pass
 
     def _feed(self):
