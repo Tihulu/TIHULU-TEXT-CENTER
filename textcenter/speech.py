@@ -13,7 +13,7 @@ import queue
 import re
 import subprocess
 import tempfile
-from threading import Event,Thread
+from threading import Event,Thread,RLock,current_thread
 import wave
 
 from .compute import choose_backend,detect_devices,validate_language
@@ -174,6 +174,8 @@ class SpeechPipeline:
         self.translation_backend=translation_backend
         self.translator=translator or (
             lambda text,src,dst:translate_offline(text,src,dst,backend=translation_backend))
+        self._gate=RLock()
+        self.lifecycle="RUNNING"
         self.buffer=bytearray()
         self.samples=0
         self.queue=queue.Queue(maxsize=2)
@@ -185,47 +187,94 @@ class SpeechPipeline:
         self.thread.start()
 
     def feed(self,pcm:bytes):
-        if self.stopping.is_set():return
-        self.buffer.extend(pcm)
-        while len(self.buffer)>=WINDOW_BYTES:
-            chunk=bytes(self.buffer[:WINDOW_BYTES])
-            del self.buffer[:WINDOW_BYTES]
-            begin=self.samples/SAMPLE_RATE
-            self.samples+=WINDOW_SECONDS*SAMPLE_RATE
-            try:self.queue.put_nowait((chunk,begin,begin+WINDOW_SECONDS))
-            except queue.Full:self.dropped+=1
+        """Admit audio atomically with Stop; never queue late PCM."""
+        with self._gate:
+            if self.stopping.is_set():
+                return False
+            self.buffer.extend(pcm)
+            while len(self.buffer)>=WINDOW_BYTES:
+                chunk=bytes(self.buffer[:WINDOW_BYTES])
+                del self.buffer[:WINDOW_BYTES]
+                begin=self.samples/SAMPLE_RATE
+                self.samples+=WINDOW_SECONDS*SAMPLE_RATE
+                try:
+                    self.queue.put_nowait((chunk,begin,begin+WINDOW_SECONDS))
+                except queue.Full:
+                    self.dropped+=1
+            return True
 
     def _worker(self):
-        while not self.stopping.is_set() or not self.queue.empty():
-            try:pcm,start,end=self.queue.get(timeout=0.3)
-            except queue.Empty:continue
-            try:
-                text=self.transcriber(pcm,self.lang,self.backend,self.profile)
-                if not isinstance(text,str) or not text.strip():
+        try:
+            while not self.stopping.is_set():
+                try:
+                    pcm,start,end=self.queue.get(timeout=0.1)
+                except queue.Empty:
                     continue
-                translated=None
-                if self.target:
-                    try:translated=self.translator(text,self.lang,self.target)
-                    except (TranslatorUnavailable,ImportError,ValueError,RuntimeError) as exc:
-                        self.last_error="Live translation unavailable: "+str(exc)[:200]
-                self.store.add(session=self.session,medium=self.medium,source_id=self.source_id,
-                    language=self.lang,text=text,backend=self.backend,start=start,end=end,
-                    translated=translated,target=self.target if translated else None,
-                    translation_engine="argos_"+self.translation_backend if translated else None)
-                self.completed+=1
-            except (SpeechError,ValueError,OSError,RuntimeError) as exc:
-                self.last_error="Speech transcription unavailable: "+str(exc)[:180]
-            finally:
-                self.queue.task_done()
+                try:
+                    # Stop can race with dequeue or inference; never publish
+                    # a completed transcript after cancellation.
+                    if self.stopping.is_set():
+                        continue
+                    text=self.transcriber(pcm,self.lang,self.backend,self.profile)
+                    if self.stopping.is_set() or not isinstance(text,str) or not text.strip():
+                        continue
+                    translated=None
+                    if self.target:
+                        try:
+                            translated=self.translator(text,self.lang,self.target)
+                        except (TranslatorUnavailable,ImportError,ValueError,RuntimeError) as exc:
+                            self.last_error="Live translation unavailable: "+str(exc)[:200]
+                    if self.stopping.is_set():
+                        continue
+                    self.store.add(session=self.session,medium=self.medium,source_id=self.source_id,
+                        language=self.lang,text=text,backend=self.backend,start=start,end=end,
+                        translated=translated,target=self.target if translated else None,
+                        translation_engine="argos_"+self.translation_backend if translated else None)
+                    self.completed+=1
+                except (SpeechError,ValueError,OSError,RuntimeError) as exc:
+                    self.last_error="Speech transcription unavailable: "+str(exc)[:180]
+                finally:
+                    pcm=b""
+                    self.queue.task_done()
+        finally:
+            with self._gate:
+                self.lifecycle="STOPPED"
 
     def status(self):
-        return {"enabled":True,"selected_backend":self.backend,
-                "detected_device":self.selection["detected_device"],
-                "source_language":self.lang,"target_language":self.target,
-                "translation_backend":self.translation_backend,
-                "segments_completed":self.completed,"dropped_windows":self.dropped,
-                "queued_windows":self.queue.qsize(),"error":self.last_error}
+        with self._gate:
+            return {"enabled":True,"selected_backend":self.backend,
+                    "detected_device":self.selection["detected_device"],
+                    "source_language":self.lang,"target_language":self.target,
+                    "translation_backend":self.translation_backend,
+                    "segments_completed":self.completed,"dropped_windows":self.dropped,
+                    "queued_windows":self.queue.qsize(),"error":self.last_error,
+                    "lifecycle":self.lifecycle,"worker_alive":self.thread.is_alive(),
+                    "buffered_bytes":len(self.buffer)}
 
-    def stop(self):
-        self.stopping.set()
-        # Worker finishes at most two bounded windows, without blocking Stop.
+    def stop(self, *, wait=True, timeout=2.0):
+        """Cancel queued audio, clear owned RAM and bounded-join the ASR worker.
+
+        A currently executing in-process model cannot be forcibly destroyed:
+        return STOP_FAILED_PARTIAL while it is alive, never fake a free.
+        Never touch model files or external inference services.
+        """
+        with self._gate:
+            self.stopping.set()
+            self.lifecycle="STOPPING" if self.thread.is_alive() else "STOPPED"
+            self.buffer.clear()
+            while True:
+                try:
+                    self.queue.get_nowait()
+                except queue.Empty:
+                    break
+                else:
+                    self.queue.task_done()
+        if wait and self.thread.is_alive() and current_thread()!=self.thread:
+            self.thread.join(timeout=max(0.0,min(float(timeout),10.0)))
+        with self._gate:
+            alive=self.thread.is_alive()
+            self.lifecycle=("STOP_FAILED_PARTIAL" if wait and alive
+                            and current_thread()!=self.thread else
+                            "STOPPING" if alive else "STOPPED")
+            return {"lifecycle":self.lifecycle,"worker_alive":alive,
+                    "queued_windows":self.queue.qsize(),"buffered_bytes":len(self.buffer)}
