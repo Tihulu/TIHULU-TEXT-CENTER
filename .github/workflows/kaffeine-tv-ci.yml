@@ -26,6 +26,7 @@ jobs:
         run: |
           python3 -m compileall -q kaffeine_next tv_center
           python3 -m unittest discover -s tests -p 'test_tv_kaffeine*.py' -v
+          python3 -m unittest discover -s tests -p 'test_stand_media_qa03_remediation.py' -v
           bash -n kaffeine_next/install.sh
       - name: Install KDE Kaffeine build dependencies
         run: |
