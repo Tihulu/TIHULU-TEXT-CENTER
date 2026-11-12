@@ -52,6 +52,7 @@ class RecordingTranscriber:
         self._closed=False
         self._thread=None
         self._process=None
+        self._asr_process=None
         self._state={"active":False,"status":"idle","session":None,
                      "source":None,"filename":None,"segments":0,
                      "seconds_processed":0.0,"error":None,
@@ -74,6 +75,9 @@ class RecordingTranscriber:
 
     def start(self,*,medium:str,filename:str,language:str,
               target_language:str|None=None,backend:str="auto"):
+        with self._lock:
+            if self._closed:
+                raise PostProcessError("Recording transcriber has quit")
         lang=validate_language(language)
         target=validate_language(target_language) if target_language else None
         if medium not in ("fm","dvb_tv"):
@@ -112,6 +116,17 @@ class RecordingTranscriber:
             self._thread.start()
             return self._snapshot()
 
+    def _register_asr_process(self,proc):
+        with self._lock:
+            if proc is None:
+                if self._asr_process is not None and self._asr_process.poll() is None:
+                    return  # incomplete termination must remain visible
+                self._asr_process=None
+            else:
+                self._asr_process=proc
+                if self._stop.is_set() and proc.poll() is None:
+                    proc.terminate()
+
     def _worker(self,session,medium,file,ffmpeg,language,target,backend,profile):
         process=None
         status="completed"
@@ -137,7 +152,11 @@ class RecordingTranscriber:
                 duration=len(pcm)/(SAMPLE_RATE*2)
                 if duration<0.4:
                     break
-                text=self.transcriber(pcm,language,backend,profile)
+                if self.transcriber is transcribe_pcm:
+                    text=self.transcriber(pcm,language,backend,profile,
+                        cancel_event=self._stop,on_process=self._register_asr_process)
+                else:
+                    text=self.transcriber(pcm,language,backend,profile)
                 if self._stop.is_set():
                     status="cancelled"
                     break
@@ -165,13 +184,18 @@ class RecordingTranscriber:
         except (OSError,ValueError,SpeechError,PostProcessError,RuntimeError) as exc:
             status,error="error",str(exc)[:250]
         finally:
+            if self._stop.is_set():
+                status="cancelled"
             if process and process.poll() is None:
                 try:
-                    os.killpg(process.pid,signal.SIGTERM)
+                    process.terminate()
                     process.wait(timeout=1)
                 except (OSError,subprocess.TimeoutExpired):
-                    try:os.killpg(process.pid,signal.SIGKILL)
-                    except OSError:pass
+                    try:
+                        process.kill()
+                        process.wait(timeout=0.5)
+                    except (OSError,subprocess.TimeoutExpired):
+                        pass
             if process and process.stdout:
                 process.stdout.close()
             with self._lock:
@@ -186,19 +210,23 @@ class RecordingTranscriber:
             self._stop.set()
             thread=self._thread
             proc=self._process
+            asr=self._asr_process
             if self._state["active"]:
                 self._state["status"]="stopping"
-        if proc is not None and proc.poll() is None:
-            try:
-                proc.terminate()  # held child handle, never an external decoder/service
-            except (OSError,ProcessLookupError):
-                pass
+        for owned in (proc, asr):
+            if owned is not None and owned.poll() is None:
+                try:
+                    owned.terminate()  # held child handles, never other apps
+                except (OSError,ProcessLookupError):
+                    pass
         if wait and thread and thread.is_alive() and current_thread()!=thread:
             thread.join(timeout=2)
         with self._lock:
-            if wait and thread and thread.is_alive() and current_thread()!=thread:
+            if wait and ((thread and thread.is_alive() and current_thread()!=thread)
+                         or (self._asr_process is not None and self._asr_process.poll() is None)
+                         or (self._process is not None and self._process.poll() is None)):
                 self._state.update(status="stop_failed_partial",
-                    error="ASR worker did not exit in the bounded timeout")
+                    error="Owned transcription worker or child did not exit in time")
             return self._snapshot()
 
     def quit(self):
