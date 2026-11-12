@@ -1,0 +1,1138 @@
+{
+  "schema_version": 1,
+  "audit": "WS05_TEXT_CENTER_SOURCE_ONLY",
+  "date_utc": "2026-11-12",
+  "workstream_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+  "central_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+  "draft_pr": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/87",
+  "assigned_branch": "audit/ws05-text-retained-2026-11-11",
+  "repository_numeric_id": 1447637221,
+  "inspection_refs": {
+    "main_commit": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+    "workstream_before_audit_commit": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+    "workstream_base_commit": "a00b8d97ce04e6279c6edc1035656a86924cc101",
+    "gh_pages_tree": "854b1109c04c5f8e9a22d1ee3bb999a16d9d4b7d"
+  },
+  "scope": {
+    "requirements_audited": 8,
+    "requirements_total": 8,
+    "source_content_inspected": true,
+    "test_source_files_read": 12,
+    "tests_read": [
+      "tests/test_cli.py",
+      "tests/test_fm_rds.py",
+      "tests/test_dab_bridge.py",
+      "tests/test_dvb_hardware.py",
+      "tests/test_live_tv.py",
+      "tests/test_conflicts.py",
+      "tests/test_receivers.py",
+      "tests/test_scan_catalog.py",
+      "tests/test_http_app.py",
+      "tests/test_text_center_retained_canonical.py",
+      "tests/test_tv_web.py",
+      "tests/test_origin_fallback_approved_branding.py"
+    ],
+    "tests_executed": 0,
+    "test_passes_claimed": 0,
+    "physical_sdr_dvb_tests": 0,
+    "ui_locales_required": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "default_ui": "en",
+    "ui_locale_coverage_verified": false,
+    "verification_type": "read_only_repository_and_source_inspection"
+  },
+  "baseline_parity": {
+    "original_main_tracked_files": 62,
+    "main_textcenter_files": 20,
+    "main_web_files": 4,
+    "present_on_workstream_branch": 24,
+    "identical_source_blobs_main_to_workstream": 21,
+    "differing_active_source_paths": [
+      {
+        "path": "textcenter/compute.py",
+        "main_blob": "4fdcb578df622f7776ddf3a2fb80401375a697b2",
+        "workstream_blob": "d1db4fc8d9e81627e3eef660d29d3dc02ea2edc1"
+      },
+      {
+        "path": "textcenter/speech.py",
+        "main_blob": "bd9d63996e82d19b0b2896c1cb745add9acf2041",
+        "workstream_blob": "672ac7a9dff1bcff0a975a1120bc357a3a88f94e"
+      },
+      {
+        "path": "textcenter/transcripts.py",
+        "main_blob": "9280cfdd30dc5e059ffc94fec70e865bb9ca7193",
+        "workstream_blob": "d41c635c90ec38c3eb42d77e29d98a3b078a91d6"
+      }
+    ],
+    "copied_snapshot_matches_workstream_all_24": true,
+    "copied_snapshot_matches_current_main_21_of_24": true,
+    "existing_flight_pages_workflow_diff": {
+      "path": ".github/workflows/sync-flight-radar-pages.yml",
+      "main_blob": "5e21714af46c2bf0e9e8b1a8011bf09ce31c6bd9",
+      "workstream_blob": "1c5c2c63200bf41db6859b25a1ac3aa69b448b43"
+    }
+  },
+  "test_quality": "Tests inspected as source only; fixture, synthetic and static assertions do not certify physical receivers. No test runner invoked.",
+  "requirements": [
+    {
+      "id": "TEXT-001",
+      "classification": "source_topology_verified_not_runtime_certified",
+      "code_state": "roots_present",
+      "summary": "Original repository id 1447637221; original main has 20 textcenter/ and 4 web/ blobs, all 24 paths are present on audit branch. Branch is not identical to main: three backend blobs differ.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/__main__.py#L21-L53",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/index.html#L1-L15",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/CANONICAL_REPOSITORY_TOPOLOGY.json#L1-L23"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_cli.py#L9-L56",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_text_center_retained_canonical.py#L22-L84"
+      ],
+      "missing": [
+        "No installed-baseline/runtime parity or owner-device proof",
+        "No execution of topology or CLI tests in this audit"
+      ]
+    },
+    {
+      "id": "TEXT-002",
+      "classification": "partial_source_implementation",
+      "code_state": "FM RDS/RT+ manual capture; DAB DLS and MOT manual read-only bridge; Journaline unimplemented; energy-only band scan not service discovery",
+      "summary": "FM rtl_fm to redsea on-demand; DAB from already-running welle-cli 127.0.0.1:7979, frequency provenance allowed only 5C/11D; full DAB service scan not implemented by Text Center.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/fm_rds.py#L1-L57",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/fm_rds.py#L60-L113",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/dab_bridge.py#L1-L22",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/dab_bridge.py#L119-L161",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/capabilities.py#L9-L29",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/scan_catalog.py#L1-L66"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_fm_rds.py#L1-L16",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_dab_bridge.py#L14-L57",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_scan_catalog.py#L1-L41"
+      ],
+      "missing": [
+        "No live FM RadioText+ or DAB DLS/MOT real receiver measurement",
+        "DLS+ metadata and Journaline end-to-end decode not evidenced",
+        "Full station/channel decoding scan unverified; rtl_power measures energy only"
+      ]
+    },
+    {
+      "id": "TEXT-003",
+      "classification": "partial_source_implementation",
+      "code_state": "passive DVB hardware diagnostics; live TV from explicitly authorized loopback MPEG-TS relay; no direct DVB tune/service scan/Teletext decoder",
+      "summary": "DVB diagnostics has service_scan_enabled and teletext_decoder_connected false; LiveTV code explicitly disclaims tuner control, uses preconfigured local relay and ffmpeg, supports optional recording and speech tap.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/dvb_hardware.py#L1-L76",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/live_tv.py#L1-L12",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/live_tv.py#L127-L151",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/live_tv.py#L174-L190",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/http_app.py#L217-L228"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_dvb_hardware.py#L7-L43",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_live_tv.py#L10-L51",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_http_app.py#L12-L42"
+      ],
+      "missing": [
+        "No independent real DVB-T2 service acquisition, PAT/PMT, Teletext PID decode or channel switch result in retained Text Center",
+        "No native capture / hardware lock / subtitle timing / recording acceptance tests"
+      ]
+    },
+    {
+      "id": "TEXT-004",
+      "classification": "unverified_requested_modules",
+      "code_state": "no explicit NOAA APT/AIS/ACARS/RTL-433 decode modules found in retained capability catalog; rtl_433 executable is inventoried only",
+      "summary": "Capabilities list tracks multiple different radio protocols but not NOAA APT, AIS, ACARS or RTL-433 decoding; receiver inventory merely checks whether rtl_433 executable exists. Do not claim those features work or have been removed from any other project.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/capabilities.py#L8-L105",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/receivers.py#L15-L19",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/scan_catalog.py#L13-L26"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_scan_catalog.py#L10-L41",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_receivers.py#L7-L46"
+      ],
+      "missing": [
+        "Decoder integration, source-labeled artifacts, sample RF captures and individual automated tests for NOAA APT, AIS, ACARS, RTL-433",
+        "Cross-repository source provenance for any optional modules outside retained Text Center"
+      ]
+    },
+    {
+      "id": "TEXT-005",
+      "classification": "partial_source_implementation",
+      "code_state": "manual per-module stop; cooperative Linux RTL lock and process conflict detection; no verified cross-application lease broker or single global Hard Stop",
+      "summary": "Independent Linux process checks and file lock protect cooperative FM RDS, FM spectrum and live FM; separate endpoints stop each module. UI pagehide sends stop requests. Third-party SDR apps may not honor lock; receiver inventory is passive.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/receivers.py#L1-L4",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/conflicts.py#L1-L6",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/fm_rds.py#L1-L6",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/fm_rds.py#L150-L207",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/http_app.py#L400-L464",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/app.js#L1825-L1862"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_conflicts.py#L30-L66",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_receivers.py#L7-L52",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_fm_rds.py#L99-L125"
+      ],
+      "missing": [
+        "Cross-app SDR/DVB ownership arbitration and global hard-stop acceptance",
+        "Actual USB lease race/release, disconnect/kill recovery and native desktop end-to-end tests"
+      ]
+    },
+    {
+      "id": "TEXT-006",
+      "classification": "partial_source_implementation",
+      "code_state": "responsive local browser UI and SQLite bookmarks/source selection; only English current Text Center UI; phone LAN/TLS proxy not delivered here",
+      "summary": "Responsive CSS has 1220/900/660px media queries; source selection and bookmarks are server-backed. Browser served from 127.0.0.1:8787 only; UI HTML lang=en and static English strings. EN/TR/DE are future localization contract, distinct from optional speech translation.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/index.html#L1-L8",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/index.html#L65-L78",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/styles.css#L1-L8",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/app.js#L164-L200",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/web/app.js#L1822-L1878",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/__main__.py#L21-L53",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/LOCALIZATION_CONTRACT.json#L1-L46"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/tests/test_http_app.py#L12-L48",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_text_center_retained_canonical.py#L85-L95"
+      ],
+      "missing": [
+        "EN/TR/DE UI string catalog, live switching, persistence, expanded-string accessibility",
+        "Desktop/tablet/mobile end-to-end same-URL/LAN TLS proxy and browser UX tests",
+        "No retained Text Center PWA manifest/service worker in inspected main tree; do not equate other apps' PWAs with this UI"
+      ]
+    },
+    {
+      "id": "TEXT-007",
+      "classification": "documented_policy_implementation_not_verified",
+      "code_state": "original-history and retained-canonical documentation; future cutover not executed",
+      "summary": "Retained canonical code roots; historical PR/Issue IDs and original URLs remain source references. Archives flag reviews/comments/timelines as unverified or not exported. Copy under apps/text-center/source is read-only evidence and matches audit branch 24/24, but not main 3/24 backend blobs.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/MIGRATION.md#L1-L10",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/ORIGIN.md#L1-L24",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/SOURCE_SNAPSHOT.md#L1-L25",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/text-center/ORIGIN_FALLBACKS.json#L1-L36"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_text_center_retained_canonical.py#L22-L84",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_origin_fallback_approved_branding.py#L17-L50"
+      ],
+      "missing": [
+        "Full original PR review/comment/timeline archival and permalink validation",
+        "Non-destructive code-level main/PR ancestry reconciliation of three divergent backend files",
+        "User approval and cross-app migration release gates; no migration allowed in this audit"
+      ]
+    },
+    {
+      "id": "TEXT-008",
+      "classification": "documented_policy_rename_and_url_validation_pending",
+      "code_state": "rename not performed; source-pinned link risks identified, live redirects not tested",
+      "summary": "Main workflow publishes Flight Radar under gh-pages/flight_radar/ from canonical Flight main; cron/push/manual triggers and fixed historical Pages base. Current gh-pages root is multi-app portal with no textcenter/ root folder. README has raw.githubusercontent.com one-line installer URLs. No Pages settings or live URL parity verified.",
+      "source": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/.github/workflows/sync-flight-radar-pages.yml#L1-L17",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/.github/workflows/sync-flight-radar-pages.yml#L64-L119",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/docs/FLIGHT_RADAR_DUAL_PAGES.md#L1-L46",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/README.md#L1-L24",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/apps/REPOSITORY_RENAME_LINK_POLICY.md#L1-L27"
+      ],
+      "tests": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_origin_fallback_approved_branding.py#L17-L33"
+      ],
+      "missing": [
+        "GitHub Pages settings, HTTP redirect/asset/CORS/PWA scope, dual Pages live source-revision.json parity",
+        "Raw installer, gh-pages base path, old badges/bookmarks/Desktop launcher redirect and rollback validation after future approved rename",
+        "Cross-worker Flight Radar coordination Issue #77"
+      ]
+    }
+  ],
+  "deployment_observations": {
+    "gh_pages_branch_root_entries": [
+      "index.html",
+      "404.html",
+      ".nojekyll",
+      "flight_radar/",
+      "rf_geolocation_center/",
+      "satellite/",
+      "satellite_center/",
+      "tv_center/"
+    ],
+    "text_center_local_web": "http://127.0.0.1:8787/",
+    "pages_site_live_checked": false,
+    "pages_settings_readable": false,
+    "public_redirects_checked": false,
+    "source_revision_live_parity_verified": false
+  },
+  "safety": {
+    "this_audit_application_source_edits": 0,
+    "installers_icons_runtime_changes": 0,
+    "main_branch_changes": 0,
+    "repo_renames": 0,
+    "old_pr_merges": 0,
+    "migrations": 0,
+    "hardware_tunes": 0
+  },
+  "eta_hours": null,
+  "eta_minutes": null,
+  "eta_basis": "unknown: physical test setup, CI baseline, complete history/redirect inventory and cross-app owner approvals not measured",
+  "semantic_delta_followup": {
+    "followup_date_utc": "2026-11-12",
+    "audit_type": "static_read_only_semantic_and_direct_import_graph_inspection_no_runner_or_device",
+    "coordinator_document": {
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/TEXT_MAIN_SNAPSHOT_SEMANTIC_DELTA.md",
+      "blob_sha": "0f1c6a446137220a260eafed480953324eab7d49",
+      "visible_on_coordinator_branch": true,
+      "not_present_on_worker_branch_at_read": true
+    },
+    "refs": {
+      "active_main": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+      "archive_snapshot": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+      "original_repository_numeric_id": 1447637221,
+      "worker_branch": "audit/ws05-text-retained-2026-11-11"
+    },
+    "file_blobs": [
+      {
+        "path": "textcenter/compute.py",
+        "main_blob": "4fdcb578df622f7776ddf3a2fb80401375a697b2",
+        "snapshot_blob": "d1db4fc8d9e81627e3eef660d29d3dc02ea2edc1",
+        "main_lines": 162,
+        "snapshot_lines": 249,
+        "semantics": [
+          "LANGUAGES expanded from en/de/tr speech sources to Whisper tokenizer vocabulary",
+          "managed CUDA readiness probe cache",
+          "additional device/CUDA/NPU model readiness and tv_center imports"
+        ],
+        "main_anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/compute.py#L16-L17",
+        "snapshot_anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L16-L49"
+      },
+      {
+        "path": "textcenter/speech.py",
+        "main_blob": "bd9d63996e82d19b0b2896c1cb745add9acf2041",
+        "snapshot_blob": "672ac7a9dff1bcff0a975a1120bc357a3a88f94e",
+        "main_lines": 232,
+        "snapshot_lines": 279,
+        "semantics": [
+          "CLI wav 32k PCM -> 16k PCM with adjacent averaging",
+          "cached Faster-Whisper CUDA guarded by lock",
+          "auto language partially handled in transcribe_pcm but rejected by SpeechPipeline constructor",
+          "conditional managed CUDA hard dependency when selected"
+        ],
+        "main_anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/speech.py#L22-L52",
+        "snapshot_anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/speech.py#L22-L83"
+      },
+      {
+        "path": "textcenter/transcripts.py",
+        "main_blob": "9280cfdd30dc5e059ffc94fec70e865bb9ca7193",
+        "snapshot_blob": "d41c635c90ec38c3eb42d77e29d98a3b078a91d6",
+        "main_lines": 244,
+        "snapshot_lines": 279,
+        "semantics": [
+          "new unguarded module-level tv_center.language_codes import",
+          "Argos alias normalization, direct or English-pivot graph route, CPU-first auto instead of main auto GPU",
+          "original and translated caption schema/export maintained in source but not regression verified"
+        ],
+        "main_anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/transcripts.py#L18-L46",
+        "snapshot_anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/transcripts.py#L18-L46"
+      }
+    ],
+    "direct_import_graph": {
+      "snapshot_textcenter_python_files_checked": 20,
+      "direct_tv_center_import_sites": 6,
+      "files_with_direct_tv_center_imports": [
+        "textcenter/compute.py",
+        "textcenter/speech.py",
+        "textcenter/transcripts.py"
+      ],
+      "other_snapshot_textcenter_files_with_tv_center_imports": 0,
+      "main_textcenter_tv_center_direct_import_sites": 0,
+      "scope_note": "All 20 archived textcenter Python files scanned for direct imports; not a transitive dependency closure or tested installation."
+    },
+    "import_sites": [
+      {
+        "import": "tv_center.language_codes.language_code, translation_language",
+        "module": "textcenter/transcripts.py",
+        "lines": [
+          18,
+          20
+        ],
+        "category": "mandatory_at_module_import",
+        "trigger": "import textcenter.transcripts (including through textcenter.http_app and python -m textcenter)",
+        "guard": "none",
+        "absent_effect": "ModuleNotFoundError at import time, even if no Argos model installed or translation requested",
+        "anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/transcripts.py#L18-L20",
+        "test": "ISO aliases ENG/GER/TUR, missing package, clean CLI/HTTP imports, old stored language rows",
+        "priority": "P0"
+      },
+      {
+        "import": "tv_center.pi_hailo.readiness, hardware_architecture",
+        "module": "textcenter/compute.py",
+        "lines": [
+          127,
+          145
+        ],
+        "category": "mandatory_on_function_invocation",
+        "trigger": "call detect_devices() on any platform, even without Pi or Hailo",
+        "guard": "none",
+        "absent_effect": "ModuleNotFoundError during device discovery; CPU/GPU readiness endpoint cannot finish even if no Hailo present",
+        "anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L127-L145",
+        "test": "detect_devices without tv_center on CPU-only host, mocked Hailo 8 vs Hailo10H, OpenVINO and CPU fallback",
+        "priority": "P0"
+      },
+      {
+        "import": "tv_center.hardware_market.detect_hardware",
+        "module": "textcenter/compute.py",
+        "lines": [
+          77,
+          84
+        ],
+        "category": "optional_fallback",
+        "trigger": "no output from nvidia-smi; only when device_root is None and command_runner is None",
+        "guard": "try/except ImportError,OSError,ValueError",
+        "absent_effect": "ImportError ignored; no NVIDIA fallback detection; unrelated mandatory pi_hailo import still breaks overall detect_devices if tv_center entirely absent",
+        "anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L77-L84",
+        "test": "mock unavailable hardware_market, no NVIDIA, with pi_hailo stub present to isolate optionality",
+        "priority": "P1"
+      },
+      {
+        "import": "tv_center.whisper_engine.WhisperRuntime",
+        "module": "textcenter/compute.py",
+        "lines": [
+          172,
+          183
+        ],
+        "category": "optional_runtime_enhancement",
+        "trigger": "detect_devices() always attempts managed whisper.cpp CUDA probe",
+        "guard": "try/except ImportError,OSError,ValueError",
+        "absent_effect": "Missing helper tolerated; existing CLI/CT2 readiness (if actually installed) may remain; no CUDA readiness claimed merely from GPU detection",
+        "anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L172-L183",
+        "test": "missing managed runtime, explicit preinstalled CT2 and CPU fallback, no model downloads",
+        "priority": "P1"
+      },
+      {
+        "import": "tv_center.cuda_faster_whisper.FasterWhisperCUDA",
+        "module": "textcenter/compute.py",
+        "lines": [
+          184,
+          198
+        ],
+        "category": "optional_runtime_enhancement",
+        "trigger": "NVIDIA detected and default device_root; checks installed() plus bounded probe cache",
+        "guard": "try/except ImportError,OSError,RuntimeError,ValueError",
+        "absent_effect": "Missing helper tolerated in discovery; may continue CPU / non-managed GPU when genuinely ready",
+        "anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L184-L198",
+        "test": "no helper, CUDA probe timeout/failure, managed marker changes, 25s cache and no repeated CLI delay",
+        "priority": "P1"
+      },
+      {
+        "import": "tv_center.cuda_faster_whisper.transcribe_cuda",
+        "module": "textcenter/speech.py",
+        "lines": [
+          146,
+          152
+        ],
+        "category": "mandatory_for_selected_backend_only",
+        "trigger": "transcribe_pcm() with backend='gpu' and profile.speech.gpu_engine='faster_whisper_managed'",
+        "guard": "try/except ImportError,OSError,RuntimeError,TimeoutError => raises SpeechError",
+        "absent_effect": "Explicit speech failure; no automatic retry to CPU inside this invocation. Other non-managed GPU/CPU paths do not call helper.",
+        "anchor": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/speech.py#L146-L152",
+        "test": "selected managed CUDA unavailable reports SpeechError without fabricated transcript; separately verify explicit user fallback policy",
+        "priority": "P0"
+      }
+    ],
+    "transitive_failure_paths": [
+      {
+        "path": [
+          "textcenter.__main__",
+          "textcenter.http_app",
+          "textcenter.transcripts",
+          "tv_center.language_codes"
+        ],
+        "links": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/__main__.py#L9-L14",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/http_app.py#L16-L23",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/transcripts.py#L18-L20"
+        ],
+        "impact": "Archived CLI flags and foreground server can fail before command argument parsing when tv_center is unavailable."
+      },
+      {
+        "path": [
+          "textcenter.http_app",
+          "textcenter.live_fm / live_tv / postprocess",
+          "textcenter.compute.detect_devices()",
+          "tv_center.pi_hailo"
+        ],
+        "links": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/http_app.py#L17-L23",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L127-L145"
+        ],
+        "impact": "Device readiness invocation is blocked even with CPU-only and no Hailo device unless tv_center.pi_hailo is provided or separately approved decoupling is implemented."
+      },
+      {
+        "path": [
+          "tv_center.cuda_faster_whisper --serve",
+          "textcenter.compute.LANGUAGES"
+        ],
+        "links": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tv_center/cuda_faster_whisper.py#L345-L357"
+        ],
+        "impact": "Inverse Media->Text runtime coupling; both repositories need isolated package tests, not just Text-only imports."
+      }
+    ],
+    "new_source_gaps": [
+      "Archive SpeechPipeline(source_language='auto') calls validate_language, whereas transcribe_pcm accepts auto; no end-to-end Auto acceptance.",
+      "Archive compute device-discovery pi_hailo dependency is unconditional regardless of Hailo presence; no clean Text-only package success test.",
+      "Archived tv_center.language_codes is stdlib-only but misplaced; importing language aliases still requires entire package name to be resolvable.",
+      "Archive managed_cuda selected backend raises SpeechError on missing dependency, not an automatic CPU fallback.",
+      "Argos direct/pivot and CPU-first Auto behavior changes from main without model/voice/timestamp acceptance proof.",
+      "Existing archived tests/test_cli.py, test_compute.py, test_speech.py and test_transcripts.py were authored inside a tree containing tv_center; they do not demonstrate negative packaging isolation."
+    ],
+    "inspected_candidate_test_paths": [
+      {
+        "path": "tests/test_cli.py",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "sha_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_cli.py",
+        "evidence": "read_only_source_inspected_no_execution"
+      },
+      {
+        "path": "tests/test_http_app.py",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "sha_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_http_app.py",
+        "evidence": "read_only_source_inspected_no_execution"
+      },
+      {
+        "path": "tests/test_compute.py",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "sha_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_compute.py",
+        "evidence": "read_only_source_inspected_no_execution"
+      },
+      {
+        "path": "tests/test_speech.py",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "sha_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_speech.py",
+        "evidence": "read_only_source_inspected_no_execution"
+      },
+      {
+        "path": "tests/test_transcripts.py",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "sha_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_transcripts.py",
+        "evidence": "read_only_source_inspected_no_execution"
+      }
+    ],
+    "cleanroom_procedure": "For future owner-approved validation, use temporary directory containing only pinned Text Center textcenter and web plus an isolated Python environment, with no accessible tv_center in sys.path/site-packages. Inspect module imports without starting receivers. Separately create Media-only temporary package to test CUDA worker reverse import. Never touch installed user settings, real DB, services or main.",
+    "regression_plan": [
+      {
+        "id": "SI-01",
+        "classification": "import_contract",
+        "setup": "Only pinned main textcenter/ + web/ in a temporary clean isolated source root, no tv_center anywhere on import path; ephemeral venv; no user store",
+        "action": "Import textcenter, textcenter.transcripts, speech, http_app; run python -m textcenter --help/make-template against temporary files",
+        "expected": "Current main has no tv_center dependency; preserve CLI/HTTP imports and no radio/device auto-acquisition",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/transcripts.py#L18-L19",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-02",
+        "classification": "negative_isolation",
+        "setup": "Same clean isolated root using archived textcenter blobs only, exclude tv_center, block ambient site-packages and PYTHONPATH leakage",
+        "action": "Attempt archive textcenter.transcripts, speech, http_app, python -m textcenter --help",
+        "expected": "Document expected ModuleNotFoundError for tv_center.language_codes; not a feature pass; future fix must clear gate",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/transcripts.py#L18-L20",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-03",
+        "classification": "mandatory_on_invocation",
+        "setup": "Archived compute.py with tv_center import deliberately absent; fake CPU-only lookup and device_root",
+        "action": "Import textcenter.compute separately, call detect_devices() with injected no-model devices",
+        "expected": "Import itself can work, device discovery currently blocked by unconditional pi_hailo; after approved decoupling requires truthful CPU fallback and ready_gpu/ready_npu=false",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L127-L145",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-04",
+        "classification": "optional_helper_fallback",
+        "setup": "Injected controlled minimal pi_hailo stub in temporary isolated runner, hardware_market/whisper_engine/cuda_faster_whisper deliberately absent",
+        "action": "Call detect_devices() in no-GPU and mocked-NVIDIA modes; inspect guard behavior without direct device access",
+        "expected": "Guarded helpers missing do not independently crash; no fabricated managed CUDA/Hailo readiness or network downloads",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L77-L84",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-05",
+        "classification": "reverse_dependency",
+        "setup": "Media-only tv_center package and controlled CUDA worker --serve invocation with textcenter deliberately absent, then include a separate approved neutral language-contract implementation",
+        "action": "Inspect/execute worker import of textcenter.compute.LANGUAGES in isolated future runner (never real CUDA model or download in audit)",
+        "expected": "Record current reverse dependency failure and later require independently packaged Media worker with accurate language contract",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tv_center/cuda_faster_whisper.py#L345-L357",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-06",
+        "classification": "speech_sample_rate",
+        "setup": "Artificial signed 16-bit 32kHz mono PCM with exact sample count (including odd-buffer boundary), no private recordings",
+        "action": "Check `_wav_bytes` main and `_whisper_cli_wav` archived RIFF header, duration, amplitude and mono channels; separately authorized CLI with known local model",
+        "expected": "Archive 32kHz->16kHz generates half as many frames and same duration; no 2x timing drift, no broken model; averaging is not a certified production-grade anti-alias filter",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/speech.py#L32-L55",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-07",
+        "classification": "speech_backend_failure",
+        "setup": "Mock Faster-Whisper/CTranslate2/whisper.cpp/Hailo with missing/present executables and model markers; no GPU hardware claims",
+        "action": "Exercise managed CUDA selected import failure, GPU explicit vs Auto, persistent cache and timeout/failure, speech queue maxsize=2",
+        "expected": "No invented transcript or backend readiness; selected missing helper raises clear SpeechError, and any planned fallback must be explicit/tested, not assumed",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/speech.py#L146-L170",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-08",
+        "classification": "speech_auto_language",
+        "setup": "Injected ready fake CPU profile, stub transcriber and isolated transcript store; no real audio",
+        "action": "Compare transcribe_pcm('auto') against SpeechPipeline(source_language='auto'), including CPU/GPU/NPU behaviors",
+        "expected": "Archive transcribe_pcm supports 'auto' but SpeechPipeline currently calls validate_language('auto') and rejects it; do not certify end-to-end Auto until reconciled",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/speech.py#L74-L83",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-09",
+        "classification": "language_contract",
+        "setup": "Isolated language_codes alias and two/three-letter ISO fixtures, no Argos install",
+        "action": "Check en/de/tr, eng/deu/tur aliases, unsupported codes, safe error messages and transcript target validation; separately audit UI locales",
+        "expected": "Speech source vocabulary, translator installable pairs and EN(default)/TR/DE UI are separate; unknown or wrong codes do not silently yield translated text",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tv_center/language_codes.py#L26-L60",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-10",
+        "classification": "argos_graph",
+        "setup": "Mock Argos installed language graph: direct de->tr, only de->en and en->tr, missing first/second edge, no Argos, explicit GPU unavailable",
+        "action": "Run translate_offline with cpu/auto/gpu/npu for EN<->TR, EN<->DE and DE<->TR directions; verify no network access",
+        "expected": "Direct or verified English pivot used only with installed models, CPU-first on Auto in archive; missing pack raises TranslatorUnavailable, never fake text or silently steal GPU",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/transcripts.py#L84-L165",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-11",
+        "classification": "data_integrity",
+        "setup": "Temporary SQLite captions and generated original/translated SRT/VTT fixtures with timed segments; no user database",
+        "action": "Compare main vs archive insert, read, translate_later, failed translation, SRT/VTT export ordering and timestamps",
+        "expected": "Stable captions schema and original speech preserved; [UNTRANSLATED] label maintained, missing model cannot corrupt original or double-apply subtitle offset",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/transcripts.py#L168-L278",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-12",
+        "classification": "service_and_devices",
+        "setup": "Temporary/loopback service in isolated user-approved runner without /dev/dvb or SDR lease; separately real device test requires explicit owner authorization",
+        "action": "Import + start/stop local HTTP; verify Text Center's FM/DAB/TV delegated paths, on-demand background OFF, external readsb/tar1090 unaffected",
+        "expected": "No unapproved RF service acquisition, no device takeover, truthful DAB Journaline/TV Teletext readiness; independent Media Center install does not make Text startup fail",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/http_app.py#L10-L26",
+        "status": "proposed_not_executed"
+      },
+      {
+        "id": "SI-13",
+        "classification": "multi_platform_and_release_gates",
+        "setup": "Fresh isolated Linux/macOS/Windows/Pi runners after separate approval; preserved real user settings and before/after hash manifest",
+        "action": "Run offline unit/import tests first, then later approved model/GPU/hardware acceptance, compare pinned main vs archive without restore/merge",
+        "expected": "EN(default)/TR/DE UI inventory separately checked; original main files/DB/device ownership, URLs, installers, rollback and 3 app migrations untouched until approval",
+        "evidence": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/TEXT_MAIN_SNAPSHOT_SEMANTIC_DELTA.md",
+        "status": "proposed_not_executed"
+      }
+    ],
+    "proposed_run_commands_only": [
+      "python3 -m unittest tests.test_compute tests.test_speech tests.test_transcripts tests.test_cli tests.test_http_app -v (inside future isolated runner)",
+      "python3 -m unittest discover -s tests -v (future owner-approved isolated run)",
+      "python3 -m compileall -q textcenter (future isolated run)",
+      "node --check web/app.js (future isolated run)"
+    ],
+    "worker_executed_tests": 0,
+    "physical_device_tests": 0,
+    "installed_version_validation": 0,
+    "reported_ci_is_hardware": false,
+    "complete_standalone_independence_verified": false,
+    "full_EN_TR_DE_UI_verified": false,
+    "estimated_remaining_hours": null,
+    "estimated_remaining_minutes": null,
+    "blocking_gates": [
+      "REG-02",
+      "REG-03",
+      "REG-10",
+      "REG-12",
+      "REG-13",
+      "REG-14",
+      "REG-16",
+      "REG-17"
+    ],
+    "safety": "No application, main, services, installer, user data, Page deployment, release, repo migration or merge modified in this follow-up."
+  },
+  "phase4_followup": {
+    "date_utc": "2026-11-12",
+    "assignment": {
+      "issue_comment": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80#issuecomment-6811691493",
+      "coordinator_division_ref": "chore/master-requirements-zero-regression-coordination-2026-11-11",
+      "coordinator_division_path": "apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
+      "coordinator_division_blob_sha": "fc29b87b0c4abdb7a3a2ff694a270a48cf05750f",
+      "central_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+      "audit_draft_pr": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/87",
+      "isolated_test_only_pr": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/89"
+    },
+    "refs": {
+      "active_main": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+      "archive_snapshot": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+      "pr89_head": "e1a1382e415e053a2ee939a15751413559ede1df",
+      "pr89_base": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+      "ws05_pre_followup_head": "3dbcbf658029ad213d985a5eef8227a244d3c045"
+    },
+    "pr89_review": {
+      "pr_is_draft": true,
+      "changed_paths": [
+        "tests/test_textcenter_cleanroom_import.py"
+      ],
+      "test_blob_sha": "4535f36d91300382b9ffc12968c52230bc1a930e",
+      "test_file_lines": 104,
+      "new_unit_test_methods": 2,
+      "method_names": [
+        "test_current_main_imports_without_media_or_side_effects",
+        "test_cpu_discovery_does_not_need_media_or_devices"
+      ],
+      "isolated_copy": "copy current textcenter package only; no tv_center nor web",
+      "child_python_isolated_flag": "-I",
+      "guards": {
+        "during_import": [
+          "assert find_spec(tv_center) is None",
+          "block builtins.__import__(tv_center)",
+          "patch subprocess.Popen to deny during import",
+          "patch socket.socket to deny during import"
+        ],
+        "during_cpu_discovery": [
+          "fake executable_lookup no tools",
+          "fake empty-dev root and model_path",
+          "fake command_runner empty output",
+          "mock optional find_spec names"
+        ],
+        "not_global_guards": [
+          "CPU discovery script does not wrap socket/Popen globally",
+          "no physical runtime operations were performed or implied"
+        ]
+      },
+      "proven": "synthetic import only current Text main and mocked CPU discovery without Media dependency in CI",
+      "not_proven": [
+        "archive startup absent tv_center",
+        "archive detect_devices CPU-only absent pi_hailo",
+        "Media --serve absent textcenter",
+        "selected managed CUDA speech path",
+        "CLI --help / foreground HTTP server run",
+        "real model, GPU/NPU, RF, DVB",
+        "static web asset packaging and installed users",
+        "EN default / TR / DE runtime UI"
+      ],
+      "workflow_run": {
+        "id": 43133732602,
+        "conclusion": "success",
+        "target_head": "e1a1382e415e053a2ee939a15751413559ede1df",
+        "python_jobs": [
+          {
+            "version": "3.11",
+            "job_id": 130903908482,
+            "status": "success"
+          },
+          {
+            "version": "3.12",
+            "job_id": 130903908672,
+            "status": "success"
+          },
+          {
+            "version": "3.13",
+            "job_id": 130903908297,
+            "status": "success"
+          }
+        ],
+        "executed_by": "GitHub Actions, not WS05 worker",
+        "test_categories": [
+          "offline unittest including two new cleanroom cases",
+          "JS syntax",
+          "Python compile checks"
+        ]
+      }
+    },
+    "source_anchors": [
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "e1a1382e415e053a2ee939a15751413559ede1df",
+        "path": "tests/test_textcenter_cleanroom_import.py",
+        "blob_sha": "4535f36d91300382b9ffc12968c52230bc1a930e",
+        "line_start": 15,
+        "line_end": 47,
+        "semantic": "positive current-main no-Media import only; guards Popen/socket during import",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e1a1382e415e053a2ee939a15751413559ede1df/tests/test_textcenter_cleanroom_import.py#L15-L47"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "e1a1382e415e053a2ee939a15751413559ede1df",
+        "path": "tests/test_textcenter_cleanroom_import.py",
+        "blob_sha": "4535f36d91300382b9ffc12968c52230bc1a930e",
+        "line_start": 50,
+        "line_end": 76,
+        "semantic": "positive synthetic CPU/no-model discovery; no global socket/Popen guard in this distinct test",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e1a1382e415e053a2ee939a15751413559ede1df/tests/test_textcenter_cleanroom_import.py#L50-L76"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "e1a1382e415e053a2ee939a15751413559ede1df",
+        "path": "tests/test_textcenter_cleanroom_import.py",
+        "blob_sha": "4535f36d91300382b9ffc12968c52230bc1a930e",
+        "line_start": 80,
+        "line_end": 104,
+        "semantic": "temporary copied current Text tree, python -I, two unittest cases",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e1a1382e415e053a2ee939a15751413559ede1df/tests/test_textcenter_cleanroom_import.py#L80-L104"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+        "path": "textcenter/transcripts.py",
+        "blob_sha": "9280cfdd30dc5e059ffc94fec70e865bb9ca7193",
+        "line_start": 16,
+        "line_end": 20,
+        "semantic": "no tv_center import on active Text main",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/transcripts.py#L16-L20"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+        "path": "textcenter/compute.py",
+        "blob_sha": "4fdcb578df622f7776ddf3a2fb80401375a697b2",
+        "line_start": 12,
+        "line_end": 17,
+        "semantic": "active main LANGUAGES en/de/tr with no Media direct import",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/1fffb711bfbb7c4abaf55299fa9240e5db3e1cde/textcenter/compute.py#L12-L17"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "textcenter/transcripts.py",
+        "blob_sha": "d41c635c90ec38c3eb42d77e29d98a3b078a91d6",
+        "line_start": 16,
+        "line_end": 22,
+        "semantic": "unconditional tv_center.language_codes import causes Text-only import failure",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/transcripts.py#L16-L22"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "textcenter/http_app.py",
+        "blob_sha": "1364105e5410fa0801e0941856eda02a4ba9cf68",
+        "line_start": 13,
+        "line_end": 23,
+        "semantic": "imports transcripts on http_app module load",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/http_app.py#L13-L23"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "textcenter/__main__.py",
+        "blob_sha": "aedc65a8d36ff24b163b851b1bc9e21ebea5ef0d",
+        "line_start": 9,
+        "line_end": 15,
+        "semantic": "CLI imports http_app before main argparse",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/__main__.py#L9-L15"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "textcenter/compute.py",
+        "blob_sha": "d1db4fc8d9e81627e3eef660d29d3dc02ea2edc1",
+        "line_start": 119,
+        "line_end": 146,
+        "semantic": "unconditional tv_center.pi_hailo import in device discovery regardless CPU-only",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L119-L146"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "textcenter/compute.py",
+        "blob_sha": "d1db4fc8d9e81627e3eef660d29d3dc02ea2edc1",
+        "line_start": 75,
+        "line_end": 86,
+        "semantic": "hardware market import guarded; optional fallback",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L75-L86"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "textcenter/compute.py",
+        "blob_sha": "d1db4fc8d9e81627e3eef660d29d3dc02ea2edc1",
+        "line_start": 171,
+        "line_end": 198,
+        "semantic": "optional managed whispers/CUDA imports are guarded",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/compute.py#L171-L198"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "textcenter/speech.py",
+        "blob_sha": "672ac7a9dff1bcff0a975a1120bc357a3a88f94e",
+        "line_start": 145,
+        "line_end": 155,
+        "semantic": "conditionally selected faster_whisper_managed imports Media and raises SpeechError on missing helper",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/textcenter/speech.py#L145-L155"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "tv_center/cuda_faster_whisper.py",
+        "blob_sha": "a033bf1b96a117bdd79a1cca9b463c2f4e9e556d",
+        "line_start": 56,
+        "line_end": 83,
+        "semantic": "worker_env forces monorepo into PYTHONPATH and can mask inverse import dependency",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tv_center/cuda_faster_whisper.py#L56-L83"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "tv_center/cuda_faster_whisper.py",
+        "blob_sha": "a033bf1b96a117bdd79a1cca9b463c2f4e9e556d",
+        "line_start": 336,
+        "line_end": 357,
+        "semantic": "CUDA --serve imports textcenter.compute.LANGUAGES after numpy/faster_whisper",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tv_center/cuda_faster_whisper.py#L336-L357"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "tv_center/language_codes.py",
+        "blob_sha": "d58cea32272eda7a63d6b991aa63b437db5ea736",
+        "line_start": 25,
+        "line_end": 60,
+        "semantic": "alias helper is stdlib only but wrong Media package namespace for independent Text",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tv_center/language_codes.py#L25-L60"
+      },
+      {
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "path": "tests/test_compute.py",
+        "blob_sha": "23d45fb0eb72cd8240d257c92bb6d48c9354c538",
+        "line_start": 1,
+        "line_end": 43,
+        "semantic": "archive tests in monorepo that includes Media; not Text-only negative control",
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/470eefa12dc4b2d41ecaef7cd422fb9d52abd546/tests/test_compute.py#L1-L43"
+      }
+    ],
+    "negative_and_positive_oracles": [
+      {
+        "id": "P4-T01",
+        "area": "positive_control",
+        "ref": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+        "source_path": "textcenter/",
+        "observed": "passed",
+        "run_id": 43133732602,
+        "source": "PR89 two new unittest methods; only main source copied",
+        "what_not_proven": "archived source, real ASR, models, device and actual standalone distribution"
+      },
+      {
+        "id": "P4-T02",
+        "area": "archive_unconditional_transcript_import",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "source_path": "textcenter/transcripts.py:19",
+        "observed": "not_executed",
+        "expected": "ModuleNotFoundError tv_center.language_codes in clean Text-only runner; or deliberate guard AssertionError",
+        "requirement": "assert failure as regression oracle, not passing archive independence"
+      },
+      {
+        "id": "P4-T03",
+        "area": "archive_unconditional_compute_discovery",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "source_path": "textcenter/compute.py:129",
+        "observed": "not_executed",
+        "expected": "module import succeeds but detect_devices() with synthetic empty-dev fails tv_center.pi_hailo",
+        "requirement": "separate child from transcripts negative test"
+      },
+      {
+        "id": "P4-T04",
+        "area": "archive_guarded_optional_media_helpers",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "source_path": "textcenter/compute.py:79,175,189",
+        "observed": "not_executed",
+        "expected": "after explicit fake pi_hailo, optional Media helper missing does not falsely mark GPU/NPU ready",
+        "requirement": "no model download / live probe"
+      },
+      {
+        "id": "P4-T05",
+        "area": "archive_managed_speech_selected",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "source_path": "textcenter/speech.py:148",
+        "observed": "not_executed",
+        "expected": "SpeechError and no implicit CPU fallback",
+        "requirement": "mock GPU backend and inert data only"
+      },
+      {
+        "id": "P4-M01",
+        "area": "reverse_media_cuda_text_import",
+        "ref": "470eefa12dc4b2d41ecaef7cd422fb9d52abd546",
+        "source_path": "tv_center/cuda_faster_whisper.py:346",
+        "observed": "not_executed",
+        "expected": "media-only top-level import possibly succeeds; --serve branch after fake numpy/faster_whisper fails textcenter.compute",
+        "requirement": "no --probe, --selftest, --download, real CUDA/Whisper; scrub PYTHONPATH"
+      }
+    ],
+    "si01_to_si13_extension": [
+      {
+        "id": "SI-01",
+        "phase4_kind": "positive_current_main",
+        "fixture": "PR89 current Text copied only",
+        "oracle": "import textcenter/compute/transcripts/speech/http_app without tv_center, plus fake CPU",
+        "status": "observed_pass_pr89_ci",
+        "limitation": "CLI --help, service startup, UI and packaging remain untested"
+      },
+      {
+        "id": "SI-02",
+        "phase4_kind": "negative_archive_module_import",
+        "fixture": "Text-only isolated snapshot archived compute speech transcripts",
+        "oracle": "transcripts unguarded tv_center.language_codes import",
+        "status": "expected_import_failure_not_executed",
+        "limitation": "ModuleNotFoundError without guard / explicit AssertionError if blocked import; must not count as success"
+      },
+      {
+        "id": "SI-03",
+        "phase4_kind": "negative_archive_discovery",
+        "fixture": "fresh archive compute import; fake CPU-only device root + empty model",
+        "oracle": "detect_devices imports tv_center.pi_hailo unconditionally",
+        "status": "expected_discovery_failure_not_executed",
+        "limitation": "module import may pass while function invocation fails; do not mask with transcript import"
+      },
+      {
+        "id": "SI-04",
+        "phase4_kind": "guarded_archive_optional",
+        "fixture": "in-memory pi_hailo mock returns npu not-ready; exclude other Media modules",
+        "oracle": "missing hardware_market/whisper_engine/cuda_faster_whisper do not create readiness or downloads",
+        "status": "proposed_not_executed",
+        "limitation": "stub only after proving missing pi_hailo negative"
+      },
+      {
+        "id": "SI-05",
+        "phase4_kind": "negative_media_only_inverse_worker",
+        "fixture": "Media archive tree, no textcenter, fake numpy/WhisperModel, --serve path",
+        "oracle": "textcenter.compute.LANGUAGES import fails before serve loop",
+        "status": "expected_serve_import_failure_not_executed",
+        "limitation": "simple top-level import or --probe insufficient; scrub old source PYTHONPATH"
+      },
+      {
+        "id": "SI-06",
+        "phase4_kind": "audio_sample_rate_and_timing",
+        "fixture": "fake 32k mono s16le with 8s and odd-length samples",
+        "oracle": "archived 16k WAV header/duration/byte count tested, no GUI",
+        "status": "proposed_not_executed",
+        "limitation": "main versus archive semantics differ; no live waveform"
+      },
+      {
+        "id": "SI-07",
+        "phase4_kind": "selected_backend_missing_helper",
+        "fixture": "fake ready GPU/faster_whisper_managed profile and inert PCM",
+        "oracle": "missing Media managed helper raises SpeechError, not silent CPU fallback",
+        "status": "proposed_not_executed",
+        "limitation": "no model/GPU imports or downloads"
+      },
+      {
+        "id": "SI-08",
+        "phase4_kind": "auto_language_discrepancy",
+        "fixture": "source language auto passed to single call and pipeline",
+        "oracle": "different source validations preserved as known unverified",
+        "status": "proposed_not_executed",
+        "limitation": "do not report end-to-end Auto fixed"
+      },
+      {
+        "id": "SI-09",
+        "phase4_kind": "language_and_localization_separation",
+        "fixture": "eng deu tur aliases, unknown codes, en/de/tr UI inventory",
+        "oracle": "language normalization is not installed ASR or UI locale coverage",
+        "status": "proposed_not_executed",
+        "limitation": "en/default tr de future release test"
+      },
+      {
+        "id": "SI-10",
+        "phase4_kind": "offline_argos_graph",
+        "fixture": "fake directed EN DE TR Argos pair graph",
+        "oracle": "direct or valid English pivot, missing edge explicit",
+        "status": "proposed_not_executed",
+        "limitation": "no network cloud or translator install"
+      },
+      {
+        "id": "SI-11",
+        "phase4_kind": "transcript_persistence",
+        "fixture": "temporary SQLite and timestamped SRT/VTT records",
+        "oracle": "source and translation preserved with original timestamps",
+        "status": "proposed_not_executed",
+        "limitation": "never open user database"
+      },
+      {
+        "id": "SI-12",
+        "phase4_kind": "passive_receiver_lifecycle",
+        "fixture": "stubbed readsb/rtl_fm/welle/dvb and localhost HTTP",
+        "oracle": "no host process/network/USB; app ownership and disclosures stay accurate",
+        "status": "proposed_not_executed",
+        "limitation": "no real RF session"
+      },
+      {
+        "id": "SI-13",
+        "phase4_kind": "independent_packaging_and_ports",
+        "fixture": "Text-only and Media-only isolated temporary wheels/envs; multi OS",
+        "oracle": "both standalone with no ambient editable dependency after approved fixes",
+        "status": "proposed_not_executed",
+        "limitation": "no merge/cutover/installer/rename in WS05"
+      }
+    ],
+    "cleanroom_acceptance_rules": [
+      "Each baseline uses fresh separate temporary python -I subprocess with PYTHONPATH scrubbed, no user-site/package leakage and explicit no tv_center/textcenter checks as relevant",
+      "Source bytes are copied only into temporary runner, never canonical main or Draft PR89/WS05 source tree; verify archive blob SHA matches recorded blobs",
+      "First capture negative unguarded transcript import; do not supply stub tv_center.language_codes until after it is independently confirmed",
+      "Archived compute import and invocation are separate tests; pi_hailo unguarded import is reached even on CPU-only fake devices",
+      "For optional helper tests introduce a clearly fake in-memory pi_hailo stub returning not-ready; forbid all others and downloads",
+      "For inverse Media CUDA --serve supply fake numpy and faster_whisper in sys.modules, intercept textcenter.compute before any real model is loaded and use EOF stdin, inert subprocess/network/device guards",
+      "Never use real --probe, --selftest, --download, HF calls, CUDA kernel, microphone, actual NooElec/Hauppauge, systemctl or readsb",
+      "Negative baseline tests assert the exact expected known failure rather than treating xfail or skip as release acceptance; if post-fix tests intentionally demand success, mark strict xfail until separately approved fix",
+      "CLI/HTTP importability, real packaging dependency closure, translation Argos and localized UI are independent future criteria",
+      "Preserve original Text main as canonical; reject writing archive compute/speech/transcripts into main"
+    ],
+    "counts": {
+      "preexisting_TEXT_ids_preserved": 8,
+      "preexisting_SI_gates_extended": 13,
+      "isolated_pr89_new_tests_ci_success": 2,
+      "python_matrix_jobs_success": 3,
+      "phase4_negative_and_positive_oracles": 6,
+      "new_source_anchors": 16,
+      "worker_new_test_executions": 0,
+      "worker_hardware_actions": 0,
+      "worker_software_actions": 0
+    },
+    "cross_worker_dependencies": {
+      "media_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "regression_gates": [
+        "REG-02",
+        "REG-10",
+        "REG-16",
+        "REG-17"
+      ],
+      "independent_ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "remaining_eta_minutes": null
+    },
+    "safety": {
+      "main_changed": false,
+      "source_changed": false,
+      "test_files_changed": false,
+      "workflow_changed": false,
+      "service_actions": false,
+      "hardware_used": false,
+      "merges": false,
+      "migrations": false,
+      "release": false
+    },
+    "status": "review_documented_negatives_not_executed"
+  }
+}
