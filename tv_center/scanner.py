@@ -7,6 +7,7 @@ frequencies. A successfully resolved channel file is atomically promoted.
 from __future__ import annotations
 
 from pathlib import Path
+from .paths import media_paths
 import os
 import re
 import shutil
@@ -252,7 +253,7 @@ class AutoScanner:
             raise ScanError("Selected Linux DVB frontend missing")
         if subprocess.run(["fuser","-s",frontend],timeout=3,check=False).returncode==0:
             raise ScanError("Tuner busy: stop live TV/Kaffeine/Tvheadend before scanning")
-        output=Path(directory or Path.home()/".config/tihulu-tv-center").expanduser()
+        output=Path(directory or media_paths().config).expanduser()
         output.mkdir(parents=True,exist_ok=True)
         target=output/("channels-"+country+"-"+medium+".conf")
         self.running=True
@@ -307,7 +308,7 @@ class AutoScanner:
             raise ScanError("Tuner busy. Stop TV/Kaffeine/Tvheadend before scanning.")
         # This is an explicit action. A satellite-mode capable frontend
         # has to be connected; the tuner itself rejects unsupported systems.
-        output = Path(directory or Path.home()/".config/tihulu-tv-center").expanduser()
+        output = Path(directory or media_paths().config).expanduser()
         output.mkdir(parents=True, exist_ok=True)
         suffix = country + "-" + medium + ("-" + satellite if medium == "s" else "")
         target = output / ("channels-" + suffix + ".conf")
