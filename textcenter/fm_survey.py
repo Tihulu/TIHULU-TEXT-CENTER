@@ -278,15 +278,13 @@ class FMSurveySupervisor:
         if process is None or process.poll() is not None:
             return
         try:
-            os.killpg(process.pid,signal.SIGTERM)
+            process.terminate()
             process.wait(timeout=1)
-        except (ProcessLookupError,ChildProcessError):
-            pass
-        except (OSError,subprocess.TimeoutExpired):
+        except (OSError, subprocess.TimeoutExpired):
             try:
-                os.killpg(process.pid,signal.SIGKILL)
+                process.kill()
                 process.wait(timeout=0.5)
-            except (OSError,subprocess.TimeoutExpired):
+            except (OSError, subprocess.TimeoutExpired):
                 pass
 
     def _worker(self) -> None:
