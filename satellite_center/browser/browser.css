@@ -422,7 +422,7 @@ html{scroll-padding-top:96px;scroll-behavior:smooth}
   .shell-language{flex-wrap:wrap}
   .web-capture-progress{margin-left:0;margin-right:0}
   .line>button{flex:1 1 100%;min-width:0}
-  canvas{max-width:100%}
+  #level-chart,#earth-world-canvas,#iq-analysis canvas,#image-sstv-canvas{max-width:100%}
 }
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
