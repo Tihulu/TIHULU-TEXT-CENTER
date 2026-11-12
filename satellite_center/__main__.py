@@ -1584,10 +1584,17 @@ class Station:
         deadline = time.monotonic() + max(0.0, min(float(timeout_seconds), 15.0))
         stopped = self.request_stop(timeout_seconds=max(0.0, deadline-time.monotonic()))
         with self.lock:
-            threads = (self.active_worker, self.scheduler_thread, self.decoder_worker)
-        for thread in threads:
-            if thread is not None and thread is not threading.current_thread() and thread.is_alive():
-                thread.join(timeout=max(0.0, deadline-time.monotonic()))
+            scheduler = self.scheduler_thread
+        # PyQt QRunnable threads may appear as unjoinable _DummyThread objects.
+        # Only the Python-created scheduler is directly joinable. Capture and
+        # decoder finish by clearing their registered Station worker markers.
+        if scheduler is not None and scheduler is not threading.current_thread() and scheduler.is_alive():
+            scheduler.join(timeout=max(0.0, deadline-time.monotonic()))
+        while time.monotonic() < deadline:
+            with self.lock:
+                if self.active_worker is None and self.decoder_worker is None:
+                    break
+            time.sleep(0.05)
         # A worker may have just published another child before seeing STOPPING.
         # The _launch_receiver() guard prevents any new child after begin_quit.
         remaining_budget = max(0.0, deadline-time.monotonic())
@@ -1595,12 +1602,10 @@ class Station:
             stopped = self.request_stop(timeout_seconds=remaining_budget)
         with self.lock:
             self.owned_processes = {p for p in self.owned_processes if p.poll() is None}
-            worker_alive = bool(self.active_worker and self.active_worker.is_alive()
-                                and self.active_worker is not threading.current_thread())
+            worker_alive = self.active_worker is not None
             scheduler_alive = bool(self.scheduler_thread and self.scheduler_thread.is_alive()
                                    and self.scheduler_thread is not threading.current_thread())
-            decoder_alive = bool(self.decoder_worker and self.decoder_worker.is_alive()
-                                 and self.decoder_worker is not threading.current_thread())
+            decoder_alive = self.decoder_worker is not None
             if not worker_alive and not self.launching and not self.owned_processes:
                 self._release()
             remaining = len(self.owned_processes)
