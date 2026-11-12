@@ -14,9 +14,9 @@ def utc_now() -> str:
 
 
 def clean_text(value: object, limit: int = 4000) -> str:
-    if value is None:
+    if not isinstance(value, str):
         return ""
-    return re.sub(r"\\s+", " ", str(value)).strip()[:limit]
+    return re.sub(r"\s+", " ", str(value)).strip()[:limit]
 
 
 class MediaTranscriptStore:
