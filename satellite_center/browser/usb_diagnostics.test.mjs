@@ -1,3 +1,11 @@
+/* WebUSB Edition parity regressions run under the existing browser-only
+ * CI entrypoint without touching or weakening CI workflow configuration.
+ */
+import "./webusb_lifecycle.test.mjs";
+import "./web_shell.test.mjs";
+import "./web_pwa.test.mjs";
+import "./web_asset_integrity.test.mjs";
+
 import test from "node:test";
 import assert from "node:assert/strict";
 import {platformFamily, webUsbHelp, permissionReport} from "./usb_diagnostics.mjs";
