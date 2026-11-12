@@ -232,6 +232,8 @@ class SpeechPipeline:
     def _register_child(self,proc):
         with self._gate:
             if proc is None:
+                if self._active_child is not None and self._active_child.poll() is None:
+                    return  # keep a live owned handle for partial-failure reporting
                 self._active_child=None
             else:
                 self._active_child=proc
@@ -288,6 +290,8 @@ class SpeechPipeline:
                     "segments_completed":self.completed,"dropped_windows":self.dropped,
                     "queued_windows":self.queue.qsize(),"error":self.last_error,
                     "lifecycle":self.lifecycle,"worker_alive":self.thread.is_alive(),
+                    "child_alive":(self._active_child is not None and
+                                   self._active_child.poll() is None),
                     "buffered_bytes":len(self.buffer)}
 
     def stop(self, *, wait=True, timeout=2.0):
@@ -318,8 +322,11 @@ class SpeechPipeline:
             self.thread.join(timeout=max(0.0,min(float(timeout),10.0)))
         with self._gate:
             alive=self.thread.is_alive()
-            self.lifecycle=("STOP_FAILED_PARTIAL" if wait and alive
+            child_alive=(self._active_child is not None and
+                         self._active_child.poll() is None)
+            self.lifecycle=("STOP_FAILED_PARTIAL" if wait and (alive or child_alive)
                             and current_thread()!=self.thread else
                             "STOPPING" if alive else "STOPPED")
             return {"lifecycle":self.lifecycle,"worker_alive":alive,
+                    "child_alive":child_alive,
                     "queued_windows":self.queue.qsize(),"buffered_bytes":len(self.buffer)}
