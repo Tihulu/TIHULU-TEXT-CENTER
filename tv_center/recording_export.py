@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -188,15 +189,88 @@ def split_caption_translations(cues: list[Cue]) -> dict[str, list[Cue]]:
     return {track: lines for track, lines in result.items() if lines}
 
 
-def _write_new(path: Path, content: str) -> None:
-    """Exclusive creation, never overwrite the user's original or exports."""
+@dataclass(frozen=True)
+class _OwnedSidecar:
+    """Identity captured from our exclusive-create file descriptor."""
+    path: Path
+    device: int
+    inode: int
+    # Keeps the original inode allocated until rollback is complete, so
+    # delete-and-recreate cannot recycle the inode under a foreign output.
+    pin_fd: int | None = None
+
+
+def _remove_owned_sidecar(owned: _OwnedSidecar) -> None:
+    """Best-effort unlink only while the path still names OUR regular file.
+
+    A competing exporter may replace the path after our write. Deleting by
+    pathname alone would remove that foreign output. Identity checks avoid
+    this known race; pathname mutation between lstat and unlink cannot be
+    made atomic using the portable pathlib API and requires OS-specific QA.
+    """
+    try:
+        current = owned.path.lstat()
+    except FileNotFoundError:
+        return
+    if (stat.S_ISREG(current.st_mode) and
+            (current.st_dev, current.st_ino) == (owned.device, owned.inode)):
+        owned.path.unlink(missing_ok=True)
+
+
+def _release_owned_sidecars(created: list[_OwnedSidecar]) -> None:
+    """Close held identities after commit or rollback (also on errors)."""
+    while created:
+        owned = created.pop()
+        if owned.pin_fd is not None:
+            os.close(owned.pin_fd)
+
+
+def _rollback_owned_sidecars(created: list[_OwnedSidecar]) -> None:
+    """Rollback in reverse order while original inodes remain pinned."""
+    failures = []
+    try:
+        for owned in reversed(created):
+            try:
+                _remove_owned_sidecar(owned)
+            except OSError as exc:
+                failures.append(f"{owned.path.name}: {exc}")
+    finally:
+        _release_owned_sidecars(created)
+    if failures:
+        raise RuntimeError(
+            "Subtitle export failed; some invocation-owned sidecars could "
+            "not be removed: " + "; ".join(failures[:3]))
+
+
+def _write_new(path: Path, content: str, *,
+               retain_fd: bool = False) -> _OwnedSidecar:
+    """Create exclusively; hold a duplicate descriptor through the transaction.
+
+    The pinned inode cannot be reused by a competing creator between
+    unlink/recreate and our ownership comparison. Temporary SRT tracks
+    do not keep a pin after their single successful write.
+    """
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        identity = os.fstat(fd)
+        pin_fd = os.dup(fd)
+    except BaseException:
+        os.close(fd)
+        raise
+    owned = _OwnedSidecar(path, identity.st_dev, identity.st_ino, pin_fd)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
             file.write(content)
     except BaseException:
-        path.unlink(missing_ok=True)
+        try:
+            _remove_owned_sidecar(owned)
+        finally:
+            os.close(pin_fd)
         raise
+    if not retain_fd:
+        os.close(pin_fd)
+        return _OwnedSidecar(path, identity.st_dev, identity.st_ino)
+    return owned
 
 
 def _safe_name(name: str) -> str:
@@ -205,7 +279,8 @@ def _safe_name(name: str) -> str:
 
 def export_tracks(tracks: dict[str, list[Cue]], directory: str | Path,
                   name: str, formats=("txt", "srt"), *, timestamps=False,
-                  verified_lyrics=False) -> list[Path]:
+                  verified_lyrics=False,
+                  _owned: list[_OwnedSidecar] | None = None) -> list[Path]:
     folder = Path(directory).expanduser().resolve(strict=True)
     if not folder.is_dir():
         raise ValueError("Select an existing export directory")
@@ -227,17 +302,21 @@ def export_tracks(tracks: dict[str, list[Cue]], directory: str | Path,
     existing = [str(p) for p, _ in jobs if p.exists()]
     if existing:
         raise FileExistsError("Will not overwrite existing files: " + ", ".join(existing[:3]))
-    created = []
+    created: list[_OwnedSidecar] = []
     try:
         for path, data in jobs:
-            _write_new(path, data)
-            created.append(path)
+            created.append(_write_new(path, data, retain_fd=True))
     except BaseException:
-        # Delete only the new files we exclusively created in this invocation.
-        for path in created:
-            path.unlink(missing_ok=True)
+        # Track identity from each successful O_EXCL, never from a later
+        # pathname stat: another process could replace the file meanwhile.
+        _rollback_owned_sidecars(created)
         raise
-    return created
+    paths = [record.path for record in created]
+    if _owned is not None:
+        _owned.extend(created)
+    else:
+        _release_owned_sidecars(created)
+    return paths
 
 
 def _run_ffmpeg(args: list[str]) -> None:
@@ -319,32 +398,44 @@ def run_export(*, sources: dict[str, str], destination: str, name: str,
     folder = Path(destination).expanduser().resolve(strict=True)
     if not formats and not (mux or burn):
         raise ValueError("No export format selected")
+    created_sidecars: list[_OwnedSidecar] = []
     outputs = export_tracks(
         tracks, folder, name, formats, timestamps=timestamps,
-        verified_lyrics=verified_lyrics) if formats else []
+        verified_lyrics=verified_lyrics, _owned=created_sidecars) if formats else []
     stem = _safe_name(name)
     if not (mux or burn):
+        _release_owned_sidecars(created_sidecars)
         return outputs
     # Muxing uses temporary SRT tracks so users may request only an MKV
     # without extra sidecar output, and actual language tracks stay separate.
-    with tempfile.TemporaryDirectory(prefix=".tihulu-tracks-", dir=folder) as temp:
-        media_tracks = {}
-        for name, cues in tracks.items():
-            path = Path(temp) / (name + ".srt")
-            _write_new(path, render(cues, "srt"))
-            media_tracks[name] = path
-        if mux:
-            outputs.append(mux_tracks(
-                media, media_tracks, folder / (stem + "-subtitled.mkv")))
-        if burn:
-            selected = burn_track
-            if selected not in media_tracks:
-                if len(media_tracks) == 1 and "combined" in media_tracks:
-                    selected = "combined"
-                else:
-                    raise ValueError("Burn-in track is not present")
-            outputs.append(burn_video(
-                media, media_tracks[selected], folder / (stem + "-burned.mp4")))
+    # If any later step fails, rollback ONLY the sidecars whose O_EXCL
+    # identity was captured in this invocation. Never unlink a competing
+    # MKV/MP4, input recording, or a sidecar replaced by another process.
+    try:
+        with tempfile.TemporaryDirectory(
+                prefix=".tihulu-tracks-", dir=folder) as temp:
+            media_tracks = {}
+            for track, cues in tracks.items():
+                path = Path(temp) / (track + ".srt")
+                _write_new(path, render(cues, "srt"))
+                media_tracks[track] = path
+            if mux:
+                outputs.append(mux_tracks(
+                    media, media_tracks, folder / (stem + "-subtitled.mkv")))
+            if burn:
+                selected = burn_track
+                if selected not in media_tracks:
+                    if len(media_tracks) == 1 and "combined" in media_tracks:
+                        selected = "combined"
+                    else:
+                        raise ValueError("Burn-in track is not present")
+                outputs.append(burn_video(
+                    media, media_tracks[selected], folder / (stem + "-burned.mp4")))
+    except BaseException:
+        _rollback_owned_sidecars(created_sidecars)
+        raise
+    finally:
+        _release_owned_sidecars(created_sidecars)
     return outputs
 
 
