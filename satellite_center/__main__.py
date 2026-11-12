@@ -369,8 +369,11 @@ class Station:
                         "owned_processes_running": sum(p.poll() is None for p in self.owned_processes),
                         "app_released": (self.device_lock is None and
                                          not self.launching and
+                                         not self.decoder_active and
                                          not self.session.get("active") and
                                          all(p.poll() is not None for p in self.owned_processes)),
+                        "quitting": self.closed.is_set(),
+                        "quit_result": dict(self.quit_result) if self.quit_result else None,
                         "last_usb_test": self.receiver_test,
                         "last_real_sample": self.receiver_last_sample,
                         "last_disconnect": self.receiver_last_release,
@@ -1876,8 +1879,6 @@ class Station:
                 raise RuntimeError("Application Quit; no decoder may start")
             if self.session.get("active") or self.decoder_active:
                 raise RuntimeError("Stop RF acquisition or active decoder before decoding")
-            self.decoder_active = True
-            self.stopping.clear()
         exe = shutil.which("satdump")
         if not exe:
             raise RuntimeError("SatDump not installed; original .cu8 remains available")
@@ -1894,6 +1895,11 @@ class Station:
                "--samplerate", "1024000", "--baseband_format", "cu8", "--dc_block"]
         # SatDump is app-owned and cancellable, unlike subprocess.run(), whose
         # blocking timeout prevents a Quit from reaping it promptly.
+        with self.lock:
+            if self.closed.is_set() or self.decoder_active:
+                raise RuntimeError("Satellite Center is quitting or already decoding")
+            self.decoder_active = True
+            self.stopping.clear()
         import tempfile
         proc = None
         try:
@@ -1946,7 +1952,7 @@ class Station:
         return {"decoder_exit": exit_code, "images": images, "variant": variant,
                 "result": "actual_decoder_files" if images else "no_images_decoded",
                 "note": "Only actual SatDump-created image files are shown; satellite source is a target candidate, not independently verified.",
-                "stderr": result.stderr.decode("utf-8", "replace")[-500:]}
+                "stderr": stderr_tail}
 
 
 PAGE = Path(__file__).with_name("index.html")
