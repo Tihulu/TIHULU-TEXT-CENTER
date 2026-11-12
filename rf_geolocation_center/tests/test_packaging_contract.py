@@ -88,7 +88,7 @@ class PackagingPreparationTests(unittest.TestCase):
 
     def test_synthetic_unpacked_only_app_cli_without_other_apps(self):
         with tempfile.TemporaryDirectory(prefix="rfgeo-stand-pack-") as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             with tarfile.open(fileobj=io.BytesIO(self.payload), mode="r:gz") as tar:
                 # Tests create only the isolated TEMP fixture; NEVER call extractall
                 # with an unvalidated archive or install to a production prefix.
@@ -125,7 +125,7 @@ class PackagingPreparationTests(unittest.TestCase):
 
     def test_build_requires_explicit_directory_and_cannot_overwrite(self):
         with tempfile.TemporaryDirectory(prefix="rfgeo-build-") as tmp:
-            destination = Path(tmp)
+            destination = Path(tmp).resolve()
             report = build_to(ROOT, destination)
             self.assertEqual(Path(report["archive"]).name, NAME)
             self.assertEqual(report["sha256"], hashlib.sha256(self.payload).hexdigest())
@@ -154,7 +154,7 @@ class PackagingPreparationTests(unittest.TestCase):
 
     def test_dry_run_records_checksums_owned_files_and_preserves_sentinels(self):
         with tempfile.TemporaryDirectory(prefix="rfgeo-plan-") as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             archive = root / NAME
             archive.write_bytes(self.payload)
             home = root / "home"
@@ -187,7 +187,7 @@ class PackagingPreparationTests(unittest.TestCase):
 
     def test_synthetic_stage_and_rollback_review_is_checksum_scoped(self):
         with tempfile.TemporaryDirectory(prefix="rfgeo-rollback-") as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             archive = root / NAME
             archive.write_bytes(self.payload)
             prefix = root / "package-prefix"
@@ -212,7 +212,7 @@ class PackagingPreparationTests(unittest.TestCase):
 
     def test_foreign_existing_file_or_symlinked_install_target_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="rfgeo-foreign-") as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             archive = root / NAME
             archive.write_bytes(self.payload)
             prefix = root / "install"
@@ -295,7 +295,7 @@ class PackagingPreparationTests(unittest.TestCase):
 
     def test_planner_cli_is_read_only_and_has_no_install_verb(self):
         with tempfile.TemporaryDirectory(prefix="rfgeo-cli-plan-") as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             archive = root / NAME
             archive.write_bytes(self.payload)
             env = os.environ.copy()
