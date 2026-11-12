@@ -1,0 +1,1934 @@
+{
+  "schema_version": 1,
+  "workstream": "06",
+  "task_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+  "central_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+  "draft_pr": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/88",
+  "branch": "audit/ws06-provenance-qa-2026-11-11",
+  "scope": "Source/read-only documentation and evidence audit only; no runtime or hardware test executed",
+  "source_refs": {
+    "worker_head_before_writes": "22d80141ea00f13a502a589bb615dafedf8062cc",
+    "coordinator_head_observed": "55e7db7a24d46d64bb3f004ac1481fcdd1bcbbe5",
+    "worker_vs_coordinator": {
+      "relation": "diverged",
+      "ahead_by": 1,
+      "behind_by": 4,
+      "merge_base": "a00b8d97ce04e6279c6edc1035656a86924cc101"
+    },
+    "candidate_inventory_pinned_origin": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+    "source_repo_id": 1447637221,
+    "flight_repo_id": 1447534043,
+    "source_requirement_blob_sha": "5523ed555023f6d5807a563c64fb9ff316a6e9f8",
+    "candidate_mapping_blob_sha": "0dde8a66ce16efa1e23688e7893eebebf36ca2f4",
+    "media_pr67_source_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+    "media_pr67_vs_worker": {
+      "relation": "diverged",
+      "worker_ahead_by": 45,
+      "worker_behind_by": 20,
+      "merge_base": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e"
+    }
+  },
+  "summary": {
+    "required_ids": 15,
+    "ids_audited": 15,
+    "requested_only": 11,
+    "partial_draft_coded": 4,
+    "unit_verified": 0,
+    "hardware_verified": 0,
+    "released": 0,
+    "candidate_test_paths": 9,
+    "ids_with_test_candidate": 9,
+    "ids_missing_test_candidate": [
+      "CROSS-006",
+      "CROSS-009",
+      "CROSS-010",
+      "CROSS-011",
+      "CROSS-012",
+      "CROSS-014"
+    ],
+    "unique_candidate_test_sources_directly_read": [
+      "tests/test_master_zero_regression_coordination.py",
+      "tests/test_verified_destination_repos_and_red_logos.py",
+      "tests/test_origin_fallback_approved_branding.py",
+      "tests/test_text_center_retained_canonical.py",
+      "tests/test_development_agent_entrypoints.py",
+      "tests/test_tv_ai_profiles_remote_startup.py"
+    ],
+    "tests_executed": 0,
+    "hardware_tests_executed": 0,
+    "historical_source_prs_checked": 10,
+    "flight_prs_checked": 2,
+    "original_issue_records_checked": 4,
+    "top_level_pr_comments_linked": 8,
+    "extra_source_issue_comments_linked": 11,
+    "review_submissions_returned": 0,
+    "inline_review_threads_returned": 0,
+    "apps_matrix_and_localization_metadata_files_verified_in_origin": 20,
+    "approved_logo_master_hash_entries": 5,
+    "logo_binary_sha256_recomputed": 0,
+    "destination_repos_observed_empty": 3,
+    "worker_runtime_files_modified": 0,
+    "hours_remaining": null,
+    "minutes_remaining": null,
+    "eta_reason": "Not defensible without full history/timeline export, hardware access, release gates, and coordinated worker scope."
+  },
+  "repository_topology": [
+    {
+      "app": "text-center",
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "repo_id": 1447637221,
+      "state": "retained_canonical"
+    },
+    {
+      "app": "flight-radar",
+      "repo": "Tihulu/tihulu-flight-radar",
+      "repo_id": 1447534043,
+      "state": "independent_canonical"
+    },
+    {
+      "app": "media-center",
+      "repo": "Tihulu/tihulu-media-center",
+      "repo_id": 1454318539,
+      "state": "empty_destination_not_canonical",
+      "observed_size_kb": 0
+    },
+    {
+      "app": "satellite-center",
+      "repo": "Tihulu/tihulu-satellite-center",
+      "repo_id": 1454319572,
+      "state": "empty_destination_not_canonical",
+      "observed_size_kb": 0
+    },
+    {
+      "app": "geolocation-center",
+      "repo": "Tihulu/tihulu-rf-geolocation-center",
+      "repo_id": 1454320329,
+      "state": "empty_destination_not_canonical",
+      "observed_size_kb": 0
+    }
+  ],
+  "original_pr_audit": {
+    "source_prs": [
+      {
+        "repo_id": 1447637221,
+        "number": 65,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "author": "Tihulu",
+        "created_at": "2026-11-10T01:57:38Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 66,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T15:15:24Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 67,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T15:29:07Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 68,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/68",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T15:46:33Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 69,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/69",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T15:53:15Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 70,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/70",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T16:13:47Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 71,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/71",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T16:31:00Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 72,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/72",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T17:03:05Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 73,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/73",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T18:16:02Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "repo_id": 1447637221,
+        "number": 74,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/74",
+        "author": "Tihulu",
+        "created_at": "2026-11-11T18:27:38Z",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      }
+    ],
+    "flight_prs": [
+      {
+        "number": 7,
+        "repo_id": 1447534043,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "top_level_comments_returned": 0,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      },
+      {
+        "number": 13,
+        "repo_id": 1447534043,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "top_level_comments_returned": 8,
+        "review_submissions_returned": 0,
+        "inline_threads_returned": 0
+      }
+    ],
+    "flight_pr13_original_comment_metadata": [
+      {
+        "id": 6749307903,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6749307903",
+        "author": "Tihulu",
+        "created_at": "2026-11-09T19:26:36Z",
+        "updated_at": "2026-11-09T19:26:36Z",
+        "body_copied": false
+      },
+      {
+        "id": 6749887901,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6749887901",
+        "author": "Tihulu",
+        "created_at": "2026-11-09T19:53:34Z",
+        "updated_at": "2026-11-09T19:53:34Z",
+        "body_copied": false
+      },
+      {
+        "id": 6751149528,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6751149528",
+        "author": "Tihulu",
+        "created_at": "2026-11-09T20:51:34Z",
+        "updated_at": "2026-11-09T20:51:34Z",
+        "body_copied": false
+      },
+      {
+        "id": 6751162119,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6751162119",
+        "author": "Tihulu",
+        "created_at": "2026-11-09T20:52:11Z",
+        "updated_at": "2026-11-09T20:52:11Z",
+        "body_copied": false
+      },
+      {
+        "id": 6754467663,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6754467663",
+        "author": "Tihulu",
+        "created_at": "2026-11-09T23:39:27Z",
+        "updated_at": "2026-11-09T23:39:27Z",
+        "body_copied": false
+      },
+      {
+        "id": 6754887278,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6754887278",
+        "author": "Tihulu",
+        "created_at": "2026-11-10T00:04:26Z",
+        "updated_at": "2026-11-10T00:04:26Z",
+        "body_copied": false
+      },
+      {
+        "id": 6755221713,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6755221713",
+        "author": "Tihulu",
+        "created_at": "2026-11-10T00:23:17Z",
+        "updated_at": "2026-11-10T00:23:17Z",
+        "body_copied": false
+      },
+      {
+        "id": 6756436995,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13#issuecomment-6756436995",
+        "author": "Tihulu",
+        "created_at": "2026-11-10T01:38:15Z",
+        "updated_at": "2026-11-10T01:38:15Z",
+        "body_copied": false
+      }
+    ],
+    "source_issues": [
+      {
+        "number": 2,
+        "created_at": "2026-11-06T01:50:11Z",
+        "comment_count": 0,
+        "repo_id": 1447637221,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/2",
+        "author": "Tihulu"
+      },
+      {
+        "number": 20,
+        "created_at": "2026-11-06T17:30:47Z",
+        "comment_count": 5,
+        "repo_id": 1447637221,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/20",
+        "author": "Tihulu"
+      },
+      {
+        "number": 21,
+        "created_at": "2026-11-06T18:10:49Z",
+        "comment_count": 6,
+        "repo_id": 1447637221,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21",
+        "author": "Tihulu"
+      },
+      {
+        "number": 34,
+        "created_at": "2026-11-07T02:19:33Z",
+        "comment_count": 0,
+        "repo_id": 1447637221,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/34",
+        "author": "Tihulu"
+      }
+    ],
+    "issue_comment_links": [
+      {
+        "issue": 20,
+        "id": 6694849553,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/20#issuecomment-6694849553",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 20,
+        "id": 6696693146,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/20#issuecomment-6696693146",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 20,
+        "id": 6697425350,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/20#issuecomment-6697425350",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 20,
+        "id": 6697673491,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/20#issuecomment-6697673491",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 20,
+        "id": 6699646283,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/20#issuecomment-6699646283",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 21,
+        "id": 6692750367,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21#issuecomment-6692750367",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 21,
+        "id": 6694458728,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21#issuecomment-6694458728",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 21,
+        "id": 6695696810,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21#issuecomment-6695696810",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 21,
+        "id": 6696694055,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21#issuecomment-6696694055",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 21,
+        "id": 6697425833,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21#issuecomment-6697425833",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      },
+      {
+        "issue": 21,
+        "id": 6699646873,
+        "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/21#issuecomment-6699646873",
+        "original_author": "Tihulu",
+        "created_at": null,
+        "created_at_status": "not_returned_by_connector",
+        "body_copied": false
+      }
+    ],
+    "historical_ledger": {
+      "path": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+      "pr_entries": 67,
+      "issue_entries": 4,
+      "not_indexed_prs": [
+        72,
+        73,
+        74
+      ],
+      "review_or_timeline_complete": false
+    },
+    "caveat": "Zero review nodes returned by sampled endpoints is not a universal no-reviews or no-missing-history proof. Original URLs and author/date metadata preserved where available; no native approval re-created."
+  },
+  "branding": {
+    "manifest_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/BRANDING_APPROVED_MANIFEST.json",
+    "exact_five_approved_designs": "manifest_only_not_binary_rehashed",
+    "master_sha256_by_app": {
+      "media-center": "6364d5047f201eb0b09e1c64d71ee192c68a8866b57b42b5e61de8a0f05e40e9",
+      "satellite-center": "031d253759f4a4dc2dc847b7e6d59b362b8f53e9bac13a1bc61eaf22d7fef494",
+      "geolocation-center": "d14557582c469fa83390d194071c35f22220e6ae7a478f4ff04b3b26577c0d20",
+      "text-center": "52024e3305b76aca1e0bf8df3da5966e3fe9e004f7df7296054abaf001a64c25",
+      "flight-radar": "d73e62cbd2ba9c965bd7f4c13e44d7805efd428ef27a6ad710b277455bd9a33f"
+    },
+    "pack_sha256_recorded": "49eeccd46ab8b6e630b5567b4e08c0580f22430696de8e215b80d21a52043f84",
+    "recalculated_from_binary": false,
+    "source_master_binaries_in_git": false,
+    "runtime_replaced": false,
+    "genuine_svg_available": false
+  },
+  "language_contract": {
+    "technical_english": true,
+    "user_ui_target": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "default_ui_target": "en",
+    "runtime_locale_coverage_verified": false,
+    "source_app_local_matrix_and_locale_count": 20,
+    "flight_canonical_root": {
+      "AGENTS_md": true,
+      "CLAUDE_md": false,
+      "DEEPSEEK_START_md": false,
+      "apps_DEVELOPMENT_AGENT_MATRIX_json": false
+    }
+  },
+  "tests": {
+    "source_only": true,
+    "test_run_commands": [],
+    "physical_hardware_test_results": [],
+    "source_test_blobs": {
+      "tests/test_master_zero_regression_coordination.py": "d1cff865d479121f09ff56f6c2ce73a6e9e2c8ca",
+      "tests/test_verified_destination_repos_and_red_logos.py": "a56ad63c08ea942619867293bd36da27c3cdd6c6",
+      "tests/test_origin_fallback_approved_branding.py": "fd7752514666a525472d501f05a8b57e286ea550",
+      "tests/test_text_center_retained_canonical.py": "1796c882bf1ef95adad7d251d973019713edf500",
+      "tests/test_development_agent_entrypoints.py": "a76587b19fcc73d49463df0f290567baca259d61",
+      "tests/test_tv_ai_profiles_remote_startup.py": "ee85652f77759414f8f277a7b4ff50ac6b0e41b9"
+    },
+    "classification": "Six distinct relevant files read; one includes remote GPU mock/fixture assertions, others mostly static contracts; no test execution claims."
+  },
+  "risk_and_transfer_gaps": [
+    {
+      "id": "G01",
+      "severity": "critical",
+      "finding": "Media #67 has 20 commits absent from WS06 branch; migrating only #66/coordinator source would omit export improvements",
+      "owner_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76"
+    },
+    {
+      "id": "G02",
+      "severity": "high",
+      "finding": "Historical PR ledger 67 records excludes #72/#73/#74; review/timeline completeness not established",
+      "owner_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81"
+    },
+    {
+      "id": "G03",
+      "severity": "high",
+      "finding": "11 source Issue #20/#21 original comment permalinks retrieved; not archived as metadata and connector timestamps unavailable",
+      "owner_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78"
+    },
+    {
+      "id": "G04",
+      "severity": "high",
+      "finding": "Five approved PNGs and ZIP are hash-pinned in metadata but master bytes not retrieved/rehash-verified",
+      "owner_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81"
+    },
+    {
+      "id": "G05",
+      "severity": "high",
+      "finding": "Canonical Flight main missing Claude/DeepSeek entrypoints referenced by central planning matrices",
+      "owner_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77"
+    },
+    {
+      "id": "G06",
+      "severity": "high",
+      "finding": "All-app EN/TR/DE runtime UI coverage unverified",
+      "owner_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81"
+    },
+    {
+      "id": "G07",
+      "severity": "high",
+      "finding": "No per-app native hardware, installer, rollback, PWA/rename testing",
+      "owner_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81"
+    },
+    {
+      "id": "G08",
+      "severity": "medium",
+      "finding": "WS06 source branch diverges from newer coordinator commits; no silent sync or rebase permitted",
+      "owner_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "CROSS-001",
+      "priority": "P0",
+      "acceptance": "ZERO application feature, behavior, default, settings, recordings, data, installer, device ownership or existing icon changes in audit phase.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Policy exists and worker branch currently has one TASK.md relative to its initial coordinator merge base. No runtime diff in this worker PR before report commits; installed application comparison and behavior baselines not measured.",
+      "future_non_destructive_regression_test": "Before every eventual cutover, hash/compare app trees, settings, recordings, installed launchers and SDR lease behavior; test save/restore and hard stop on real devices.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/COORDINATION_PROTOCOL.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/COORDINATION_PROTOCOL.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_PLAN.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/MASTER_PLAN.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_master_zero_regression_coordination.py",
+          "blob_sha": "d1cff865d479121f09ff56f6c2ce73a6e9e2c8ca",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_master_zero_regression_coordination.py",
+          "source_inspected": true,
+          "test_type": "static_contract_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-002",
+      "priority": "P0",
+      "acceptance": "English engineering internals, source docs, commits, GitHub Issue/PR and coding-agent prompts; UI languages English(default), Turkish, German in all five apps.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "English engineering/en-default/tr/de is recorded in TRILINGUAL_UI_POLICY.md and five app localization contracts; policy explicitly says runtime locale coverage is not audited. Preserve current app defaults until independently approved updates.",
+      "future_non_destructive_regression_test": "Test locale key inventory, en fallback, TR/DE text expansion, switch/persistence, assistive UI and native/web/PWA equivalents for each app; do not confuse speech translation with UI localization.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_PLAN.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/MASTER_PLAN.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/registry.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/registry.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_verified_destination_repos_and_red_logos.py",
+          "blob_sha": "a56ad63c08ea942619867293bd36da27c3cdd6c6",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_verified_destination_repos_and_red_logos.py",
+          "source_inspected": true,
+          "test_type": "static_contract_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-003",
+      "priority": "P0",
+      "acceptance": "Only use exact five previously approved red/black/white TIHULU mascot logo PNG masters; verify hashes and real SVG later.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Five 64-hex master SHA-256 entries and pack SHA-256 are recorded in branding manifest, but only metadata was fetched. Binary master PNGs and package were not byte-retrieved; none may be promoted to independently hash-verified assets. Manifest says assets not in Git and SVG not genuine.",
+      "future_non_destructive_regression_test": "After separately approved binary staging, compute real SHA-256 over each of the five supplied master PNGs and ZIP, compare to manifest and visual originals; icon integration/rollback requires independent review.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/BRANDING_APPROVED_MANIFEST.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/BRANDING_APPROVED_MANIFEST.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/BRANDING_APPROVED_ROLLOUT.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/BRANDING_APPROVED_ROLLOUT.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_origin_fallback_approved_branding.py",
+          "blob_sha": "fd7752514666a525472d501f05a8b57e286ea550",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_origin_fallback_approved_branding.py",
+          "source_inspected": true,
+          "test_type": "static_contract_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [
+        "approved_binary_pack_unavailable_for_direct_sha256_recalculation"
+      ],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-004",
+      "priority": "P0",
+      "acceptance": "Three user-created empty repos are Media, Satellite, RF Geolocation; Text Center stays in source repo, Flight Radar remains separate canonical.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Live GitHub metadata confirms source repo ID 1447637221, Flight Radar ID 1447534043, and empty 0-KB shells Media 1454318539, Satellite 1454319572, Geolocation 1454320329. Text remains in original source repo; Flight stays independently canonical.",
+      "future_non_destructive_regression_test": "On a separately approved transfer, verify exact source commit/hashes, standalone builds, original Text/Flight ownership, three empty-repo first-commit gates, and reversible cutover.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/CANONICAL_REPOSITORY_TOPOLOGY.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/CANONICAL_REPOSITORY_TOPOLOGY.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/VERIFIED_DESTINATION_REPOSITORIES.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/VERIFIED_DESTINATION_REPOSITORIES.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_text_center_retained_canonical.py",
+          "blob_sha": "1796c882bf1ef95adad7d251d973019713edf500",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_text_center_retained_canonical.py",
+          "source_inspected": true,
+          "test_type": "static_contract_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-005",
+      "priority": "P0",
+      "acceptance": "No loss of PR comments, reviews, issue timelines, decisions, original author/time: linked old repo + explicit transfer gaps + independent permitted snapshots.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Original source archive contains 67 PR and four Issue description records, not complete timelines. Public checks show 12 PRs with zero returned review submissions/inline threads; 10 source PRs with zero returned conversation comments; Flight PR #13 eight linked comments; Issues #20 and #21 have 11 additional linked comments not in origin snapshot. PRs #72-#74 absent from the 67-entry historical link ledger.",
+      "future_non_destructive_regression_test": "Export complete approved original issue/PR/timeline/review metadata and creator/time, preserve unchanged URLs and IDs; do not copy private chats or reconstruct approvals. Distinguish zero endpoint results from absent inaccessible records.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/HISTORY_ORIGIN_FALLBACK_POLICY.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/HISTORY_ORIGIN_FALLBACK_POLICY.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_origin_fallback_approved_branding.py",
+          "blob_sha": "fd7752514666a525472d501f05a8b57e286ea550",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_origin_fallback_approved_branding.py",
+          "source_inspected": true,
+          "test_type": "static_contract_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [
+        "complete_timeline_and_review_export_missing",
+        "history_ledger_missing_72_73_74",
+        "source_issues_20_21_comment_timestamps_not_returned"
+      ],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-006",
+      "priority": "P0",
+      "acceptance": "On any future origin repo rename, preserve original GitHub URLs and repo ID; resolve aliases, test Pages/PWA, GitHub raw scripts, workflow and PR links.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Origin identity policy stores immutable ID/node ID and original alias, but future rename and Pages/PWA/raw installer links are untested; rename has not occurred.",
+      "future_non_destructive_regression_test": "Test old->new HTTP redirects, GitHub Pages routing/PWA scope/cache, raw install scripts, CI/permissions, source links and published version rollback before any separately approved rename.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/REPOSITORY_RENAME_LINK_POLICY.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/REPOSITORY_RENAME_LINK_POLICY.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/REPOSITORY_IDENTITY.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/REPOSITORY_IDENTITY.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [],
+      "missing_test_candidate": true,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-007",
+      "priority": "P0",
+      "acceptance": "Document FEATURE, COMPONENT, MODEL and DEVELOPMENT_AGENT matrices for each app in its canonical repository, with Claude/DeepSeek navigation.",
+      "implementation_state": "draft-coded",
+      "implementation_state_basis": "partial source/docs/infrastructure exists; NOT complete, tested or released",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "All 20 app-local FEATURE/COMPONENT/MODEL/LOCALIZATION files exist in original source repo (not evidence in each future canonical repo). Origin has AGENTS.md, CLAUDE.md and DEEPSEEK_START.md; canonical Flight main has AGENTS.md but lacks CLAUDE.md, DEEPSEEK_START.md and apps/DEVELOPMENT_AGENT_MATRIX.json. Three target repos are empty.",
+      "future_non_destructive_regression_test": "For each canonical repo, compare matrix link closure, Claude/DeepSeek onboarding and file-source lineage; test navigation without model download; no first commits without approval.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/DEVELOPMENT_AGENT_MATRIX.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/DEVELOPMENT_AGENT_MATRIX.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "DEVELOPMENT_AGENT_GUIDE.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/DEVELOPMENT_AGENT_GUIDE.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_development_agent_entrypoints.py",
+          "blob_sha": "a76587b19fcc73d49463df0f290567baca259d61",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_development_agent_entrypoints.py",
+          "source_inspected": true,
+          "test_type": "static_contract_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [
+        "three_empty_destinations",
+        "flight_main_agent_entrypoints_missing"
+      ],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-008",
+      "priority": "P0",
+      "acceptance": "Six independent audit workers coordinate through GitHub Issues, distinct branches and Draft PRs; no shared file edits or unapproved merges.",
+      "implementation_state": "draft-coded",
+      "implementation_state_basis": "partial source/docs/infrastructure exists; NOT complete, tested or released",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Six Draft PRs #83-#88 and Issues #76-#81 are mapped to separate scopes under central #75; only workstream 06 was executed in this chat. Source metadata cannot establish automatic cross-chat execution.",
+      "future_non_destructive_regression_test": "Validate disjoint changed paths, external issue comment handoffs, source/PR refs and branch ownership for each worker; coordinator validates the six reports and no merges.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/ISSUES.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/ISSUES.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/prompts/README.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/prompts/README.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_master_zero_regression_coordination.py",
+          "blob_sha": "d1cff865d479121f09ff56f6c2ce73a6e9e2c8ca",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_master_zero_regression_coordination.py",
+          "source_inspected": true,
+          "test_type": "static_contract_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-009",
+      "priority": "P0",
+      "acceptance": "Only verified source-backed test success is reported as success; distinguish unit/static CI from real NooElec/Hauppauge physical tests.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Six relevant test source files were read, not executed. Existing quality audit separates static source assertions from mocked and synthetic tests; no real NooElec/Hauppauge or native UI run witnessed.",
+      "future_non_destructive_regression_test": "Record runner, commands, environment, commit SHA, assertions and logs per test; independently validate physical RF, DVB, DAB, decoder, UI and receiver lifecycle with permitted equipment.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/PROGRESS.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/PROGRESS.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/COORDINATION_PROTOCOL.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/COORDINATION_PROTOCOL.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [],
+      "missing_test_candidate": true,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-010",
+      "priority": "P0",
+      "acceptance": "Preserve main, all prior Draft PRs (#65–#74), Flight Radar PRs (#7/#13), open issues, legacy rollback and active installed apps.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Live comparison shows Media #67 and WS06 branch diverged with 20 commits behind on WS06; source PR #67 contains unmerged recording/export provenance. Original PR #65-#74 and Flight #7/#13 were inspected read-only; no merge or active-app/rollback change was performed.",
+      "future_non_destructive_regression_test": "Before any code copy, reconcile #65→#66→#67 ancestry and 20 omitted commits, flight independent history/legacy v0.3.1, user settings and previous releases; baseline golden fixtures and manual rollback.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/PR_ANCESTRY_AUDIT.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/PR_ANCESTRY_AUDIT.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [],
+      "missing_test_candidate": true,
+      "blockers": [
+        "unmerged_media_pr67_20_commits_not_in_worker_branch"
+      ],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-011",
+      "priority": "P0",
+      "acceptance": "Set explicit user authorization gates for first commits to empty repos, importing sources, icon activation, merges, release repoints and renames.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "MIGRATION_PROTOCOL.md and master plan gate empty repo initialization, source import, icon activation, merges, installer repoints, release and rename on separate user authorization; no such actions carried out.",
+      "future_non_destructive_regression_test": "Require explicit recorded owner sign-off for each destructive/migratory gate and rollback before any applied action.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/MIGRATION_PROTOCOL.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/MIGRATION_PROTOCOL.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_PLAN.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/MASTER_PLAN.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [],
+      "missing_test_candidate": true,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-012",
+      "priority": "P0",
+      "acceptance": "Track progress from audited counts and tested gates; remaining hours/minutes stay null until workload is inventoried and assumptions documented.",
+      "implementation_state": "draft-coded",
+      "implementation_state_basis": "partial source/docs/infrastructure exists; NOT complete, tested or released",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Coordination PROGRESS.json records 97 initial requirements, 86 test-path candidates and null ETA, not completed acceptance. Parent coordinator branch currently has four newer commits than WS06 from shared merge base; do not silently rebase.",
+      "future_non_destructive_regression_test": "Track executed tests, inspected source SHAs, open evidence gaps and worker dependencies; compute HHh MMm only from measured scoped workload and assumptions.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/PROGRESS.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/PROGRESS.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [],
+      "missing_test_candidate": true,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-013",
+      "priority": "P1",
+      "acceptance": "Treat optional paired GPU remote processing, offline-first CPU/GPU/NPU support, models and permissions as modular nonbreaking future changes.",
+      "implementation_state": "draft-coded",
+      "implementation_state_basis": "partial source/docs/infrastructure exists; NOT complete, tested or released",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Actual draft source functions for HTTPS-only opt-in remote GPU endpoint, protected token and on-demand audio were read from tv_center/remote_gpu.py; companion unit test uses mocks. No real paired host, GPU/NPU, native device or offline smoke run.",
+      "future_non_destructive_regression_test": "Offline no-network startup and user opt-in; endpoint TLS/no redirects, token perms, no background upload, CPU fallback, model persistence, performance and cross-platform pairing with controlled server.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/remote_gpu.py",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tv_center/remote_gpu.py",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tv_center/hardware_status.py",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tv_center/hardware_status.py",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_tv_ai_profiles_remote_startup.py",
+          "blob_sha": "ee85652f77759414f8f277a7b4ff50ac6b0e41b9",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_tv_ai_profiles_remote_startup.py",
+          "source_inspected": true,
+          "test_type": "mock_and_unit_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-014",
+      "priority": "P2",
+      "acceptance": "Keep separate related Survival Kit News/Emergency/AI requirements inventory without silently grafting them onto these five apps.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Master Plan separates Survival Kit News/Emergency/AI from five app migration, but no independent complete Survival Kit inventory was confirmed here.",
+      "future_non_destructive_regression_test": "Audit separately in appropriate Survival Kit repository with user-approved provenance; prohibit silent inclusion in any of five app releases.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_PLAN.md",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/MASTER_PLAN.md",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [],
+      "missing_test_candidate": true,
+      "blockers": [
+        "separate_survival_kit_inventory_not_audited"
+      ],
+      "original_pr_links": []
+    },
+    {
+      "id": "CROSS-015",
+      "priority": "P0",
+      "acceptance": "For each demand distinguish Requested, Draft coded, Verified in CI, Verified on device, Released; never promote from code presence alone.",
+      "implementation_state": "requested",
+      "implementation_state_basis": "policy/requirement recorded; full requested behavior not demonstrated",
+      "policy_documented": true,
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false,
+      "direct_audit_observation": "Requirement JSON fields use requested/unknown, candidate map does not verify implementation, and PROGRESS.json declares zero per-requirement test executions. No hardware or release state promotion supported.",
+      "future_non_destructive_regression_test": "Audit every acceptance criterion with exact code SHA, executable test and native evidence, then explicitly gate requested -> draft-coded -> CI unit-verified -> physical hardware verified -> released; independently document unknowns.",
+      "source_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/MASTER_REQUIREMENTS.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/MASTER_REQUIREMENTS.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "apps/_coordination/PROGRESS.json",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_coordination/PROGRESS.json",
+          "source_status": "candidate_path_at_pinned_source_not_implementation_certification"
+        }
+      ],
+      "test_candidates": [
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "commit_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "path": "tests/test_master_zero_regression_coordination.py",
+          "blob_sha": "d1cff865d479121f09ff56f6c2ce73a6e9e2c8ca",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/tests/test_master_zero_regression_coordination.py",
+          "source_inspected": true,
+          "test_type": "static_contract_source_inspection",
+          "command_executed": null,
+          "result": "NOT RUN"
+        }
+      ],
+      "missing_test_candidate": false,
+      "blockers": [],
+      "original_pr_links": []
+    }
+  ],
+  "safety": {
+    "git_files_to_commit": [
+      "apps/_coordination/workstreams/06/EVIDENCE.json",
+      "apps/_coordination/workstreams/06/REPORT.md"
+    ],
+    "no_application_source_edit": true,
+    "no_main_edit": true,
+    "no_merge": true,
+    "no_rename": true,
+    "no_repo_initialization": true,
+    "no_logo_install": true,
+    "no_release": true,
+    "no_live_receiver_interaction": true,
+    "no_private_chat_body_export": true
+  },
+  "phase_4": {
+    "review_date": "2026-11-12",
+    "status": "completed_read_only_phase4_source_review__all_release_gates_open",
+    "user_authorization": "Only existing WS06 REPORT.md and EVIDENCE.json modifications allowed; no tests, source, logo, installers, archive ledger, workflow, main or migration writes.",
+    "assignment_source": {
+      "issue_comment_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81#issuecomment-6811788707",
+      "coordinator_phase_division_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
+      "phase_division_blob_sha": "0b9cbde1bc009c80d7c68f2b74c16eca15da9919",
+      "gate_source_blob_sha": "f506f3ba6cdcbe9b7857431271363e4943a67454",
+      "original_worker_head_before_this_update": "e69c2b6eac7deeca313925bf99af31f8c9434f34"
+    },
+    "ancestry": {
+      "original_repo_id": 1447637221,
+      "media": {
+        "PR65": {
+          "sha": "20b0417aa7edba2f86b297e7cabdd062e9b24291"
+        },
+        "PR66": {
+          "sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e"
+        },
+        "PR67": {
+          "sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+          "unmerged": true,
+          "source_delta_paths": [
+            {
+              "path": "kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+              "status": "added",
+              "blob_sha": "3418010eb2448879d4b8cd582e2857e64fea2857e",
+              "source_ref": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+              "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/RECORDING_EXPORT_V2_DRAFT.md",
+              "executed_test": false
+            },
+            {
+              "path": "kaffeine_next/captions_overlay.py",
+              "status": "modified",
+              "blob_sha": "3081be75998464e758427ea12c66071924b6e69d",
+              "source_ref": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+              "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/captions_overlay.py",
+              "executed_test": false
+            },
+            {
+              "path": "kaffeine_next/native_media_panel.h",
+              "status": "modified",
+              "blob_sha": "7b8f2f756025a8aec5169e86b52ec589dc769aca",
+              "source_ref": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+              "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_media_panel.h",
+              "executed_test": false
+            },
+            {
+              "path": "kaffeine_next/native_radio_tab.h",
+              "status": "modified",
+              "blob_sha": "1aaac1b9b2c08f2ae4981d17dbd1f6029a2ad831",
+              "source_ref": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+              "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_radio_tab.h",
+              "executed_test": false
+            },
+            {
+              "path": "kaffeine_next/native_unified_recorder.h",
+              "status": "modified",
+              "blob_sha": "65ceedc5e99534a2f348b83f5c31467b55cd237f",
+              "source_ref": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+              "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/kaffeine_next/native_unified_recorder.h",
+              "executed_test": false
+            },
+            {
+              "path": "tests/test_recording_export.py",
+              "status": "added",
+              "blob_sha": "1b8039aa5f78449ebd7c5ef19eb0f9470bfb0cf8",
+              "source_ref": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+              "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tests/test_recording_export.py",
+              "executed_test": false
+            },
+            {
+              "path": "tv_center/__main__.py",
+              "status": "modified",
+              "blob_sha": "c5ea50700ef8d32eae4970ce9a962dc5795c4f00",
+              "source_ref": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+              "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/__main__.py",
+              "executed_test": false
+            },
+            {
+              "path": "tv_center/recording_export.py",
+              "status": "added",
+              "blob_sha": "084ac92aa787b1e81f2a2dab861eb0af6041eade",
+              "source_ref": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+              "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/4e62e21cd5252df8a04f9ceadc429f4b116412ce/tv_center/recording_export.py",
+              "executed_test": false
+            }
+          ]
+        },
+        "compare_65_to_66": {
+          "status": "ahead",
+          "ahead_by": 3,
+          "behind_by": 0,
+          "merge_base": "20b0417aa7edba2f86b297e7cabdd062e9b24291"
+        },
+        "compare_66_to_67": {
+          "status": "ahead",
+          "ahead_by": 20,
+          "behind_by": 0,
+          "merge_base": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+          "exact_changed_path_count": 8
+        },
+        "source_preservation": "Do not use coordinator/docs/#74 ancestry as substitute for unmerged PR #67 source and tests."
+      },
+      "missing_history": {
+        "immutable_ledger_urls": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/803529ba90f43a6cb1fb977869c650ddf5db448a/apps/_archives/PORTABLE_HISTORY_LINK_MAP.json"
+        ],
+        "current_pr_entry_count_each": 67,
+        "missing_pr_numbers": [
+          72,
+          73,
+          74
+        ],
+        "separate_addendum_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/ORIGIN_PR72_74_ANCESTRY_ADDENDUM.json",
+        "separate_addendum_blob_sha": "d84133429c38085e659ce982591a17e8e8000862",
+        "original_pr_records": [
+          {
+            "number": 72,
+            "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/72",
+            "original_repo_id": 1447637221,
+            "head_sha": "5e036603a8cbe1f22ed0d0d13306c9ddd3007d42",
+            "author": "Tihulu",
+            "created_at": "2026-11-11T17:03:05Z",
+            "state": "open_draft",
+            "native_review_submissions_returned": 0,
+            "inline_review_threads_returned": 0,
+            "top_level_comments_returned": 0,
+            "native_pr_object_id": null,
+            "complete_event_timeline_verified": false
+          },
+          {
+            "number": 73,
+            "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/73",
+            "original_repo_id": 1447637221,
+            "head_sha": "424656fc36e16a4d5b87d13b5824fd36243d66e4",
+            "author": "Tihulu",
+            "created_at": "2026-11-11T18:16:02Z",
+            "state": "open_draft",
+            "native_review_submissions_returned": 0,
+            "inline_review_threads_returned": 0,
+            "top_level_comments_returned": 0,
+            "native_pr_object_id": null,
+            "complete_event_timeline_verified": false
+          },
+          {
+            "number": 74,
+            "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/74",
+            "original_repo_id": 1447637221,
+            "head_sha": "a27e84a283b37c9014dfe21efbc496f5da5a7c65",
+            "author": "Tihulu",
+            "created_at": "2026-11-11T18:27:38Z",
+            "state": "open_draft",
+            "native_review_submissions_returned": 0,
+            "inline_review_threads_returned": 0,
+            "top_level_comments_returned": 0,
+            "native_pr_object_id": null,
+            "complete_event_timeline_verified": false
+          }
+        ],
+        "compare_72_to_73": {
+          "status": "ahead",
+          "ahead_by": 4,
+          "behind_by": 0,
+          "merge_base": "5e036603a8cbe1f22ed0d0d13306c9ddd3007d42"
+        },
+        "compare_73_to_74": {
+          "status": "ahead",
+          "ahead_by": 6,
+          "behind_by": 0,
+          "merge_base": "424656fc36e16a4d5b87d13b5824fd36243d66e4"
+        },
+        "original_review_coverage": "Three PRs #72-#74 specifically rechecked: zero review/inline/discussion nodes returned; this does not prove complete historical timeline archives.",
+        "earlier_original_comment_refs_preserved": {
+          "flight_pr13": 8,
+          "source_issues20_and_21": 11
+        },
+        "earlier_comment_issue_timestamps": "not_returned/null",
+        "full_historical_coverage": false,
+        "private_chat_content_copied": false
+      }
+    },
+    "branding": {
+      "master_sha256_metadata_by_app": {
+        "media-center": "6364d5047f201eb0b09e1c64d71ee192c68a8866b57b42b5e61de8a0f05e40e9",
+        "satellite-center": "031d253759f4a4dc2dc847b7e6d59b362b8f53e9bac13a1bc61eaf22d7fef494",
+        "geolocation-center": "d14557582c469fa83390d194071c35f22220e6ae7a478f4ff04b3b26577c0d20",
+        "text-center": "52024e3305b76aca1e0bf8df3da5966e3fe9e004f7df7296054abaf001a64c25",
+        "flight-radar": "d73e62cbd2ba9c965bd7f4c13e44d7805efd428ef27a6ad710b277455bd9a33f"
+      },
+      "approved_zip_sha256_metadata": "49eeccd46ab8b6e630b5567b4e08c0580f22430696de8e215b80d21a52043f84",
+      "manifest_blob_sha": "dbb53390593e262c8a3ab36c1fe7daa2fd0b4688",
+      "binary_master_files_fetched": 0,
+      "master_hashes_recomputed": 0,
+      "zip_bytes_fetched": false,
+      "zip_hash_recomputed": false,
+      "exact_logo_file_presence_in_app_repositories_verified": false,
+      "manifest_reports_binary_uncommitted": true,
+      "real_svg_verified": false,
+      "icon_replaced_by_worker": false,
+      "final_status": "BLOCKED_BINARY_UNAVAILABLE_NO_BYTE_LEVEL_SHA256_PROOF",
+      "future_check": "After separate owner approval, obtain the five exact original approved master PNGs and ZIP, run SHA-256 against recorded hashes, confirm rights and image parity, then validate native/PWA icon behavior without replacing installed icons during audit."
+    },
+    "ui_language": {
+      "engineering_language": "en",
+      "ui_default_target": "en",
+      "other_targets": [
+        "tr",
+        "de"
+      ],
+      "contracts": [
+        {
+          "app_id": "media-center",
+          "blob_sha": "3501ed7db17faa94e6252300fa88604838d9387e",
+          "contract_path": "apps/media-center/LOCALIZATION_CONTRACT.json",
+          "contract_current_coverage": "not_audited_no_runtime_translation_claim",
+          "translation_files_created_by_coordinator": false,
+          "runtime_verified": false
+        },
+        {
+          "app_id": "satellite-center",
+          "blob_sha": "7e6760a033da8cecd10f573ea33b63e283659797",
+          "contract_path": "apps/satellite-center/LOCALIZATION_CONTRACT.json",
+          "contract_current_coverage": "not_audited_no_runtime_translation_claim",
+          "translation_files_created_by_coordinator": false,
+          "runtime_verified": false
+        },
+        {
+          "app_id": "geolocation-center",
+          "blob_sha": "197bccfbbe66bf17bf9f5433fcf167ad4bf1c6a6",
+          "contract_path": "apps/geolocation-center/LOCALIZATION_CONTRACT.json",
+          "contract_current_coverage": "not_audited_no_runtime_translation_claim",
+          "translation_files_created_by_coordinator": false,
+          "runtime_verified": false
+        },
+        {
+          "app_id": "text-center",
+          "blob_sha": "53ec1b85c30b37c62c2c473b108d07b745ee40b1",
+          "contract_path": "apps/text-center/LOCALIZATION_CONTRACT.json",
+          "contract_current_coverage": "not_audited_no_runtime_translation_claim",
+          "translation_files_created_by_coordinator": false,
+          "runtime_verified": false
+        },
+        {
+          "app_id": "flight-radar",
+          "blob_sha": "c068d46f1feaed1c84483a6c1e735d713b51be6a",
+          "contract_path": "apps/flight-radar/LOCALIZATION_CONTRACT.json",
+          "contract_current_coverage": "not_audited_no_runtime_translation_claim",
+          "translation_files_created_by_coordinator": false,
+          "runtime_verified": false
+        }
+      ],
+      "all_five_runtime_coverage_verified": false,
+      "ui_switch_persistence_verified": false,
+      "ui_localization_not_same_as_asr_translation": true,
+      "mandatory_later_checks": [
+        "Full user-visible keys en/tr/de incl menus/dialogs/notifications/accessibility",
+        "Default en and safe offline fallback (without changing historical saved settings)",
+        "TR/DE long-string layout on desktop/tablet/mobile native/PWA",
+        "Native locale selection and persistence across restart/upgrade/rollback",
+        "Platform-specific screenshots, screen-reader labels and locale-specific units/dates",
+        "Native installed and web published UI equivalence, not inferred from metadata"
+      ]
+    },
+    "pages_pwa": {
+      "canonical_repo": "Tihulu/tihulu-flight-radar",
+      "canonical_main_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+      "expected_origins": [
+        "https://tihulu.github.io/tihulu-flight-radar/",
+        "https://tihulu.github.io/TIHULU-TEXT-CENTER/flight_radar/"
+      ],
+      "gh_pages_branches": [
+        {
+          "repository": "Tihulu/tihulu-flight-radar",
+          "ref": "gh-pages",
+          "revision_file": "source-revision.json"
+        },
+        {
+          "repository": "Tihulu/TIHULU-TEXT-CENTER",
+          "ref": "gh-pages",
+          "revision_file": "flight_radar/source-revision.json"
+        }
+      ],
+      "source_revision_blob_sha_both": "8a5408ebd338ce8557a92f56e5af4c7383174417",
+      "source_revision_content": {
+        "repo": "Tihulu/tihulu-flight-radar",
+        "source_ref": "main",
+        "source_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5"
+      },
+      "inspected_identical_blob_pairs": [
+        {
+          "standalone": "index.html",
+          "mirror": "flight_radar/index.html",
+          "blob_sha": "38721a1ea2db2dfcad6833eafd27c48677102190"
+        },
+        {
+          "standalone": "app.js",
+          "mirror": "flight_radar/app.js",
+          "blob_sha": "589bb5ebaf83e8a079ab4bed7a39d6c1fd420c71"
+        },
+        {
+          "standalone": "sw.js",
+          "mirror": "flight_radar/sw.js",
+          "blob_sha": "984b9e4e567104b3ecce8afa009f401e2e5f66e9"
+        },
+        {
+          "standalone": "adsb_worker.mjs",
+          "mirror": "flight_radar/adsb_worker.mjs",
+          "blob_sha": "2702f30a77de7c7f9cdcdca7c9b5362b51fd5a43"
+        }
+      ],
+      "service_worker_shell_cache": "tihulu-flight-radar-shell-v16",
+      "cache_scope_type": "per-origin-relative-path",
+      "same_source_does_not_prove_cache_update": true,
+      "live_http_attempted": true,
+      "live_http_result": "UNAVAILABLE via read-only public URL retrieval; did not validate HTTP status on either live Pages site or public source-revision URL",
+      "public_urls_verified_responding": false,
+      "installed_pwa_update_verified": false,
+      "old_repo_redirect_after_rename_verified": false,
+      "old_raw_installer_url_checked": false,
+      "site_rename_performed": false,
+      "satellite_pr37_historical_pages_parity_failure": {
+        "pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/37",
+        "commit_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+        "ci_run": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/42559046861",
+        "status": "failure",
+        "mismatched_assets": [
+          "browser/index.html",
+          "auto_mission.mjs",
+          "auto_reception_ui.mjs",
+          "browser.js",
+          "browser.css",
+          "location_search.mjs",
+          "satellite_maps.mjs",
+          "compute_selector.mjs"
+        ],
+        "source": "WS03 source-backed report and coordinator gate; not rerun by WS06"
+      },
+      "future_checks": [
+        "HTTP 200/root and mirror assets, install.html, source-revision.json, manifest, tar1090 and deep-link paths on public origins",
+        "Check deployed source SHA and full allowlisted asset digest set simultaneously, not Git tree only",
+        "PWA install/scope/update/clear/stale-cache/offline per origin and old-version clients, no cross-origin token or cache assumptions",
+        "Test GitHub Pages base path and raw.githubusercontent.com installer links after separately authorized rename; preserve old HTML PR links and numeric ID",
+        "No rename/deploy or installed PWA modification permitted in this audit"
+      ]
+    },
+    "native_installers_rollback": {
+      "target_platforms": [
+        "Pop!_OS/Ubuntu/Debian x64",
+        "Linux ARM64/Raspberry Pi OS",
+        "macOS Apple Silicon",
+        "Windows x64"
+      ],
+      "applications": [
+        {
+          "app": "media-center",
+          "source_refs": [
+            "kaffeine_next/install.sh",
+            "tv_center/install.sh",
+            "tv_center/packaging/build-deb.sh"
+          ],
+          "found_at_origin_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "status": "Linux APT scripts and Debian package draft source exist; full independent repo/Kaffeine KDE dependencies and native install parity not verified; destination repo empty",
+          "installed_checked": false
+        },
+        {
+          "app": "satellite-center",
+          "source_refs": [
+            "satellite_center/install/install.sh",
+            "satellite_center/install/install.ps1"
+          ],
+          "found_at_origin_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "status": "Linux/Pi/macOS user-local shell and Windows PowerShell source scripts found; actual installed native receiver/driver and standalone artifact parity not verified; destination empty",
+          "installed_checked": false
+        },
+        {
+          "app": "geolocation-center",
+          "source_refs": [
+            "rf_geolocation_center/native.py"
+          ],
+          "missing_guessed_source_refs": [
+            "rf_geolocation_center/install/install.sh",
+            "rf_geolocation_center/install/install.ps1"
+          ],
+          "found_at_origin_sha": "803529ba90f43a6cb1fb977869c650ddf5db448a",
+          "status": "Python localhost static launcher exists, explicitly not native SDR/GNSS decoder; searched install/install.sh/ps1 paths missing at inspected SHA; standalone native installer not validated; destination empty",
+          "installed_checked": false
+        },
+        {
+          "app": "text-center",
+          "source_refs": [
+            "textcenter/__main__.py"
+          ],
+          "found_at_main_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+          "status": "Retained original canonical Python CLI/server and browser source; no verified independent Windows/macOS/Linux/Pi native packaged install/upgrade rollback",
+          "installed_checked": false
+        },
+        {
+          "app": "flight-radar",
+          "source_refs": [
+            "scripts/install-linux.sh",
+            "scripts/popos-version-switch.sh",
+            ".github/workflows/build.yml"
+          ],
+          "found_at_main_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+          "status": "Existing Linux apt/pipx installer and 4-platform CI/preview workflow, but real independent installed native, data migration and Windows/macOS/Pi rollback unverified",
+          "installed_checked": false
+        }
+      ],
+      "flight_legacy": {
+        "main_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "legacy_ref": "legacy/v0.3.1",
+        "legacy_branch_resolved_sha": "67280cd84feb89faec6a80f5fe2a55ce5f7b89e6",
+        "legacy_pinned_sha": "67280cd84feb89faec6a80f5fe2a55ce5f7b89e6",
+        "legacy_compare": "identical",
+        "preview_ref": "preview/v0.3.2-dev4",
+        "preview_branch_resolved_sha": "ed7fc0d591fcb34f0fb8c4ccf56d7201f3ba514e",
+        "preview_switch_pinned_sha": "def7a62ff6951951bc3a432b93da3251c7ea4162",
+        "preview_branch_vs_switch_pin": {
+          "status": "ahead",
+          "ahead_by": 6,
+          "behind_by": 0
+        },
+        "preview_pin_is_intentional": true,
+        "switcher_source_sha": "dbde80f991583276fed13df89eb603f4b8f5832b",
+        "script_git_ref_pinned": true,
+        "script_uses": "curl exact ref installer; TIHULU_REF exact SHA; pipx --force; installed version string check",
+        "script_run_by_worker": false,
+        "installed_app_version_verified": false,
+        "rollback_effect_on_services_or_recordings_verified": false,
+        "pipx_data_settings_backup_verified": false,
+        "future_safety_check": "Separate authorization, backup current pipx metadata/settings, inspect pinned installer/remote URL, simulate only with safe temporary env first, then owner-approved native rollback/preview/rollback and preserve readsb/tar1090, recordings, source R/I states, icon and OS shortcuts. No implicit execute."
+      },
+      "native_release_acceptance_met": false,
+      "source_mirror_equals_installable_package": false
+    },
+    "synthetic_pr_inspection": [
+      {
+        "number": 89,
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "baseline_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+        "head_sha": "e1a1382e415e053a2ee939a15751413559ede1df",
+        "test_file": "tests/test_textcenter_cleanroom_import.py",
+        "test_blob_sha": "4535f36d91300382b9ffc12968c52230bc1a930e",
+        "test_functions": 2,
+        "workflow": [
+          {
+            "id": 43133732602,
+            "name": "Text Center tests",
+            "conclusion": "success"
+          }
+        ],
+        "limitations": [
+          "Only copied canonical current Text package under python -I, not archived snapshot modules",
+          "Blocked child subprocess/network at import time, synthetic CPU discovery, not all runtime operations",
+          "No native package, real RF/DVB, actual model, GPU or cross-platform installed user validation"
+        ],
+        "notes": "One commit ahead of Text canonical main; exactly one tests/ file added.",
+        "pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/89",
+        "test_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/e1a1382e415e053a2ee939a15751413559ede1df/tests/test_textcenter_cleanroom_import.py",
+        "changed_paths": [
+          "tests/test_textcenter_cleanroom_import.py"
+        ],
+        "ci_execution_provenance": "GitHub Actions workflow conclusions retrieved at exact head SHA (historical external CI, not worker run)",
+        "ci_workflow_urls": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43133732602"
+        ],
+        "hardware_verified": false,
+        "release_accepted": false
+      },
+      {
+        "number": 90,
+        "repository": "Tihulu/TIHULU-TEXT-CENTER",
+        "baseline_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+        "head_sha": "15d704f2624264d9bc346248d89373188d82d597",
+        "test_file": "tests/test_recording_export_stage3_isolated.py",
+        "test_blob_sha": "9d09059904f7022fc7f8206ab4a00149d669dad6",
+        "test_functions": 5,
+        "workflow": [
+          {
+            "id": 43133737755,
+            "name": "Text Center tests",
+            "conclusion": "success"
+          }
+        ],
+        "limitations": [
+          "Synthetic SRT newline and file-existence paths",
+          "Mocks FFmpeg subprocess and mux, no actual MKV or audio subtitle mux or path/OS/native sync",
+          "Existing original optional real FFmpeg test may skip; do not infer passing real FFmpeg"
+        ],
+        "notes": "One commit ahead of original unmerged Media PR #67; exactly one tests/ file added.",
+        "pr_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/90",
+        "test_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/15d704f2624264d9bc346248d89373188d82d597/tests/test_recording_export_stage3_isolated.py",
+        "changed_paths": [
+          "tests/test_recording_export_stage3_isolated.py"
+        ],
+        "ci_execution_provenance": "GitHub Actions workflow conclusions retrieved at exact head SHA (historical external CI, not worker run)",
+        "ci_workflow_urls": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43133737755"
+        ],
+        "hardware_verified": false,
+        "release_accepted": false
+      },
+      {
+        "number": 14,
+        "repository": "Tihulu/tihulu-flight-radar",
+        "baseline_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+        "head_sha": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+        "test_file": "tests/test_stage3_isolated_receiver_ownership.py",
+        "test_blob_sha": "311eb49a69825c34d8e7876efa210282abaf96ce",
+        "test_functions": 8,
+        "strict_xfail": 1,
+        "workflow": [
+          {
+            "id": 43133741667,
+            "name": "Cross-platform CI and preview builds",
+            "conclusion": "success"
+          },
+          {
+            "id": 43133741622,
+            "name": "Raspberry Pi ARM64 bridge compatibility preview",
+            "conclusion": "success"
+          }
+        ],
+        "limitations": [
+          "All service state changes, subprocess calls, Linux platform responses mocked",
+          "Strict XFAIL documents unresolved external readsb/tar1090 Stop-on-Exit in canonical main; not fixed by green CI",
+          "No real systemctl/sudo/NooElec, Qt exit UI, failed-close retry or physical receiver ownership verification"
+        ],
+        "notes": "One commit ahead of canonical Flight main; exactly one tests/ file added.",
+        "pr_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/14",
+        "test_url": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py",
+        "changed_paths": [
+          "tests/test_stage3_isolated_receiver_ownership.py"
+        ],
+        "ci_execution_provenance": "GitHub Actions workflow conclusions retrieved at exact head SHA (historical external CI, not worker run)",
+        "ci_workflow_urls": [
+          "https://github.com/Tihulu/tihulu-flight-radar/actions/runs/43133741667",
+          "https://github.com/Tihulu/tihulu-flight-radar/actions/runs/43133741622"
+        ],
+        "hardware_verified": false,
+        "release_accepted": false
+      }
+    ],
+    "open_regression_gates": [
+      {
+        "id": "REG-01",
+        "requirement_id": "CROSS-010",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [],
+        "document_only_next": "Pin all eight #67 delta blob hashes; retain #65/#66 parents and #67 20 commits; compare media native captions/export tests and prohibit snapshot-only import",
+        "later_acceptance": "Source selection, FFmpeg no-overwrite/file integrity, native TV/radio preservation and rollback require separately approved regression tests",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-02",
+        "requirement_id": "CROSS-001",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [],
+        "document_only_next": "Keep Text main SHA 1fffb... canonical, compare three divergent compute.py/speech.py/transcripts.py archive blobs and isolate import dependencies",
+        "later_acceptance": "Any archive restore/current-main overwrite is forbidden absent separately approved diff and parity",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-06",
+        "requirement_id": "CROSS-009",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [],
+        "document_only_next": "Map satellite 1.024/2.048 MS/s native capture metadata to hard-coded SatDump 1024000 decoder argument; preserve original IQ and UTC sidecars",
+        "later_acceptance": "Known-IQ fixture and real owner-approved decoder/hardware evidence pending",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-08",
+        "requirement_id": "CROSS-006",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [],
+        "document_only_next": "Inventory eight PR #37 source/Pages mismatches with hashes; separate build pass from deploy revision and public HTTP",
+        "later_acceptance": "8 asset historical parity fail remains open; no site publish",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-09",
+        "requirement_id": "CROSS-009",
+        "priority": "P1",
+        "status": "OPEN",
+        "depends_on": [],
+        "document_only_next": "Keep 22 PR #37 test sources absent from WS03 starting branch as an explicit branch-provenance gap; do not count as present or executed",
+        "later_acceptance": "Future branch-aware test mapping and execution only after separate approval",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-11",
+        "requirement_id": "CROSS-005",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [
+          "REG-01",
+          "REG-02"
+        ],
+        "document_only_next": "Preserve original repository ID, #72/#73/#74 head/base, author and immutable URL; 67-entry archives omit 3, 8 Flight comments plus 11 satellite comments linked",
+        "later_acceptance": "PR reviews/timelines incomplete; original native IDs/unknown times null, never fabricated",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-12",
+        "requirement_id": "CROSS-006",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [
+          "REG-08",
+          "REG-11"
+        ],
+        "document_only_next": "Require BOTH Flight Pages source-revision hashes, asset hashes, real HTTP status, base-path/SW scope, offline cache and raw installer old URL checks",
+        "later_acceptance": "Both gh-pages branches match selected Git blobs; live public URL checks inaccessible, rename not tested",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-13",
+        "requirement_id": "CROSS-002",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [
+          "REG-11"
+        ],
+        "document_only_next": "Five SHA metadata entries do not prove PNG bytes; require independent SHA256 over user-approved binary pack; five locale contracts state runtime not audited",
+        "later_acceptance": "EN(default)/TR/DE key coverage/switch/fallback/accessibility/platform screenshots unverified",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-14",
+        "requirement_id": "CROSS-011",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [
+          "REG-01",
+          "REG-02",
+          "REG-03",
+          "REG-08",
+          "REG-11",
+          "REG-12"
+        ],
+        "document_only_next": "Cross-platform native installer/dependency matrix per app; preserve Text original repo and three empty destinations; rollback exact Flight 0.3.1 SHA",
+        "later_acceptance": "Only Flight/Linux switch script inspected; no installs or actual rollback run; no native release parity",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-15",
+        "requirement_id": "CROSS-015",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [
+          "REG-03",
+          "REG-06",
+          "REG-08",
+          "REG-14"
+        ],
+        "document_only_next": "Separate historical pinned CI from tests this worker executed, strict XFAIL from success, and missing physical hardware and ongoing release gates",
+        "later_acceptance": "A green synthetic CI is not physical NooElec/Hauppauge validation; ETA unknown",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-16",
+        "requirement_id": "CROSS-001",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [
+          "REG-01",
+          "REG-03"
+        ],
+        "document_only_next": "Preserve Teletext/Whisper source selection, original lyrics timing, translation and exported captions across Media #65/#67",
+        "later_acceptance": "Synthetic SRT tests do not validate native PTS/audio/radio/TV karaoke or human perception",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      },
+      {
+        "id": "REG-17",
+        "requirement_id": "CROSS-007",
+        "priority": "P0",
+        "status": "OPEN",
+        "depends_on": [
+          "REG-11"
+        ],
+        "document_only_next": "Verify canonical repo-local FEATURE/COMPONENT/MODEL/DEVELOPMENT_AGENT matrices and Claude/DeepSeek files, not monorepo candidate links",
+        "later_acceptance": "Flight main missing standardized files, three shells empty; future docs-only PR needs separate owner coordination",
+        "tests_executed_by_worker": 0,
+        "hardware_verified": false,
+        "release_approved": false
+      }
+    ],
+    "other_gates_still_open": [
+      "REG-03",
+      "REG-04",
+      "REG-05",
+      "REG-07",
+      "REG-10"
+    ],
+    "cross_worker_handoffs": [
+      {
+        "issue": 76,
+        "scope": "media original #67 + synthetic #90 export and no overwrite source audit"
+      },
+      {
+        "issue": 77,
+        "scope": "Flight #14 strict XFAIL ownership; native 0.3.1 rollover and matrix gaps"
+      },
+      {
+        "issue": 78,
+        "scope": "Satellite #37 eight Pages mismatch assets, missing branch tests and sample rate"
+      },
+      {
+        "issue": 80,
+        "scope": "canonical Text main source and test #89 archived negative-control gap"
+      }
+    ],
+    "summary": {
+      "assigned_cross_requirement_ids": 15,
+      "phase_4_qa_gates_reviewed": 12,
+      "phase_4_qa_gates_closed": 0,
+      "observed_successful_test_only_workflows_at_exact_heads": 4,
+      "source_added_test_files_retrieved": 3,
+      "worker_executed_tests": 0,
+      "worker_hardware_runs": 0,
+      "worker_real_install_or_rollback": 0,
+      "approved_master_png_sha256_recalculations": 0,
+      "live_pages_public_http_verified": false,
+      "source_git_blob_pairs_verified": 5,
+      "remaining_hours": null,
+      "remaining_minutes": null,
+      "critical_caveat": "Source history, manifests and successful CI are not release or hardware acceptance."
+    },
+    "forbidden_actions_confirmed_not_performed": [
+      "application source or test edits",
+      "installer edits/execute",
+      "logo asset edits/import",
+      "archive ledger rewrite",
+      "coordinator master/progress files edits",
+      "main branch write",
+      "source PR merge/rebase",
+      "repo migration or rename",
+      "Pages publication",
+      "actual SDR/TV or service actions",
+      "live hardware tests",
+      "installed app rollback"
+    ]
+  }
+}
