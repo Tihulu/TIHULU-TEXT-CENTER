@@ -10,13 +10,14 @@ import base64
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import ssl
 import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 
-TOKEN_PATH = Path.home()/".config/tihulu-tv-center/remote-gpu-token"
+TOKEN_PATH = media_paths().config/"remote-gpu-token"
 MAX_AUDIO = 4_000_000
 MAX_RESPONSE = 60_000
 
