@@ -6,7 +6,7 @@ import {relativePowerDbFS} from "../core/rf_ranging.mjs";
 const $=id=>document.getElementById(id);
 export function initUsbSDR(report, {driverFactory} = {}){
  let receiver=null,usbDevice=null,busy=false,stopping=false,sampling=false;
- let quitting=false,releasePromise=null,operationSerial=0;
+ let quitting=false,releasePromise=null,operationSerial=0,terminalFailure=null;
  let configuredRate=0,configuredFrequencyHz=0,configuredGain=null,sweepCancel=false;
  let pendingSample=null,finishSample=null;
  const beginSample=()=>{
@@ -62,21 +62,47 @@ export function initUsbSDR(report, {driverFactory} = {}){
  };
  function release({permanent=false}={}){
    if(permanent)quitting=true;
+   if(releasePromise)return releasePromise;
+   if(quitting&&terminalFailure)return Promise.reject(terminalFailure);
    stopping=true;sampling=false;sweepCancel=true;operationSerial++;
-   if(releasePromise)return releasePromise; // repeated Stop/Quit shares one device-close
+ // repeated Stop/Quit shares one device-close
    releasePromise=(async()=>{
-     const inFlight=pendingSample;
-     if(inFlight)await Promise.race([inFlight,new Promise(resolve=>setTimeout(resolve,2500))]);
      const failures=[];
+     const inFlight=pendingSample;
+     if(inFlight){
+       let timer;
+       const drained=await Promise.race([
+         inFlight.then(()=>true),
+         new Promise(resolve=>{timer=setTimeout(()=>resolve(false),2500)})
+       ]);
+       clearTimeout(timer);
+       if(!drained)failures.push("in-flight RF sample did not drain within 2500 ms");
+     }
+     const closeOwned=async(handle,label)=>{
+       let timer;
+       try{
+         const done=await Promise.race([
+           Promise.resolve().then(()=>handle.close()).then(()=>true),
+           new Promise(resolve=>{timer=setTimeout(()=>resolve(false),1600)})
+         ]);
+         if(!done)throw Error(label+" close did not finish within 1600 ms");
+       }catch(e){
+         failures.push(label+": "+String(e?.message||e));
+         notify("RELEASE WARNING",String(e?.message||e));
+       }finally{clearTimeout(timer)}
+     };
      const device=receiver;receiver=null;
      configuredRate=0;configuredFrequencyHz=0;configuredGain=null;
-     if(device){try{await device.close()}catch(e){failures.push("receiver: "+String(e?.message||e));notify("RELEASE WARNING",String(e?.message||e))}}
+     if(device)await closeOwned(device,"owned receiver");
      const chosen=usbDevice;usbDevice=null;
-     if(chosen?.opened){try{await chosen.close()}catch(e){failures.push("USB handle: "+String(e?.message||e));notify("RELEASE WARNING",String(e?.message||e))}}
+     if(chosen?.opened)await closeOwned(chosen,"owned USB device");
      busy=false;
      if(failures.length)throw Error("Incomplete app-owned USB release: "+failures.join("; ").slice(0,240));
      notify("NOT CONNECTED","Own RTL-SDR session stopped/released; unrelated applications untouched.");
-   })().finally(()=>{releasePromise=null});
+   })().catch(error=>{
+     if(quitting)terminalFailure=error;
+     throw error;
+   }).finally(()=>{releasePromise=null});
    return releasePromise;
  }
  async function connect(preferredDevice=null){
