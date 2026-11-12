@@ -8,6 +8,7 @@ libVLC. Only explicit user actions start Whisper and translation.
 from pathlib import Path
 import sys
 
+LEGACY_APPLICATION_ID = "tihulu-media-center"  # reserved; never assign to new native player
 UPSTREAM = "https://github.com/KDE/kaffeine.git"
 TAG = "v2.0.19"
 REVISION = "e7ea15b86dafed3b20b151cbcb080578ab8e2d5c"
@@ -1172,7 +1173,7 @@ void DvbLiveView::replay()
 \tif (localStreamUrl.startsWith("http://127.0.0.1:") &&
 \t    localStreamUrl.contains("/mp3/")) {
 \t\tQSettings radioSettings(QLatin1String("TIHULUStandalone"),
-\t\t\tQLatin1String("KaffeineStandaloneRadio"));
+\t\t\tQLatin1String("KaffeineRadioStandalone"));
 \t\tconst int cacheMs=qBound(0,
 \t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),0).toInt(),
 \t\t\t60000);
