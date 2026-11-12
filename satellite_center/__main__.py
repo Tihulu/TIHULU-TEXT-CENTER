@@ -315,6 +315,8 @@ class Station:
         self.device_lock = None
         self.process = None
         self.owned_processes = set()  # Only processes launched by Satellite Center.
+        self.decoder_active = False
+        self.quit_result = None
         self.active_worker = None
         self.manual_owner = None
         self.last_manual_heartbeat = 0.0
@@ -890,6 +892,8 @@ class Station:
         if type(sample_rate) is not int or sample_rate not in (1024000,2048000):
             raise ValueError("IQ sample rate must be 1.024 or 2.048 MS/s")
         with self.lock:
+            if self.closed.is_set():
+                raise RuntimeError("Satellite Center is quitting; new RF schedules are rejected")
             if not self.receiver_enabled:
                 raise RuntimeError("Receiver disabled in Hardware. Connect & verify USB before scheduling RF.")
             event = self.predicted.get(pass_id)
@@ -994,6 +998,8 @@ class Station:
         if type(gap_seconds) is not int or not 21 <= gap_seconds <= 60:
             raise ValueError("Native chunks require 21–60 seconds reserved between captures")
         with self.lock:
+            if self.closed.is_set():
+                raise RuntimeError("Satellite Center is quitting; no new capture segments")
             event = self.predicted.get(pass_id)
             if not event:
                 raise ValueError("Refresh native predicted passes before scheduling")
@@ -1062,6 +1068,8 @@ class Station:
         TLE passes are geometry, never proof of active transmitters. Mutating
         schedules is opt-in and uses the same persisted scheduler as manual jobs.
         """
+        if self.closed.is_set():
+            raise RuntimeError("Satellite Center is quitting; automatic jobs are rejected")
         candidates = AUTO_DOWNLINK_PROFILES
         if iss_record_format not in ("wav","cu8","both"):
             raise ValueError("ISS recording choice must be wav, cu8 or both")
@@ -1349,12 +1357,15 @@ class Station:
             raise ValueError("Pending schedule not found")
 
     def start_scheduler(self):
-        if self.closed.is_set():
-            return
-        if self.scheduler_thread and self.scheduler_thread.is_alive():
-            return
-        self.scheduler_thread = threading.Thread(target=self._schedule_loop, name="satellite-opt-in-scheduler", daemon=True)
-        self.scheduler_thread.start()
+        # Serialize Start with begin_quit(): no late scheduler can be created.
+        with self.lock:
+            if self.closed.is_set():
+                return
+            if self.scheduler_thread and self.scheduler_thread.is_alive():
+                return
+            self.scheduler_thread = threading.Thread(
+                target=self._schedule_loop, name="satellite-opt-in-scheduler", daemon=True)
+            self.scheduler_thread.start()
 
     def _schedule_loop(self):
         while not self.closed.is_set():
@@ -1406,6 +1417,8 @@ class Station:
                 # ISS SSTV WAV can contain several separate Robot36 images.
                 # Decode only actual PCM samples; never infer imagery from
                 # a predicted pass, filename, or RF level alone.
+                if self.closed.is_set():
+                    raise RuntimeError("Scheduled capture interrupted by application Quit")
                 wav_name = result.get("wav") or (
                     result.get("file") if str(result.get("file","")).endswith(".wav") else None)
                 if nearest.get("mission_id") == "iss-sstv" and wav_name:
@@ -1422,14 +1435,23 @@ class Station:
                             "images": [], "reason": str(exc)[:240],
                         }
                 with self.lock:
-                    nearest.update(state="completed", result=result)
+                    if self.closed.is_set():
+                        nearest.update(state="interrupted",
+                                       result="Application Quit; saved RF files preserved")
+                    else:
+                        nearest.update(state="completed", result=result)
                     self.save_jobs()
             except (ValueError, RuntimeError, OSError) as exc:
                 with self.lock:
-                    nearest.update(state="blocked", result=str(exc)[:180])
+                    nearest.update(
+                        state="interrupted" if self.closed.is_set() else "blocked",
+                        result=("Application Quit; existing recordings preserved"
+                                if self.closed.is_set() else str(exc)[:180]))
                     self.save_jobs()
 
     def _acquire(self):
+        if self.closed.is_set() or self.stopping.is_set():
+            raise RuntimeError("Receiver acquisition rejected during shutdown")
         # Mac/Windows cannot use the Linux sysfs inventory.
         # Platform-native rtl-sdr tools report actual device errors.
         if platform.system() == "Linux" and not tuner_present():
@@ -1463,6 +1485,10 @@ class Station:
             raise RuntimeError(
                 "RTL-SDR receiver lease unavailable; another app may own the USB tuner. "
                 "Check Flight Radar/readsb, SatDump, or Gqrx before retrying.") from exc
+        if self.closed.is_set() or self.stopping.is_set():
+            unlock_receiver(fd)
+            os.close(fd)
+            raise RuntimeError("Receiver acquisition was cancelled before lease admission")
         self.device_lock = fd
 
     def _release(self):
@@ -1513,18 +1539,77 @@ class Station:
                 self.request_stop()
                 return
 
-    def close(self):
-        """Idempotent graceful shutdown, preserving unrelated SDR programs."""
-        self.closed.set()
-        self.wake.set()
-        self.request_stop()
+    def begin_quit(self):
+        """Atomically forbid new capture/schedule work and persist cancellations.
+
+        True Quit is different from Stop Module or tab leave: only this Station's
+        own pending/running RF jobs are invalidated. Existing media is untouched.
+        """
         with self.lock:
-            worker = self.active_worker
-            scheduler = self.scheduler_thread
-        for thread in (worker, scheduler):
+            self.closed.set()
+            self.stopping.set()
+            self.wake.set()
+            self.receiver_generation += 1
+            changed = False
+            for job in self.jobs:
+                if job.get("state") == "pending":
+                    job.update(state="cancelled",
+                               result="Application Quit before scheduled capture")
+                    changed = True
+                elif job.get("state") == "running":
+                    job.update(state="interrupted",
+                               result="Application Quit; inspect preserved recordings")
+                    changed = True
+            if changed:
+                self.save_jobs()
+            if self.session.get("active"):
+                self.session.update(state="stopping",
+                                    message="Application Quit; stopping owned capture")
+            return {"closed": True, "scheduled_jobs_cancelled_or_interrupted": changed}
+
+    def close(self, timeout_seconds=7.0):
+        """Bounded, repeatable full Quit; no global service or foreign-PID stop.
+
+        If a worker refuses to release its lease, report incomplete shutdown
+        instead of pretending physical SDR ownership has been relinquished.
+        """
+        self.begin_quit()
+        deadline = time.monotonic() + max(0.0, min(float(timeout_seconds), 15.0))
+        stopped = self.request_stop(timeout_seconds=max(0.0, deadline-time.monotonic()))
+        with self.lock:
+            threads = (self.active_worker, self.scheduler_thread)
+        for thread in threads:
             if thread is not None and thread is not threading.current_thread() and thread.is_alive():
-                thread.join(timeout=4)
-        self.request_stop()
+                thread.join(timeout=max(0.0, deadline-time.monotonic()))
+        # A worker may have just published another child before seeing STOPPING.
+        # The _launch_receiver() guard prevents any new child after begin_quit.
+        remaining_budget = max(0.0, deadline-time.monotonic())
+        if remaining_budget:
+            stopped = self.request_stop(timeout_seconds=remaining_budget)
+        with self.lock:
+            self.owned_processes = {p for p in self.owned_processes if p.poll() is None}
+            worker_alive = bool(self.active_worker and self.active_worker.is_alive()
+                                and self.active_worker is not threading.current_thread())
+            scheduler_alive = bool(self.scheduler_thread and self.scheduler_thread.is_alive()
+                                   and self.scheduler_thread is not threading.current_thread())
+            if not worker_alive and not self.launching and not self.owned_processes:
+                self._release()
+            remaining = len(self.owned_processes)
+            released = (remaining == 0 and not worker_alive and not scheduler_alive
+                        and not self.launching and self.device_lock is None
+                        and not self.decoder_active)
+            self.quit_result = {
+                "state": "stopped" if released else "stop_failed_partial",
+                "app_released": released, "owned_processes_remaining": remaining,
+                "owned_capture_worker_alive": worker_alive,
+                "owned_scheduler_alive": scheduler_alive,
+                "decoder_active": self.decoder_active,
+                "lease_held": self.device_lock is not None,
+                "stop_requested": stopped["requested"],
+                "saved_recordings_preserved": True,
+                "external_receivers_untouched": True,
+            }
+            return dict(self.quit_result)
 
     def capture_dual(self,profile,seconds=60,scheduled=False,owner=None,satellite=None,
                      sample_rate=1024000):
@@ -1538,6 +1623,8 @@ class Station:
             raise ValueError("Dual CU8 + FM WAV requires a catalogued ISS audio profile")
         iq=self.capture(profile,"iq",seconds,scheduled=scheduled,owner=owner,
                         satellite=satellite,sample_rate=sample_rate)
+        if self.closed.is_set():
+            raise RuntimeError("Application Quit; original IQ preserved, WAV conversion cancelled")
         from .native_signal_tools import fm_to_wav
         try:
             report=fm_to_wav(
@@ -1745,16 +1832,27 @@ class Station:
             time.sleep(0.2)
         for proc in procs: stop_process(proc)
 
-    def request_stop(self):
+    def request_stop(self, timeout_seconds=None):
         self.stopping.set()
         with self.lock:
             processes = set(self.owned_processes)
-            if self.process is not None:
+            if self.process is not None and self.process in self.owned_processes:
                 processes.add(self.process)
-        # Do not hold the station mutex while waiting for child process exit.
-        # Only processes launched by this Station are stopped (never readsb).
-        for proc in processes:
-            stop_process(proc)
+        # Ownership is the Popen handle registered by _launch_receiver, not a
+        # PID search. Never stop external readsb, SatDump, Gqrx or shared services.
+        # True Quit uses concurrent bounded waits; ordinary Stop stays compatible.
+        if timeout_seconds is None:
+            for proc in processes:
+                stop_process(proc)
+        else:
+            deadline = time.monotonic() + max(0.0, timeout_seconds)
+            threads = [threading.Thread(target=stop_process, args=(p,), daemon=True,
+                                        name="satellite-owned-child-stop")
+                       for p in processes]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=max(0.0, deadline-time.monotonic()))
         with self.lock:
             self.owned_processes.difference_update(p for p in processes if p.poll() is not None)
         return {"requested": True, "owned_processes_stop_requested": len(processes)}
@@ -1773,8 +1871,13 @@ class Station:
     def decode_meteor(self, name, variant="72k"):
         if not meteor_capture(name):
             raise ValueError("Select an archived Meteor IQ recording")
-        if self.session.get("active"):
-            raise RuntimeError("Stop RF acquisition before decoding")
+        with self.lock:
+            if self.closed.is_set():
+                raise RuntimeError("Application Quit; no decoder may start")
+            if self.session.get("active") or self.decoder_active:
+                raise RuntimeError("Stop RF acquisition or active decoder before decoding")
+            self.decoder_active = True
+            self.stopping.clear()
         exe = shutil.which("satdump")
         if not exe:
             raise RuntimeError("SatDump not installed; original .cu8 remains available")
@@ -1789,11 +1892,32 @@ class Station:
                "meteor_m2-x_lrpt_80k" if variant=="80k" else "meteor_m2-x_lrpt",
                "baseband", str(src), str(dest),
                "--samplerate", "1024000", "--baseband_format", "cu8", "--dc_block"]
+        # SatDump is app-owned and cancellable, unlike subprocess.run(), whose
+        # blocking timeout prevents a Quit from reaping it promptly.
+        import tempfile
+        proc = None
         try:
-            result = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True,
-                                    timeout=220, check=False)
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError("SatDump decoder timed out; original capture preserved") from exc
+            with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as errors:
+                proc = self._launch_receiver(cmd, stdin=subprocess.DEVNULL,
+                                             stdout=output, stderr=errors)
+                deadline = time.monotonic() + 220
+                while proc.poll() is None:
+                    if self.closed.is_set() or self.stopping.is_set():
+                        raise RuntimeError("SatDump canceled; original IQ and images preserved")
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError("SatDump decoder timed out; original capture preserved")
+                    self.closed.wait(0.1)
+                if self.closed.is_set() or self.stopping.is_set():
+                    raise RuntimeError("SatDump canceled; original IQ and images preserved")
+                exit_code = proc.poll()
+                errors.seek(0)
+                stderr_tail = errors.read()[-500:].decode("utf-8", "replace")
+        finally:
+            stop_process(proc)
+            with self.lock:
+                if proc is not None and proc.poll() is not None:
+                    self.owned_processes.discard(proc)
+                self.decoder_active = False
         # Only real SatDump-created files can become photo-gallery items.
         # Copies receive satellite + capture UTC + frequency filenames; no
         # decoded image is invented if the decoder fails or has no lock.
@@ -1809,6 +1933,8 @@ class Station:
         original_satellite = name.split("_")[1] if name.startswith("TIHULU_") else "METEOR-UNVERIFIED"
         images = []
         for idx, image in enumerate(image_files, start=1):
+            if self.closed.is_set():
+                raise RuntimeError("Quit during SatDump results; original images preserved")
             output_name = recording_name(
                 satellite=original_satellite, timestamp=original_time,
                 frequency_hz=original_freq, kind="LRPT-IMAGE-"+str(idx).zfill(2),
@@ -1817,7 +1943,7 @@ class Station:
             if image.resolve() != output.resolve():
                 shutil.copyfile(image,output)
             images.append(str(output.relative_to(self.archive)))
-        return {"decoder_exit": result.returncode, "images": images, "variant": variant,
+        return {"decoder_exit": exit_code, "images": images, "variant": variant,
                 "result": "actual_decoder_files" if images else "no_images_decoded",
                 "note": "Only actual SatDump-created image files are shown; satellite source is a target candidate, not independently verified.",
                 "stderr": result.stderr.decode("utf-8", "replace")[-500:]}
@@ -2007,9 +2133,11 @@ class Handler(BaseHTTPRequestHandler):
             elif route == "/api/leave":
                 result = app.leave(data.get("client_id"))
             elif route == "/api/quit":
-                # Owner requested shutting down companion, including pending pass worker.
+                # Admission gate is synchronous: no parallel HTTP request can
+                # schedule/launch another receiver after acknowledging Quit.
+                app.begin_quit()
                 threading.Thread(target=self._shutdown_companion, daemon=True).start()
-                result = {"closing": True, "note": "Stopping owned SDR processes; future schedules require restarting the companion"}
+                result = {"closing": True, "note": "Stopping only owned workers; saved files and external SDR users are preserved"}
             elif route == "/api/usb-test":
                 result = app.usb_test()
             elif route == "/api/refresh":
@@ -2069,8 +2197,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": str(exc)[:240]})
 
     def _shutdown_companion(self):
-        self.server.station.close()
-        self.server.shutdown()
+        try:
+            self.server.station.close()
+        finally:
+            self.server.shutdown()
 
     def _background_capture(self, profile, mode, seconds, owner=None):
         try:
