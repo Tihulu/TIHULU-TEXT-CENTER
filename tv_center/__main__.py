@@ -15,7 +15,7 @@ def main():
         # TV and radio share this same read-only installed-model catalog.
         # Discover output targets without downloading models or accessing RF.
         from .installed_languages import catalog
-        from textcenter.compute import LANGUAGES
+        from tv_center.media_backend.compute import LANGUAGES
         from .installed_languages import NAMES
         info=catalog(scan_argos=True)
         selected=AISettings().values
