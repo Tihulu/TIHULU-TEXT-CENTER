@@ -304,7 +304,7 @@ private:
         // files use Radio's existing persisted language/translation settings.
         // Both use the one common AISettings/model installation at runtime.
         QSettings defaults(QLatin1String("TIHULUStandalone"),
-            isAudio_?QLatin1String("KaffeineStandaloneRadio"):
+            isAudio_?QLatin1String("KaffeineRadioStandalone"):
                      QLatin1String("KaffeineTVFileCaptionDefaults"));
         const QString source=defaults.value(isAudio_?
             QLatin1String("radioSpeechLanguage"):QLatin1String("spokenSource"),
