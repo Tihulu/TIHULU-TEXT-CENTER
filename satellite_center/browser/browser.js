@@ -16,6 +16,7 @@ import {planChainedCapture,secondsFromEntry,humanCountdown,scheduledOverlap} fro
 import {candidateFromPass,readPlanningCandidates,savePlanningCandidate,removePlanningCandidate} from './pass_candidates.mjs';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
 import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
+import {createOwnedWebUsbGate,captureProgress} from './webusb_lifecycle.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -41,6 +42,9 @@ const TLE_SOURCES = Object.freeze({
   iridium: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=TLE'
 });
 let driver = null, device = null, capturePromise = null, stopRequested = false;
+const receiverGate=createOwnedWebUsbGate();
+let usbConnecting=false,pendingUsbSelection=null,ownedUsbSelection=null;
+let schedulerCancellationEpoch=0;
 let usbTestRunning = false;
 let lastCaptured = null, rtlLibraryError = null;
 let orbitalLibrary = null, tleEntries = [], passes = [], jobs = [], sessionCounter = 0;
@@ -349,19 +353,23 @@ function refreshControls() {
     }
     return;
   }
-  $('start').disabled = !device || !!capturePromise || usbTestRunning;
-  $('stop').disabled = !capturePromise;
-  $('disconnect').disabled = (!device && !capturePromise) || usbTestRunning;
-  $('connect').disabled = !driver || !!device || !!capturePromise || usbTestRunning;
-  $('usb-live-test').disabled = !driver || !!capturePromise || usbTestRunning;
+  $('start').disabled = !device || !!capturePromise || usbTestRunning || usbConnecting || receiverGate.closed;
+  $('stop').disabled = !capturePromise && !usbConnecting;
+  $('disconnect').disabled = (!device && !capturePromise && !usbConnecting) || usbTestRunning;
+  $('connect').disabled = !driver || !!device || !!capturePromise || usbTestRunning || usbConnecting || receiverGate.closed;
+  $('usb-live-test').disabled = !driver || !!capturePromise || usbTestRunning || usbConnecting || receiverGate.closed;
 }
 async function closeDevice() {
-  const previous = device;
-  device = null;
+  // Only the specific handle granted by this tab is eligible for release.
+  const previous=device;
+  const raw=ownedUsbSelection||pendingUsbSelection;
+  device=null;ownedUsbSelection=null;pendingUsbSelection=null;
   refreshControls();
-  if (previous) {
-    try { await previous.close(); }
-    catch (e) { log('USB close warning: ' + e.message); }
+  if(previous){
+    try{await previous.close();}catch(e){log('Owned USB close warning: '+e.message);}
+  }
+  if(raw?.opened){
+    try{await raw.close();}catch(e){log('Owned USB handle release warning: '+e.message);}
   }
 }
 async function connectDevice({silent=false}={}) {
@@ -371,9 +379,15 @@ async function connectDevice({silent=false}={}) {
     if(silent)throw Error(msg);
     return false;
   }
-  if (device) return true;
-  if (capturePromise) {if(silent)throw Error("Another capture is active");return false;}
-  let selectedWebUsbDevice = null;
+  if(device)return true;
+  if(capturePromise||usbConnecting){
+    if(silent)throw Error("Another WebUSB operation is active");
+    return false;
+  }
+  const ticket=receiverGate.begin();
+  usbConnecting=true;
+  refreshControls();
+  let selectedWebUsbDevice=null;
   try {
     // The pinned driver calls requestDevice on this WebUSB adapter.
     // Track *only* the device granted by this click, so a failed post-open
@@ -391,12 +405,17 @@ async function connectDevice({silent=false}={}) {
         }else{
           chosen=await navigator.usb.requestDevice(options);
         }
+        receiverGate.assert(ticket);
         selectedWebUsbDevice=chosen;
+        pendingUsbSelection=chosen;
         return chosen;
       }
     };
     const provider = new driver({webusb});
-    device = await provider.get();
+    device=await provider.get();
+    receiverGate.assert(ticket); // Stop during provider.get may not revive USB
+    ownedUsbSelection=selectedWebUsbDevice;
+    pendingUsbSelection=null;
     if (document.hidden) {
       await closeDevice();
       throw Error('Browser tab became hidden during USB permission; reopen this tab and retry.');
@@ -405,7 +424,9 @@ async function connectDevice({silent=false}={}) {
     await device.setCenterFrequency(Number($('preset').value));
     await device.setGain(null);
     await device.resetBuffer();
+    receiverGate.assert(ticket); // also reject Stop during tune or buffer reset
     const paired = await navigator.usb.getDevices();
+    receiverGate.assert(ticket);
     const rtl = paired.filter(x => x.vendorId === 0x0bda && x.productId === 0x2838);
     status('device-status', 'USB device opened using WebUSB. RTL2832U permission grants: ' + rtl.length +
       '. No RF data measured yet; antenna and signal unverified.');
@@ -434,7 +455,11 @@ async function connectDevice({silent=false}={}) {
     await closeDevice();
     if(silent)throw e;
     return false;
-  } finally { refreshControls(); }
+  } finally {
+    usbConnecting=false;
+    if(pendingUsbSelection===selectedWebUsbDevice)pendingUsbSelection=null;
+    refreshControls();
+  }
 }
 async function testRealUsbReceiver(){
   if(usbTestRunning||capturePromise){
