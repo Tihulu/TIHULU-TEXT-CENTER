@@ -190,7 +190,7 @@ def preflight(home, source, commit, ai=False, dab=False, analog=False):
             "system_dependencies": [
                 "git", "cmake", "g++", "make", "extra-cmake-modules",
                 "qtbase5-dev", "libqt5x11extras5-dev", "libkf5coreaddons-dev",
-                "libkf5dbusaddons5-dev", "libkf5i18n-dev", "libkf5kio-dev",
+                "libkf5dbusaddons-dev", "libkf5i18n-dev", "libkf5kio-dev",
                 "libkf5solid-dev", "libkf5widgetsaddons-dev",
                 "libkf5windowsystem-dev", "libkf5xmlgui-dev", "libvlc-dev",
                 "libx11-dev", "libdvbv5-dev", "ffmpeg", "dvb-tools", "psmisc",
