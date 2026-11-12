@@ -45,6 +45,8 @@ def _whisper_model(profile):
 
 def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict,*,
                    cancel_event=None,on_process=None)->str:
+    if cancel_event is not None and cancel_event.is_set():
+        raise SpeechError("Local speech inference cancelled before start")
     if not pcm:
         raise SpeechError("Empty received audio")
     if backend not in ("cpu","gpu","npu"):
@@ -142,6 +144,8 @@ def transcribe_pcm(pcm:bytes,language:str,backend:str,profile:dict,*,
               "-nt","-otxt","-of",str(out)]
         child=None
         try:
+            if cancel_event is not None and cancel_event.is_set():
+                raise SpeechError("Local speech inference cancelled before process start")
             child=subprocess.Popen(argv,stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
                 start_new_session=True,close_fds=True)
@@ -215,7 +219,7 @@ class SpeechPipeline:
     def feed(self,pcm:bytes):
         """Admit audio atomically with Stop; never queue late PCM."""
         with self._gate:
-            if self.stopping.is_set():
+            if self.stopping.is_set() or self.lifecycle!="RUNNING" or not self.thread.is_alive():
                 return False
             # Do not duplicate arbitrarily large caller PCM into the owned
             # bytearray. Keep at most one window of pending mutable audio.
@@ -288,6 +292,17 @@ class SpeechPipeline:
                     self.queue.task_done()
         finally:
             with self._gate:
+                # A dead ASR thread must not continue accepting PCM, even if
+                # it exited unexpectedly rather than through explicit Stop.
+                self.stopping.set()
+                self.buffer.clear()
+                while True:
+                    try:
+                        self.queue.get_nowait()
+                    except queue.Empty:
+                        break
+                    else:
+                        self.queue.task_done()
                 child_alive=(self._active_child is not None and
                              self._active_child.poll() is None)
                 self.lifecycle=("STOP_FAILED_PARTIAL" if child_alive and self.stopping.is_set()
