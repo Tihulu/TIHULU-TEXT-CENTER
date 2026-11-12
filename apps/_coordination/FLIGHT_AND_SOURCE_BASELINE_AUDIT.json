@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "observed_utc_date": "2026-11-11",
+  "audit_type": "static_tree_and_documentation_inspection_not_build_or_hardware_test",
+  "flight_canonical_repository": {
+    "full_name": "Tihulu/tihulu-flight-radar",
+    "github_repo_id": 1447534043,
+    "main_head": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+    "observed_main_files": 92,
+    "source_prefix": "tihulu_flight_radar/",
+    "source_files_main": 35,
+    "test_files_main": 27,
+    "workflow_files_main": 4,
+    "app_already_independent": true,
+    "source_tree_truncated": false
+  },
+  "working_evidence": {
+    "native_desktop_package": [
+      "pyproject.toml",
+      "tihulu_flight_radar/native.py",
+      "scripts/install-linux.sh"
+    ],
+    "web_pwa": [
+      "tihulu_flight_radar/web/index.html",
+      "tihulu_flight_radar/web/manifest.webmanifest",
+      "tihulu_flight_radar/web/sw.js",
+      "tihulu_flight_radar/web/icon.svg"
+    ],
+    "cross_platform": [
+      ".github/workflows/build.yml",
+      ".github/workflows/bridge-arm64.yml"
+    ],
+    "dual_pages": [
+      ".github/workflows/pages.yml",
+      ".github/workflows/standalone-pages.yml",
+      "docs/DUAL_GITHUB_PAGES.md"
+    ],
+    "canonical_developer_instructions": [
+      "AGENTS.md"
+    ],
+    "upstream_source_and_attribution": [
+      "scripts/build-web-tar1090.sh"
+    ],
+    "legacy_branch": "legacy/v0.3.1",
+    "main_release_branch": "main"
+  },
+  "web_mirror": {
+    "original_host_repo": "Tihulu/TIHULU-TEXT-CENTER",
+    "origin_repo_id": 1447637221,
+    "workflow": ".github/workflows/sync-flight-radar-pages.yml",
+    "canonical_repo": "Tihulu/tihulu-flight-radar",
+    "standalone_url": "https://tihulu.github.io/tihulu-flight-radar/",
+    "text_center_mirror_url": "https://tihulu.github.io/TIHULU-TEXT-CENTER/flight_radar/",
+    "live_urls_verified_this_audit": false,
+    "source_sha_parity_verified_this_audit": false,
+    "old_repo_rename_impact": "Text Center Pages project URL/scope may change; no promise of automatic Pages redirect. Re-test PWA scope, SW cache, raw installer URLs, mirror workflow and both source-revision.json entries before any rename."
+  },
+  "native_developer_standard_missing_from_flight_main": [
+    "CLAUDE.md",
+    "DEEPSEEK_START.md",
+    "DEVELOPMENT_AGENT_GUIDE.md",
+    "architecture/FEATURE_MATRIX.json",
+    "architecture/COMPONENT_MATRIX.json",
+    "architecture/MODEL_MATRIX.json",
+    "architecture/DEVELOPMENT_AGENT_MATRIX.json",
+    "history/ORIGIN_LINK_MAP.json",
+    "history/TRANSFER_GAPS.json"
+  ],
+  "existing_agent_capability": "AGENTS.md provides substantial English source and workflow contracts. Claude/DeepSeek could read AGENTS.md without adding new local LLM; their standardized entry docs and independent full matrices are not in flight main.",
+  "history": {
+    "flight_own_prs_observed": 11,
+    "flight_own_non_pr_issues_observed": 2,
+    "own_open_draft_prs": [
+      {
+        "number": 7,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/7"
+      },
+      {
+        "number": 13,
+        "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13"
+      }
+    ],
+    "original_old_repo_pr_candidate_refs": [
+      12,
+      68,
+      69,
+      70,
+      71
+    ],
+    "partial_old_repo_gaps": "apps/flight-radar/ORIGIN_FALLBACKS.json",
+    "source_history_ported_completely": false,
+    "original_reviews_comments_full_export_complete": false
+  },
+  "source_main_and_draft_tree": {
+    "original_text_center_main_head": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+    "main_files": 62,
+    "source_files_main_fm_tv_media_sat_geo_embedded": 0,
+    "frozen_docs_branch": "chore/master-requirements-zero-regression-coordination-2026-11-11",
+    "audit_branch_files_at_inspection": 881,
+    "missing_main_roots": [
+      "kaffeine_next/",
+      "tv_center/",
+      "satellite_center/",
+      "rf_geolocation_center/"
+    ],
+    "app_source_preservation_branch": "integration/preserve-all-apps-2026-11-11",
+    "app_source_preservation_commit": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+    "latest_media_export_branch": "feat/media-unified-recording-export-2026-11-11",
+    "latest_media_export_commit": "4e62e21cd5252df8a04f9ceadc429f4b116412ce"
+  },
+  "invariants": [
+    "Flight canonical own code stays in flight repo; Text Center web mirror remains derived output only",
+    "Protect old PR comments, reviews, issues and unique historic IDs plus rename-resistant original reference",
+    "Protect legacy v0.3.1 and no WebUSB reliance in native desktop",
+    "Use exact approved red TIHULU Flight badge, not existing default flight PWA icon; do not change active icon during audit",
+    "EN engineering, EN/TR/DE user UI target; coverage not verified",
+    "No current source, main, installer, user data or receiver service changes"
+  ],
+  "open_questions": [
+    "Current live site source revision parity not checked",
+    "Flight independent agent matrices missing and need exact feature-code-and-test mapping",
+    "Flight original Text Center history and external chats not fully archived",
+    "No native RF hardware or cross-platform runtime validation in this static audit"
+  ]
+}

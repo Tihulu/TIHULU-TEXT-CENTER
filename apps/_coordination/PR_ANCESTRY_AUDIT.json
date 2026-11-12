@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "verified_on": "2026-11-11",
+  "audit_kind": "GitHub commit ancestry + changed-path comparison; no test execution or merge",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "origin_repo_id": 1447637221,
+  "main_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+  "feature_65": {
+    "pr": 65,
+    "sha": "20b0417aa7edba2f86b297e7cabdd062e9b24291",
+    "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+    "changed_paths": 54
+  },
+  "integration_66": {
+    "pr": 66,
+    "sha": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+    "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/66"
+  },
+  "record_export_67": {
+    "pr": 67,
+    "sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+    "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67",
+    "changed_paths": 8
+  },
+  "audit_docs_82": {
+    "pr": 82,
+    "sha": "49a365f21b050dc535bc6a8cab1b27a3bb9816e4",
+    "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/82"
+  },
+  "verified_graph": [
+    {
+      "base": "#65",
+      "head": "#66",
+      "relation": "ahead",
+      "ahead": 3,
+      "behind": 0,
+      "mergebase": "20b0417aa7edba2f86b297e7cabdd062e9b24291",
+      "interpretation": "#66 descends from #65 directly; do not treat #65 as absent from #66."
+    },
+    {
+      "base": "#66",
+      "head": "#67",
+      "relation": "ahead",
+      "ahead": 20,
+      "behind": 0,
+      "mergebase": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+      "interpretation": "#67 is downstream of #66; source content from #65 can be retained by carrying #67 lineage."
+    },
+    {
+      "base": "#65",
+      "head": "#67",
+      "relation": "ahead",
+      "ahead": 23,
+      "behind": 0,
+      "mergebase": "20b0417aa7edba2f86b297e7cabdd062e9b24291",
+      "interpretation": "#67 contains #65 ancestry, and #66 source additions."
+    },
+    {
+      "base": "#67",
+      "head": "#82",
+      "relation": "diverged",
+      "ahead": 37,
+      "behind": 20,
+      "mergebase": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+      "interpretation": "#67 contains the latest media export code; the parallel audit branch omits those 20 commits. Their separate reviews must be reconciled before eventual cutover."
+    }
+  ],
+  "three_same_file_paths_not_inherently_merges_conflicts": [
+    "kaffeine_next/captions_overlay.py",
+    "kaffeine_next/native_media_panel.h",
+    "kaffeine_next/native_radio_tab.h"
+  ],
+  "source_presence": {
+    "main_tree_file_count": 62,
+    "audit_docs_tree_file_count_before_latest_review": 881,
+    "flight_main_tree_file_count": 92,
+    "active_embedded_src_roots_missing_from_source_main": [
+      "kaffeine_next/",
+      "tv_center/",
+      "satellite_center/",
+      "rf_geolocation_center/"
+    ],
+    "presence_note": "source main has Text Center roots; embedded app trees were added in draft integration lineage; do not use source main alone for extraction."
+  },
+  "risk": {
+    "class": "branch_lineage_omission_not_proven_textual_merge_conflict",
+    "priority": "critical",
+    "loss_mode": "Copying from #66/#82 snapshots and omitting #67 branch would lose drafted media recording/export improvements. Copying only current source main would omit draft embedded app trees.",
+    "required_before_source_import": [
+      "Use exact explicit source commit SHA and verify complete app file/tree hash set",
+      "Audit #65 feature tests and #67 record/export tests without modifying or merging original PRs",
+      "Compare #67 and audit docs branches at merge base #66; plan a reviewed integration branch only after separate user authorization",
+      "Do not replace #67 code with snapshot at #66 and claim media feature parity",
+      "Keep original #65/#66/#67 links, original source repo ID and PR author/date evidence in destination history maps",
+      "Protect current Text Center main code, app settings and installed releases"
+    ]
+  },
+  "CI_qualifier": "No CI success or physical SDR/TV test is proven by source-ancestry comparison."
+}

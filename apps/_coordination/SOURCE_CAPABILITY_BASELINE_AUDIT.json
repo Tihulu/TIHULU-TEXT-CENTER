@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-11",
+  "type": "source-read audit only; no native app run or physical hardware",
+  "audit_branch_head_at_inspection": "0cbe15c669c0ae664352855178e4cec22f31983c",
+  "original_main_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+  "original_main_tracked_files": 62,
+  "original_draft_snapshot_head": "20379152be2751e5d89a8bdbac85fb15fc6b3c4e",
+  "current_audit_branch_tracked_files": 883,
+  "original_main_has_active_text_center": true,
+  "original_main_missing_embedded_app_roots": [
+    "kaffeine_next/",
+    "tv_center/",
+    "satellite_center/",
+    "rf_geolocation_center/"
+  ],
+  "app_source_roots": [
+    {
+      "application": "media-center",
+      "roots": [
+        {
+          "path": "kaffeine_next/",
+          "observed_file_count": 34
+        },
+        {
+          "path": "tv_center/",
+          "observed_file_count": 79
+        }
+      ],
+      "evidence": [
+        "kaffeine_next/README.md",
+        "tv_center/README.md"
+      ],
+      "initial_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "notes": [
+        "Two native TV/media implementations are documented: upstream-patched KDE Kaffeine Next and Qt/MPV TV Center; migration must not silently delete either without feature-by-feature acceptance",
+        "Kaffeine readme references a pinned upstream source and an existing one-line installer bound to old repo/feature branch; future rename requires retesting URL",
+        "TV Center readme says experimental and device/hardware acceptance remains separate",
+        "Current #67 recording/export draft extends #65→#66 history and is absent from docs-only #82 branch; preserve its lineage"
+      ],
+      "cross_platform_verified": false
+    },
+    {
+      "application": "satellite-center",
+      "roots": [
+        {
+          "path": "satellite_center/",
+          "observed_file_count": 92
+        }
+      ],
+      "evidence": [
+        "satellite_center/README.md",
+        "satellite_center/FEATURE_PARITY.md",
+        "satellite_center/NATIVE_WEB_PARITY.md",
+        "satellite_center/WEB_AND_INSTALL.md"
+      ],
+      "initial_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "notes": [
+        "Existing native Qt+local backend and browser/PWA share some UI/source, but runtime hardware capability differs by platform",
+        "Static Pages/browser cannot perform background timed RF capture after browser closes or execute Python/SatDump; local native receiver service is needed",
+        "Native CU8/WAV capture paths and true Meteor/ISS reception need real device acceptance; never conflate orbit pass with actual decoding",
+        "Current one-line Linux installer raw link points at old repository name and draft feature ref; preserve through future rename"
+      ],
+      "cross_platform_verified": false
+    },
+    {
+      "application": "geolocation-center",
+      "roots": [
+        {
+          "path": "rf_geolocation_center/",
+          "observed_file_count": 56
+        }
+      ],
+      "evidence": [
+        "rf_geolocation_center/README.md",
+        "rf_geolocation_center/docs/ARCHITECTURE_AND_RELEASE_GATES.md",
+        "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md"
+      ],
+      "initial_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "notes": [
+        "Existing browser GNSS/satellite catalog and NMEA import are not verified raw SDR GNSS acquisition",
+        "Native .deb/.exe/.app installers and real GNSS-SDR pseudorange/PVT are explicitly documented as missing",
+        "Browser-only WebUSB/Serial support differs by OS; native receiver may be needed to meet full desktop hardware criteria",
+        "Keep honest uncertaintity, imported data provenance, experimental range circle and TDOA-hyperbola display instead of fake single-SDR geolocation"
+      ],
+      "cross_platform_verified": false
+    },
+    {
+      "application": "text-center",
+      "roots": [
+        {
+          "path": "textcenter/",
+          "observed_file_count": 20
+        },
+        {
+          "path": "web/",
+          "observed_file_count": 4
+        }
+      ],
+      "evidence": [
+        "textcenter/__main__.py",
+        "web/index.html",
+        "apps/text-center/ORIGIN.md"
+      ],
+      "initial_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "notes": [
+        "Active canonical app remains in original repo; do not freeze textcenter/ and web/ when 3 other app sources cut over",
+        "Original source repo also hosts old PR/issue provenance and Flight Radar Pages mirror"
+      ],
+      "cross_platform_verified": false
+    },
+    {
+      "application": "flight-radar",
+      "roots": [
+        {
+          "path": "tihulu_flight_radar/",
+          "observed_file_count": 35,
+          "repository": "Tihulu/tihulu-flight-radar"
+        }
+      ],
+      "evidence": [
+        "https://github.com/Tihulu/tihulu-flight-radar/blob/main/AGENTS.md",
+        "https://github.com/Tihulu/tihulu-flight-radar/blob/main/pyproject.toml",
+        "https://github.com/Tihulu/tihulu-flight-radar/blob/main/docs/DUAL_GITHUB_PAGES.md"
+      ],
+      "initial_issue": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "notes": [
+        "Already independent canonical source; do not create a duplicate source mirror",
+        "Dual Pages build depends on original Text Center Pages path which may change on rename",
+        "Keep native readsb not browser WebUSB as mandatory desktop RF source",
+        "Flight's own CLAUDE/DeepSeek agent entry files and standard matrices still need separate app audit"
+      ],
+      "cross_platform_verified": false
+    }
+  ],
+  "compatibility_truth_table": {
+    "source_code_present": "yes in relevant draft branch or canonical Flight repository",
+    "static_docs_read": "yes for selected explicit evidence",
+    "unit_test_executed": "no",
+    "standalone_build_executed": "no",
+    "native_hardware_test_executed": "no",
+    "full_feature_coverage_certified": "no",
+    "existing_app_runtime_behavior_changed": "no"
+  },
+  "initial_actual_source_files": [
+    {
+      "root": "kaffeine_next",
+      "count": 34
+    },
+    {
+      "root": "tv_center",
+      "count": 79
+    },
+    {
+      "root": "satellite_center",
+      "count": 92
+    },
+    {
+      "root": "rf_geolocation_center",
+      "count": 56
+    },
+    {
+      "root": "textcenter",
+      "count": 20
+    },
+    {
+      "root": "web",
+      "count": 4
+    }
+  ],
+  "total_selected_root_files": 285,
+  "selected_root_count": 6,
+  "shared_global_tests_files_in_audit_branch": 118,
+  "method": "Read source-branch GitHub tree and selected README/feature-parity docs; file count is not code-size, history completeness or an implementation claim.",
+  "next_priorities": [
+    "Ensure all 3 initial empty repos remain untouched; their first commits require separate owner approval",
+    "Archive source Git trees and correct PR heads before any copying",
+    "Audit CI status separately; static tree presence never equals passing hardware test",
+    "Create source→test→requirement evidence links for original 97 records and investigate missing chat history with privacy review",
+    "Label genuine code implementation and UI language completeness only after tests"
+  ]
+}

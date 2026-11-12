@@ -1,0 +1,1136 @@
+{
+  "schema_version": 1,
+  "as_of_utc": "2026-11-12",
+  "stage": "phase6_RFGeo_97_89of89_green_Media96_green_Flight_and_Text_green_Sat_pages_parity_red",
+  "requirements": {
+    "registered": 97,
+    "code_source_audited": 97,
+    "feature_equivalence_certified": 0,
+    "physical_device_verified": 0,
+    "initial_requirements_inventory_complete": false,
+    "review_pending": true,
+    "source_path_candidates_mapped": 97,
+    "existing_test_path_candidates_mapped": 86,
+    "requirements_without_test_path_candidate": 11,
+    "source_code_semantically_verified": 0,
+    "per_requirement_test_executions": 0,
+    "real_hardware_verifications": 0,
+    "has_candidate_traceability_map": true,
+    "individual_test_source_files_read": 16,
+    "candidate_source_files_linked": 198,
+    "candidate_test_files_linked": 127,
+    "initial_source_based_workstream_review_count": 97
+  },
+  "repositories": {
+    "total_canonical_apps": 5,
+    "destinations_user_created_empty": 3,
+    "standalone_migrations_completed": 0,
+    "independently_canonical_existing": 1,
+    "text_center_retained_original": 1,
+    "source_repo_rename_performed": false,
+    "observed_source_trees_inspected": 3,
+    "file_counts_by_tree": {
+      "text_main": 62,
+      "flight_main": 92,
+      "project_audit_branch_at_inspection": 881
+    },
+    "flight_developer_standard_gap_audited": true,
+    "selected_source_root_files_indexed": 285,
+    "selected_source_roots_count": 6,
+    "audited_app_root_counts": {
+      "kaffeine_next": 34,
+      "tv_center": 79,
+      "satellite_center": 92,
+      "rf_geolocation_center": 56,
+      "textcenter": 20,
+      "web": 4
+    },
+    "source_tree_audit_report_created": true
+  },
+  "pr_history": {
+    "known_origin_draft_prs_65_to_74": 10,
+    "confirmed_open_draft_prs": 10,
+    "flight_radar_known_open_drafts": [
+      7,
+      13
+    ],
+    "old_original_history_review_export_complete": false,
+    "all_prior_feature_prs_reconciled": false,
+    "audit_start_utc_date": "2026-11-11",
+    "initial_changed_filename_audits": {
+      "total_checked": 4,
+      "source_repos": [
+        "Tihulu/TIHULU-TEXT-CENTER",
+        "Tihulu/tihulu-flight-radar"
+      ],
+      "pull_requests": [
+        "main_repo#65",
+        "main_repo#67",
+        "flight_radar#7",
+        "flight_radar#13"
+      ],
+      "media_overlap_paths": 3,
+      "flight_open_pr_overlap_paths": 0,
+      "semantic_merge_conflicts_cleared": false,
+      "history_comments_and_review_audit_completed": false,
+      "ancestry_checked": true,
+      "graph": "#65 -> #66 -> #67; #82 diverges from #67 at #66",
+      "media_file_path_overlap_not_a_proven_merge_conflict": true,
+      "verified_code_branch_risk": "migration_from_docs_branch_without_media_67_would_lose_recording_export_branch_changes",
+      "branch_graph_comparisons": 7,
+      "proven_feature_code_implemented_in_latest_candidate": "not_tested"
+    },
+    "flight_own_pr_count_observed": 11,
+    "flight_non_pr_issue_count_observed": 2,
+    "flight_own_open_draft_prs": [
+      7,
+      13
+    ],
+    "media_export_branch_exact_assets_verified": true,
+    "media_export_branch_only_code_not_in_docs_branch": true,
+    "explicit_discussion_endpoints_checked": 13,
+    "public_original_comment_permalinks_indexed": 8,
+    "sampled_discussion_link_index_created": true,
+    "complete_history_export_claim": false
+  },
+  "approved_designs": {
+    "logos_user_approved": 5,
+    "logo_binary_assets_committed_to_app_repos": 0,
+    "active_application_icons_replaced": 0,
+    "true_editable_svg_verified": 0
+  },
+  "workstreams": {
+    "defined": 6,
+    "issue_numbers": [
+      76,
+      77,
+      78,
+      79,
+      80,
+      81
+    ],
+    "started_by_other_chats": 6,
+    "completed_audits": 6,
+    "app_runtime_source_files_changed_in_this_phase": 0,
+    "master_issue": 75,
+    "branches_created": 6,
+    "workstream_prs_created": 6,
+    "worker_pr_numbers": [
+      83,
+      84,
+      85,
+      86,
+      87,
+      88
+    ],
+    "worker_branch_names": [
+      "audit/ws01-media-zero-regression-2026-11-11",
+      "audit/ws02-flight-standalone-2026-11-11",
+      "audit/ws03-satellite-parity-2026-11-11",
+      "audit/ws04-rf-geolocation-2026-11-11",
+      "audit/ws05-text-retained-2026-11-11",
+      "audit/ws06-provenance-qa-2026-11-11"
+    ],
+    "user_must_launch_separate_chats": true,
+    "audit_completion_definition": "Six initial source-based report/evidence documentation passes; NOT feature equivalence, platform/hardware acceptance, migration or release",
+    "report_files_committed": 6,
+    "evidence_json_committed": 6,
+    "worker_executed_tests": 0,
+    "worker_executed_physical_rf_tests": 0,
+    "worker_pr_changed_paths_validated_as_workspace_only": 6,
+    "worker_prs_draft_and_open_verified": 6,
+    "worker_audit_source_scope": {
+      "01": {
+        "pr": 83,
+        "issue": 76,
+        "requirement_ids_reviewed": 41,
+        "head": "91a877f08c94fa9afe26e92dd86dd4477cc8d41b",
+        "source_files_read": 43,
+        "test_source_files_read": 49,
+        "notes": "Initial 41/41 review retained. Detailed source preservation follow-up pinned 20 PR #67 commits and eight changed paths, 10 explicitly open release/regression gaps; no hardware testing or implementation."
+      },
+      "02": {
+        "pr": 84,
+        "issue": 77,
+        "requirement_ids_reviewed": 17,
+        "head": "9db6fb96a249992214ec93e1888a88e3228427ac",
+        "test_candidates_mapped": 15,
+        "test_candidate_gaps": 2,
+        "notes": "Initial 17/17 review retained; follow-up committed 18 receiver lifecycle and 11 RF model planned scenarios, source/PR comparisons only, no tests/hardware."
+      },
+      "03": {
+        "pr": 85,
+        "issue": 78,
+        "requirement_ids_reviewed": 8,
+        "head": "284944e1dc167f6b60bf762889a3c75bf28f47e2",
+        "test_source_files_read": 25,
+        "notes": "PR #37 contains 22 absent-on-worker-branch satellite tests; prior Pages parity CI failed"
+      },
+      "04": {
+        "pr": 86,
+        "issue": 79,
+        "requirement_ids_reviewed": 8,
+        "head": "b62ba58287ef9e76d42ca807829b26da68177e18",
+        "test_source_files_read": 13,
+        "notes": "4 partially draft-coded, 4 requested/partial; 0 accepted"
+      },
+      "05": {
+        "pr": 87,
+        "issue": 80,
+        "requirement_ids_reviewed": 8,
+        "head": "3dbcbf658029ad213d985a5eef8227a244d3c045",
+        "test_source_files_read": 12,
+        "notes": "Initial 8/8 review retained; follow-up classified six tv_center imports across 20 Text modules and 13 proposed isolated regression checks, no tests/hardware."
+      },
+      "06": {
+        "pr": 88,
+        "issue": 81,
+        "requirement_ids_reviewed": 15,
+        "head": "e69c2b6eac7deeca313925bf99af31f8c9434f34",
+        "test_source_files_read": 6,
+        "notes": "Archive omission #72-#74; branding binary digests not independently verified; locales untested"
+      }
+    },
+    "report_status_source": "Direct fetched REPORT.md and EVIDENCE.json on all six separate workstream heads and diff comparison against frozen coordinator base, 2026-11-12",
+    "initial_requirement_review_coverage": 97,
+    "initial_requirement_review_denominator": 97,
+    "worker_branch_divergence": "All three requested second-pass worker branches are independent and each added exactly two docs-only commits in its own REPORT/EVIDENCE, without merges or rebases. Preserve original source PRs and frozen coordinator baseline.",
+    "source_preservation_followups": {
+      "as_of_date": "2026-11-12",
+      "requested": 3,
+      "documentation_delivered": 3,
+      "pending": 0,
+      "all_new_changes_report_evidence_only": true,
+      "independent_worker_new_test_executions": 0,
+      "independent_worker_hardware_sessions": 0,
+      "01": {
+        "pr": 83,
+        "issue": 76,
+        "status": "DOC_FOLLOWUP_COMMITTED_SOURCE_AUDIT_ONLY",
+        "head": "91a877f08c94fa9afe26e92dd86dd4477cc8d41b",
+        "baseline_head": "10fd5ef9c51df2c330c8c5823ce789e31db519b2",
+        "modified_paths": [
+          "apps/_coordination/workstreams/01/REPORT.md",
+          "apps/_coordination/workstreams/01/EVIDENCE.json"
+        ],
+        "new_commits": 2,
+        "pr67_original_commits_pinned": 20,
+        "pr67_changed_paths_pinned": 8,
+        "preservation_gaps_documented": 10,
+        "worker_new_tests_executed": 0,
+        "hardware_sessions": 0,
+        "historical_pr67_software_ci": "672 tests, 1 skipped on Python3.11; optional real FFmpeg test skipped",
+        "historical_pr67_native_builds": "Kaffeine/welle.io native jobs failed before compilation during apt DNS, other native job cancelled; do not infer compilation behavior",
+        "ci": {
+          "run_id": 43128107581,
+          "scope": "Text Center tests on WS01 follow-up head",
+          "conclusion": "success"
+        }
+      },
+      "02": {
+        "pr": 84,
+        "issue": 77,
+        "status": "DOC_FOLLOWUP_COMMITTED_SOURCE_AUDIT_ONLY",
+        "head": "9db6fb96a249992214ec93e1888a88e3228427ac",
+        "baseline_head": "1253f55604b1401927f3a1b7a661c7f9b1fa8386",
+        "modified_paths": [
+          "apps/_coordination/workstreams/02/REPORT.md",
+          "apps/_coordination/workstreams/02/EVIDENCE.json"
+        ],
+        "new_commits": 2,
+        "receiver_lifecycle_proposed_cases": 18,
+        "rf_model_proposed_cases": 11,
+        "new_tests_executed": 0,
+        "hardware_sessions": 0,
+        "ci": {
+          "run_id": 43127826372,
+          "scope": "Text Center tests",
+          "conclusion": "success"
+        }
+      },
+      "05": {
+        "pr": 87,
+        "issue": 80,
+        "status": "DOC_FOLLOWUP_COMMITTED_SOURCE_AUDIT_ONLY",
+        "head": "3dbcbf658029ad213d985a5eef8227a244d3c045",
+        "baseline_head": "5a772fd399c2d743207adb69dc33bd9922fee068",
+        "modified_paths": [
+          "apps/_coordination/workstreams/05/REPORT.md",
+          "apps/_coordination/workstreams/05/EVIDENCE.json"
+        ],
+        "new_commits": 2,
+        "text_modules_examined": 20,
+        "snapshot_tv_center_imports_classified": 6,
+        "standalone_isolation_proposed_cases": 13,
+        "reverse_dependency_found": true,
+        "new_tests_executed": 0,
+        "hardware_sessions": 0,
+        "ci": {
+          "run_id": 43127825730,
+          "scope": "Text Center tests",
+          "conclusion": "success"
+        }
+      }
+    }
+  },
+  "time_remaining": {
+    "hours": null,
+    "minutes": null,
+    "confidence": "insufficient_evidence",
+    "reason": "Standalone application contract now explicitly requires 12 independent run/install/optional integration acceptance cases and they are 0/12 verified; existing 3 empty migration destinations 0/3 transferred. Current green synthetic EXIT01 PRs are not installed standalone acceptance; Satellite pages parity remains open, 17 broad gates and 0/15 physical EXIT resource acceptance remain open. No reliable ETA.",
+    "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
+    "estimation_criteria": [
+      "audited outstanding task list",
+      "measured comparable effort or recorded assumptions",
+      "documented blocking dependencies",
+      "test hardware access and coverage",
+      "time to verify rollback and accepted feature parity"
+    ],
+    "hours_minutes_status": "unknown_after_source_audits_unmeasured_acceptance_workload"
+  },
+  "release_gates": {
+    "zero_runtime_changes": true,
+    "no_merges": true,
+    "no_canonical_cutover": true,
+    "no_repo_rename": true,
+    "ui_languages_target": [
+      "en",
+      "tr",
+      "de"
+    ],
+    "engineering_language": "en",
+    "all_5_ui_locale_coverage_verified": false,
+    "new_ci_checks_current_head_status": "Coordinator head c8efb3504d26449667eeab5dc21b259cdd0362ef, Text Center tests run 43125496491: completed SUCCESS (Python 3.11, 3.12, 3.13). Pinned success on tested SHA; subsequent docs commits require separate CI verification.",
+    "last_verified_ci_for_prior_head": {
+      "sha": "b35f3f2f1cc5f35cb46bad90840ac814ab226b69",
+      "actions_runs": [
+        43109757155,
+        43109747155
+      ],
+      "results": [
+        "success",
+        "success"
+      ],
+      "meaning": "GitHub Actions (software CI) only, NOT installed hardware test"
+    },
+    "no_runtime_changes_in_all_six_worker_prs_verified": true,
+    "worker_latest_head_ci": {
+      "01": {
+        "run_id": 43118254892,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "02": {
+        "run_id": 43117866845,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "03": {
+        "run_id": 43118074584,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "04": {
+        "run_id": 43117512069,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "05": {
+        "run_id": 43117508013,
+        "result": "success",
+        "scope": "Text Center tests"
+      },
+      "06": {
+        "run_id": 43117892135,
+        "result": "success",
+        "scope": "Text Center tests"
+      }
+    },
+    "existing_satellite_feature_pr37_ci_observation": "Run 42559046861 had four portable synthetic OS successes but source-to-Pages parity failure on eight assets; this is distinct from worker-PR CI.",
+    "feature_acceptance_verified": false,
+    "hardware_device_acceptance_verified": false,
+    "regression_gate_plan_documented": true,
+    "regression_gates_open": 17,
+    "regression_gates_approved_for_code_changes": 0,
+    "latest_coordinator_ci": {
+      "source_head": "c8efb3504d26449667eeab5dc21b259cdd0362ef",
+      "run_id": 43125496491,
+      "workflow": "Text Center tests",
+      "conclusion": "success",
+      "matrix_job_results": {
+        "python_3_11": "success",
+        "python_3_12": "success",
+        "python_3_13": "success"
+      },
+      "inspected_job_3_12_tests_run": 696,
+      "inspected_job_3_12_test_failures": 0,
+      "scope": "Offline GitHub software CI; two stage-aware coordination metadata assertions fixed. This does NOT certify RF/DVB hardware, installed feature equivalence, source migrations, browser Pages parity or release.",
+      "remediation_status": "VERIFIED at commit c8efb3504d26449667eeab5dc21b259cdd0362ef",
+      "diagnosis_doc": "apps/_coordination/COORDINATION_CI_CONTRACT_DRIFT.md",
+      "verified_as_of_date": "2026-11-12"
+    },
+    "all_current_head_ci_success": true,
+    "original_worker_ci_successes_distinct_from_coordinator_failure": true,
+    "ci_test_contract_fix_proposed_not_implemented": false,
+    "text_archive_import_boundary_requires_resolution": true,
+    "history_pr72_74_link_provenance_verified_but_ledgers_incomplete": true,
+    "previous_coordinator_ci_contract_drift_failure": {
+      "source_head": "d3f9dffd85b5e9e89f043a5c9b5ea26888783134",
+      "run_id": 43119633429,
+      "workflow": "Text Center tests",
+      "conclusion": "failure",
+      "matrix_job_results": {
+        "python_3_11": "failure",
+        "python_3_12": "failure",
+        "python_3_13": "failure"
+      },
+      "inspected_job_3_12_tests_run": 696,
+      "inspected_job_3_12_test_failures": 2,
+      "failures": [
+        "tests/test_master_zero_regression_coordination.py::test_progress_has_evidence_based_issues_and_unknown_eta expects completed_audits=0 but observed 6",
+        "tests/test_six_parallel_workstream_gates.py::test_no_runtime_release_or_rename_permission expects started_by_other_chats=0 but observed 6"
+      ],
+      "scope": "stale audit-planning test assertions vs verified worker milestone data, NOT physical receiver or installed app regression evidence",
+      "remediation_status": "OPEN; no test-source changes authorized in documentation-only phase",
+      "diagnosis_doc": "apps/_coordination/COORDINATION_CI_CONTRACT_DRIFT.md",
+      "tested_as_of_date": "2026-11-12"
+    },
+    "coordination_test_contract_fixed_verified": true,
+    "coordination_test_only_modified_paths": [
+      "tests/test_master_zero_regression_coordination.py",
+      "tests/test_six_parallel_workstream_gates.py"
+    ],
+    "full_feature_equivalence_certified": false
+  },
+  "followup_rule": "After each real GitHub CI or issue milestone, update counts and explain what was measured; no unscheduled background work is implied.",
+  "documentation": {
+    "master_requirements_file_created": true,
+    "initial_requirements_recorded": 97,
+    "master_plan_created": true,
+    "coordination_protocol_created": true,
+    "prompt_files_created": 6,
+    "coordination_issues_created": 7,
+    "read_only_test_added": true,
+    "live_runtime_code_changed": false,
+    "source_sha_audit_completed": false,
+    "early_conflict_audit_created": true,
+    "flight_static_baseline_report_created": true,
+    "media_ancestry_report_created": true,
+    "application_capability_discrepancies_logged": true,
+    "unmerged_export_provenance_verified": true,
+    "test_evidence_quality_report_created": true,
+    "launch_guide_created": true,
+    "parallel_branch_scope_verified": true
+  },
+  "cross_workstream_regression_gates": {
+    "record_type": "documentation_only_regression_gate_plan",
+    "status": "OPEN_PROPOSED_GATES_NOT_ACCEPTANCE",
+    "as_of_date": "2026-11-12",
+    "total": 17,
+    "open": 17,
+    "priorities": {
+      "P0": 16,
+      "P1": 1,
+      "P2": 0
+    },
+    "sources": "six immutable worker reports plus selected direct Flight and Satellite source inspection",
+    "document_path": "apps/_coordination/CROSS_WORKSTREAM_REGRESSION_GATES.md",
+    "machine_path": "apps/_coordination/CROSS_WORKSTREAM_DEPENDENCIES.json",
+    "owner_approval_required_before_implementation": true,
+    "physical_hardware_acceptance_verified": 0,
+    "feature_equivalence_certified": 0,
+    "remaining_hours": null,
+    "remaining_minutes": null,
+    "coordinator_ci_gate_current": "Resolved on tested SHA c8efb3504d26449667eeab5dc21b259cdd0362ef, run 43125496491 success; 17 functionality/release gates remain OPEN."
+  },
+  "coordinator_followup": {
+    "as_of_date": "2026-11-12",
+    "ci_test_repair_proposal": "apps/_coordination/COORDINATION_TEST_REPAIR_PROPOSAL.md",
+    "coordination_python_tests_changed": true,
+    "text_active_snapshot_semantic_delta": "apps/_coordination/TEXT_MAIN_SNAPSHOT_SEMANTIC_DELTA.md",
+    "text_archived_tv_center_import_dependency_found": true,
+    "origin_pr72_to_74_verified_ancestry": "apps/_coordination/ORIGIN_PR72_74_ANCESTRY_ADDENDUM.json",
+    "old_history_ledgers_modified": false,
+    "new_regression_gates_added": 0,
+    "open_regression_gates": 17,
+    "source_migration_or_release_performed": false,
+    "all_pending_acceptance_remains_unverified": true,
+    "ci_test_repair_proposal_applied_at_sha": "c8efb3504d26449667eeab5dc21b259cdd0362ef",
+    "ci_test_maintenance_verified_run": 43125496491,
+    "app_runtime_source_edited": false,
+    "worker_second_pass_received_count": 3,
+    "worker_second_pass_requested_count": 3,
+    "media_second_pass_pending": false,
+    "flight_second_pass_18_service_11_rf_cases": true,
+    "text_second_pass_6_imports_13_isolation_cases": true,
+    "media_pr67_exact_20_commit_preservation_documented": true,
+    "media_pr67_10_acceptance_gaps_not_closed": true,
+    "phase3_test_only_prs_created": true,
+    "phase3_app_source_changes": 0,
+    "phase3_real_device_sessions": 0,
+    "phase3_flightradar_known_external_service_stop_xfail_unfixed": true
+  },
+  "isolated_regression_stage3": {
+    "date": "2026-11-12",
+    "type": "test_only_no_source_changes",
+    "proposal": "apps/_coordination/PHASE_3_ISOLATED_TEST_ENTRY_PLAN.md",
+    "evidence": "apps/_coordination/PHASE_3_ISOLATED_TEST_EXECUTION_EVIDENCE.md",
+    "draft_prs_created": 3,
+    "all_draft_unmerged": true,
+    "text": {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "pr": 89,
+      "base": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+      "head": "e1a1382e415e053a2ee939a15751413559ede1df",
+      "added_test_files": [
+        "tests/test_textcenter_cleanroom_import.py"
+      ],
+      "new_test_cases": 2,
+      "new_tests_verified": "2/2 passed in Python 3.11 log; full CI 3.11/3.12/3.13 success",
+      "ci_run": 43133732602,
+      "ci_conclusion": "success",
+      "limit": "canonical current Text main only, no archived negative controls, physical tuner or Media package interoperability test"
+    },
+    "media": {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "pr": 90,
+      "base": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "head": "15d704f2624264d9bc346248d89373188d82d597",
+      "added_test_files": [
+        "tests/test_recording_export_stage3_isolated.py"
+      ],
+      "new_test_cases": 5,
+      "new_tests_verified": "5/5 passed in Python 3.11 log; full CI 3.11/3.12/3.13 success; pre-existing real FFmpeg test skipped",
+      "ci_run": 43133737755,
+      "ci_conclusion": "success",
+      "limit": "synthetic media, mocks only; original #67 source preserved; no real mux/burn/native Qt"
+    },
+    "flight": {
+      "repo": "Tihulu/tihulu-flight-radar",
+      "pr": 14,
+      "base": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+      "head": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+      "added_test_files": [
+        "tests/test_stage3_isolated_receiver_ownership.py"
+      ],
+      "new_test_cases": 8,
+      "known_strict_xfail": 1,
+      "ci_cross_platform_run": 43133741667,
+      "ci_cross_platform_status_at_checkpoint": "completed SUCCESS; four jobs Debian 12 x64, Ubuntu 24.04 x64, Windows 2025 x64 and macOS 15 Apple Silicon successful",
+      "ci_pi_run": 43133741622,
+      "ci_pi_conclusion": "success",
+      "limit": "real external readsb stop risk remains and is XFAIL, no service calls or hardware acceptance",
+      "ci_cross_platform_conclusion": "success",
+      "inspected_ubuntu_job_id": 130903937110,
+      "inspected_ubuntu_test_passed": 79,
+      "inspected_ubuntu_test_xfailed": 1,
+      "xfail_is_an_open_p0_defect": true,
+      "unit_suite_hardware_verified": false
+    },
+    "evidence_requirements": {
+      "all_changed_paths_only_new_tests": true,
+      "live_hardware_tests_executed": 0,
+      "runtime_app_source_edited": false,
+      "original_pr_merged": false,
+      "feature_equivalence_certified": 0,
+      "regression_gates_closed": 0,
+      "original_open_gates": 17,
+      "estimated_remaining_hours": null,
+      "estimated_remaining_minutes": null
+    }
+  },
+  "phase4_parallel_review": {
+    "as_of_date": "2026-11-12",
+    "state": "ALL_SIX_PHASE4_AUDIT_REPORTS_COMMITTED_AND_SCOPE_VERIFIED_RELEASE_GATES_OPEN",
+    "planning_document": "apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
+    "workstreams": [
+      {
+        "ws": "01",
+        "issue": 76,
+        "audit_pr": 83,
+        "test_only_pr": 90,
+        "assignment_comment": 6811690016,
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
+        "allowed_writes": [
+          "apps/_coordination/workstreams/01/REPORT.md",
+          "apps/_coordination/workstreams/01/EVIDENCE.json"
+        ],
+        "new_head": "a3ed7bc99cffd0dc80159bf73245e911fdbe81ad",
+        "previous_head": "91a877f08c94fa9afe26e92dd86dd4477cc8d41b",
+        "ahead_commits": 2,
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/01/REPORT.md",
+          "apps/_coordination/workstreams/01/EVIDENCE.json"
+        ],
+        "ci_run": 43136266272,
+        "ci_conclusion": "success",
+        "findings_summary": "Reviewed five passing Media PR90 synthetic tests versus original #67; 16 prioritized missing-test cases; old real FFmpeg test still skipped; all 20 original commits must remain preserved."
+      },
+      {
+        "ws": "02",
+        "issue": 77,
+        "audit_pr": 84,
+        "test_only_pr": 14,
+        "test_repo": "Tihulu/tihulu-flight-radar",
+        "assignment_comment": 6811690635,
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
+        "allowed_writes": [
+          "apps/_coordination/workstreams/02/REPORT.md",
+          "apps/_coordination/workstreams/02/EVIDENCE.json"
+        ],
+        "new_head": "7aa8a7e9b138761c93c022d6d56d7f4c7a1a69c8",
+        "previous_head": "9db6fb96a249992214ec93e1888a88e3228427ac",
+        "ahead_commits": 2,
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/02/REPORT.md",
+          "apps/_coordination/workstreams/02/EVIDENCE.json"
+        ],
+        "ci_run": 43136401702,
+        "ci_conclusion": "success",
+        "findings_summary": "Reviewed Flight PR14 mock-only 79-pass/1-XFAIL baseline: 20 proposed service-ownership scenarios and 11 missing-test gaps; external readsb/tar1090 Exit release P0 remains unresolved."
+      },
+      {
+        "ws": "03",
+        "issue": 78,
+        "audit_pr": 85,
+        "assignment_comment": 6811787512,
+        "allowed_writes": [
+          "apps/_coordination/workstreams/03/REPORT.md",
+          "apps/_coordination/workstreams/03/EVIDENCE.json"
+        ],
+        "focus": "Satellite 8-asset Pages parity, capture gaps, 1.024/2.048MSPS, zero-CADU and synthetic decode acceptance",
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
+        "previous_head": "284944e1dc167f6b60bf762889a3c75bf28f47e2",
+        "new_head": "6dc3ba6818f6e01f98d4782b1e8149b7eb2efd93",
+        "ahead_commits": 2,
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/03/REPORT.md",
+          "apps/_coordination/workstreams/03/EVIDENCE.json"
+        ],
+        "ci_run": 43137277119,
+        "ci_conclusion": "success",
+        "findings_summary": "Original Satellite PR #37 8 Pages/source mismatches, Meteor 1.024 vs 2.048 MS/s provenance, continuous-vs-segmented recording gaps, zero-CADU and stale image oracles; synthetic test cases proposed, none executed."
+      },
+      {
+        "ws": "04",
+        "issue": 79,
+        "audit_pr": 86,
+        "assignment_comment": 6811788094,
+        "allowed_writes": [
+          "apps/_coordination/workstreams/04/REPORT.md",
+          "apps/_coordination/workstreams/04/EVIDENCE.json"
+        ],
+        "focus": "Scientific RF receiver location claims, 3/4 independent ICAOs, timestamps, provenance, hard-stop with external readsb",
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
+        "previous_head": "b62ba58287ef9e76d42ca807829b26da68177e18",
+        "new_head": "c70fe6bbf86571147f4b835a7004997101c9b490",
+        "ahead_commits": 3,
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/04/REPORT.md",
+          "apps/_coordination/workstreams/04/EVIDENCE.json"
+        ],
+        "ci_run": 43137017118,
+        "ci_conclusion": "success",
+        "findings_summary": "29 P4-GEO synthetic proposed (not executed) scenarios, from original PR #16 versus Flight source/PR #14, provenance/methodology and shared service risk. RF location/GPS/MLAT and REG-03/04/05 remain unverified."
+      },
+      {
+        "ws": "05",
+        "issue": 80,
+        "audit_pr": 87,
+        "test_only_pr": 89,
+        "assignment_comment": 6811691493,
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
+        "allowed_writes": [
+          "apps/_coordination/workstreams/05/REPORT.md",
+          "apps/_coordination/workstreams/05/EVIDENCE.json"
+        ],
+        "new_head": "818b2f45c25cf1cc90fc710aff76c3fe07a61196",
+        "previous_head": "3dbcbf658029ad213d985a5eef8227a244d3c045",
+        "ahead_commits": 2,
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/05/REPORT.md",
+          "apps/_coordination/workstreams/05/EVIDENCE.json"
+        ],
+        "ci_run": 43136113106,
+        "ci_conclusion": "success",
+        "findings_summary": "Reviewed Text PR89's two passing canonical-main tests; 13 SI test plans extended and 6 positive/negative import oracles for archived Text and reverse Media CUDA dependencies. Negative controls not executed."
+      },
+      {
+        "ws": "06",
+        "issue": 81,
+        "audit_pr": 88,
+        "assignment_comment": 6811788707,
+        "allowed_writes": [
+          "apps/_coordination/workstreams/06/REPORT.md",
+          "apps/_coordination/workstreams/06/EVIDENCE.json"
+        ],
+        "focus": "Original #65-67 and #72-74 history, branding hashes, locale and URL/Pages/installer rollback release gates",
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
+        "previous_head": "e69c2b6eac7deeca313925bf99af31f8c9434f34",
+        "ahead_commits": 2,
+        "ci_run": 43137330629,
+        "ci_conclusion": "in_progress_at_checkpoint",
+        "findings_summary": "12/12 QA-specific gates evidence reviewed, zero closed; original PR lineage/review history, five logo binary hashes, EN/TR/DE installed UI, Pages/URL routing, installers and Flight 0.3.1 rollback all open.",
+        "new_head": "75bf1a24133afea2dc93502ea8c0c249b5b16464",
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/06/REPORT.md",
+          "apps/_coordination/workstreams/06/EVIDENCE.json"
+        ]
+      }
+    ],
+    "workers_expected": 6,
+    "workers_with_new_phase4_evidence": 6,
+    "coordinator_responsibility": "All six workstream reports reconciled at exact SHAs, all changed paths confined to owned REPORT/EVIDENCE files; continue source preservation and stage future acceptance, no merge or release.",
+    "permissions": "read-only/source-backed worker audit updates in assigned audit documents only; previously authorized isolated test-only PRs remain separate; no runtime source changes, hardware, workflow modifications, merges, migrations or releases.",
+    "existing_seventeen_gates_open": 17,
+    "no_automatic_chat_execution": true,
+    "owner_reported_first_three_started": [
+      "01",
+      "02",
+      "05"
+    ],
+    "owner_reported_first_three_started_note": "Owner reports separate WS01, WS02, WS05 chats started; do not equate with confirmed new GitHub commits.",
+    "additional_three_assignments_posted": true,
+    "additional_three_worker_chats_started": false,
+    "phase4_observed_new_heads": {
+      "01": {
+        "head": "a3ed7bc99cffd0dc80159bf73245e911fdbe81ad",
+        "prev": "91a877f08c94fa9afe26e92dd86dd4477cc8d41b",
+        "test_pr": 90,
+        "issue": 76,
+        "ci_run": 43136266272,
+        "detail": "Reviewed five passing Media PR90 synthetic tests versus original #67; 16 prioritized missing-test cases; old real FFmpeg test still skipped; all 20 original commits must remain preserved."
+      },
+      "02": {
+        "head": "7aa8a7e9b138761c93c022d6d56d7f4c7a1a69c8",
+        "prev": "9db6fb96a249992214ec93e1888a88e3228427ac",
+        "test_pr": 14,
+        "test_repo": "Tihulu/tihulu-flight-radar",
+        "issue": 77,
+        "ci_run": 43136401702,
+        "detail": "Reviewed Flight PR14 mock-only 79-pass/1-XFAIL baseline: 20 proposed service-ownership scenarios and 11 missing-test gaps; external readsb/tar1090 Exit release P0 remains unresolved."
+      },
+      "05": {
+        "head": "818b2f45c25cf1cc90fc710aff76c3fe07a61196",
+        "prev": "3dbcbf658029ad213d985a5eef8227a244d3c045",
+        "test_pr": 89,
+        "issue": 80,
+        "ci_run": 43136113106,
+        "detail": "Reviewed Text PR89's two passing canonical-main tests; 13 SI test plans extended and 6 positive/negative import oracles for archived Text and reverse Media CUDA dependencies. Negative controls not executed."
+      }
+    },
+    "last_status_verified_date": "2026-11-12",
+    "workers_with_partial_phase4_evidence": 0,
+    "next_engineering_priority": "First resolve Flight external-service passive-exit P0 with separate source-fix approval; parallel scoped test-only and source parity gates for Text Media Satellite. QA history/packaging gates remain open."
+  },
+  "phase5_flight_safe_exit": {
+    "as_of": "2026-11-12",
+    "repo": "Tihulu/tihulu-flight-radar",
+    "draft_pr": 15,
+    "branch": "fix/exit-preserve-external-readsb-tar1090-2026-11-12",
+    "base_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+    "head_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
+    "status": "DRAFT_SOURCE_PATCH_CI_SUCCESS_NO_MERGE_NO_DEVICE_ACCEPTANCE",
+    "changed_paths": [
+      "tihulu_flight_radar/control.py",
+      "tests/test_control.py",
+      "tests/test_tar_focus_sdr_exit.py",
+      "tests/test_passive_exit_service_ownership.py"
+    ],
+    "owned_service_exit_contract": "Paired systemctl Stop is allowed on passive Exit only when both readsb and tar1090 are confirmed app-started. External services never automatically stopped; mixed ownership causes warning and skips paired stop, possibly leaving app-started service active.",
+    "existing_installer_policy_changed": false,
+    "old_flight_test_only_pr14_unmodified": true,
+    "known_legacy_pr14_strict_xfail_on_original_main": true,
+    "synthetic_new_cases": 12,
+    "ci_initial_run": {
+      "id": 43146903023,
+      "conclusion": "failure",
+      "cause": "Two legacy tests expected unsafe external service Stop or simulated Stop failure from unowned services; assertions updated to owner-specific cases."
+    },
+    "ci_current_cross_platform_run": 43147050908,
+    "ci_current_conclusion": "success",
+    "pi_arm64_run": 43147050916,
+    "pi_arm64_conclusion": "success",
+    "real_host_service_or_hardware_executed": false,
+    "source_fix_merged": false,
+    "regression_gate": "REG-03 STILL OPEN pending independent source review, full cross-platform CI and real installed host behavior if separately approved",
+    "limitations": [
+      "Mixed ownership cannot safely release individual app-owned unit under current paired-only sudoers policy; warn and leave active instead",
+      "Manual explicit Stop still paired and can stop external services when intentionally invoked",
+      "No process identity provenance or real cross-app radio validation",
+      "Original test-only PR #14 has strict baseline XFAIL that will XPASS on fixed source if merged unchanged"
+    ],
+    "ci_current_jobs": {
+      "debian_12_x64": "success",
+      "ubuntu_24_04_x64": "success",
+      "windows_2025_x64": "success",
+      "macos_15_apple_silicon": "success"
+    },
+    "ubuntu_test_count_passed": 84,
+    "ubuntu_failed": 0,
+    "source_diff_verified_only_four_paths": true,
+    "remaining_release_gate_closed": false
+  },
+  "phase5_isolated_test_expansion": {
+    "date": "2026-11-12",
+    "type": "APPROVED_TEST_ONLY_ON_SEPARATE_DRAFT_BRANCHES",
+    "text": {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "pr": 89,
+      "base": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+      "head": "069d5658a75a7c5fb3eb6111cf331d124bd05b17",
+      "new_file": "tests/test_textcenter_cli_cleanroom.py",
+      "added_in_phase5": 3,
+      "cumulative_new_test_count": 5,
+      "ci_run": 43148141000,
+      "ci_conclusion": "success",
+      "python_versions": [
+        "3.11",
+        "3.12",
+        "3.13"
+      ],
+      "python_3_11_total_tests": 83,
+      "details": "Text-only Python -I CLI help, non-loopback rejection without sockets, immutable empty template, no media or subprocess; archived tv_center import negative oracles not yet executed"
+    },
+    "media": {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "pr": 90,
+      "source_base": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "head": "76396065dfa60a076ffded85c2d06c200cb089f9",
+      "new_file": "tests/test_recording_export_stage5_guardrails.py",
+      "added_in_phase5": 4,
+      "cumulative_new_test_count": 9,
+      "ci_run": 43148328631,
+      "ci_conclusion": "success",
+      "python_versions": [
+        "3.11",
+        "3.12",
+        "3.13"
+      ],
+      "python_3_11_total_tests": 681,
+      "preexisting_real_ffmpeg_skip": 1,
+      "known_expected_failure_count": 1,
+      "phase5_new_pass": 3,
+      "phase5_known_expected_fail": 1,
+      "open_defect": "P67-GAP-07 partial export sidecar stays after later mux/FFmpeg error; explicitly expected failure, no app source fix",
+      "details": "Synthetic exclusive-create race preserves a foreign file and rolls back own TXT; fake FFmpeg output race preserves foreign MKV and original input; audio-only MP4 burn rejected. No real mux/burn, Qt, audio timing or hardware verification."
+    },
+    "source_changes_this_phase": {
+      "text_app_source": 0,
+      "media_app_source": 0,
+      "original_media_pr67_modifications": 0
+    },
+    "new_pr_merges": 0,
+    "real_hardware_or_systemd_actions": 0,
+    "regression_gates_closed": 0,
+    "next_priorities": [
+      "archived Text->Media and reciprocal Media->Text import negative controls with immutable historical fixtures",
+      "Media real FFmpeg fixture correction and P67-GAP-07 source patch only after separately agreed scope",
+      "Satellite PR37 rate and gap synthetic acceptance on independent test branch; no Pages publish",
+      "Flight PR15 real hardware/service ownership acceptance remains separate"
+    ]
+  },
+  "owner_added_requirements": [
+    {
+      "id": "RQ-098",
+      "title": "Full app Quit must unload all app-owned AI models and release owned RAM/VRAM/NPU/device/process/background resources",
+      "priority": "P0",
+      "document": "apps/_coordination/OWNER_REQUIREMENT_FULL_SHUTDOWN_MEMORY_VRAM_RELEASE.md",
+      "proposed_acceptance_gate": "EXIT-01",
+      "state": "NEW_REQUIREMENT_DOCUMENTED_NOT_IMPLEMENTED_OR_VERIFIED",
+      "scope": [
+        "Survival Kit",
+        "Flight Radar",
+        "Media Center",
+        "Text Center",
+        "Satellite Center",
+        "RF Geolocation",
+        "AI Tools / Model Manager"
+      ],
+      "targets": [
+        "Linux x64/ARM64",
+        "Windows x64",
+        "macOS Apple Silicon",
+        "Raspberry Pi 5 + AI HAT+ 2",
+        "web/PWA best effort"
+      ],
+      "must_not_stop": [
+        "externally owned readsb/tar1090",
+        "unrelated apps or shared model workers",
+        "remote GPU host",
+        "shared system GPU driver",
+        "external model-manager app"
+      ],
+      "acceptance_cases_proposed": 15,
+      "synthetic_tests_executed": 0,
+      "real_memory_release_verified": 0,
+      "related_existing_gates": [
+        "REG-03",
+        "REG-14",
+        "REG-16",
+        "REG-17"
+      ]
+    }
+  ],
+  "owner_requested_requirement_extension": {
+    "original_source_audited_count": 97,
+    "original_registry_count": 97,
+    "new_owner_requirements_pending_mapping": 1,
+    "total_requirements_known_including_extension": 98,
+    "original_regression_gates_open": 17,
+    "additional_proposed_p0_gate": "EXIT-01",
+    "additional_proposed_gate_open": true,
+    "all_new_requirement_acceptance_verified": false,
+    "note": "Do not modify original 97/97 source-audited or original 17-gate counts before formal registry/CI contract reconciliation; new owner requirement independently P0 and unaccepted."
+  },
+  "exit01_six_agent_execution": {
+    "as_of": "2026-11-12",
+    "status": "FIVE_EXIT01_DRAFTS_PLUS_MEDIA_96_AND_RF_GEO_97_FOLLOWUPS_GREEN_ONLY_SAT_PAGES_PARITY_AUTOMATED_RED",
+    "owner_requirement": "RQ-098",
+    "new_proposed_p0_gate": "EXIT-01",
+    "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
+    "worker_count": 6,
+    "workers": [
+      {
+        "id": "A1",
+        "area": "Media CUDA/Whisper/Qt",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": 67,
+        "source_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+        "new_branch": "fix/exit01-media-model-unload-2026-11-12",
+        "handoff_issue": 76,
+        "comment_id": 6813718607,
+        "status": "EXIT01_DRAFT_91_CI_PASS_SEPARATE_SIDECAR_FIX_DRAFT_96_LATEST_CI_PASS",
+        "new_pr": 91,
+        "head_sha": "acf3513d3d25c75d6e4e9bfa1b9aff7668349755",
+        "base_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+        "ci": "Four Media source CI workflows completed SUCCESS; new export P67-GAP-07 task not yet verified as separate PR",
+        "changed_files": 3,
+        "new_followup_pr": 96,
+        "new_followup_head": "9cff1fd851cf84bb25d4dddc5c647c6591ccb116",
+        "followup_ci": "Text 43158122213 SUCCESS; Native TV 43158122197 SUCCESS. Needs owner/QA review and original file-preservation proof; unmerged."
+      },
+      {
+        "id": "A2",
+        "area": "Flight service/worker safe Quit",
+        "repo": "Tihulu/tihulu-flight-radar",
+        "original_pr": 15,
+        "source_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
+        "new_branch": "fix/exit01-flight-clean-exit-2026-11-12",
+        "handoff_issue": 77,
+        "comment_id": 6813719331,
+        "status": "EXIT01_FLIGHT_DRAFT_16_LATEST_PI_FOUR_OS_CI_ALL_GREEN",
+        "new_pr": 16,
+        "head_sha": "fc5ff27ced19d3b7e4072317ca2190fc3d262f44",
+        "base_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
+        "ci": "Latest Pi 43157715091 SUCCESS, cross-platform 43157715123 SUCCESS; real service non-interference unverified.",
+        "changed_files": 6
+      },
+      {
+        "id": "A3",
+        "area": "Satellite capture/scheduler/decoder cleanup",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": 37,
+        "source_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+        "new_branch": "fix/exit01-satellite-lease-release-2026-11-12",
+        "handoff_issue": 78,
+        "comment_id": 6813720095,
+        "status": "EXIT01_SAT_NATIVE_DRAFT_92_PORTABLE_RUNTIME_GREEN_PAGES_PARITY_RED",
+        "new_pr": 92,
+        "head_sha": "4e35bf27abba8a4eee7ac27f9c099ea51ede711c",
+        "base_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+        "ci": "Satellite native/portable runtimes pass, published Pages file parity failure still open; separate browser WebUSB PR95 source-only success except Pages parity.",
+        "changed_files": 4,
+        "source_feature_acceptance": "NOT_ACCEPTED_NO_REAL_DEVICES"
+      },
+      {
+        "id": "A4",
+        "area": "RF Geolocation SDR leases and RF worker close",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": 16,
+        "source_sha": "6664a04a6247826d71f6adeb795b137fd26de213",
+        "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
+        "handoff_issue": 79,
+        "comment_id": 6813720769,
+        "status": "SEPARATE_SOURCE_FIX_DRAFT_97_JS_89_OF_89_GREEN_ALL_THREE_LAUNCHERS_GREEN_TEXT_CI_GREEN_UNMERGED_HARDWARE_UNVERIFIED",
+        "new_pr": 94,
+        "compared_ahead": 9,
+        "changed_files": 13,
+        "ci": "RFGeo CI 43158389877 SUCCESS: JS 89/89 PASS, 0 failed/skipped, Windows/Ubuntu/macOS launcher jobs SUCCESS; Text CI 43158389931 SUCCESS. Source code fix remains unmerged, real SDR/USB safety NOT_VERIFIED.",
+        "source_branch_ahead_at_checkpoint": 20,
+        "specific_test_files": [
+          "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
+          "rf_geolocation_center/tests/test_exit_lifecycle.py"
+        ],
+        "head_sha": "772f21e11b510553b481fd483592b11cfcc3d1db",
+        "base_sha": "6664a04a6247826d71f6adeb795b137fd26de213",
+        "needs_review": [
+          "old JS assertions and actual USB/DVB/maps behavior",
+          "idempotent Stop/Hard Stop/Quit, scoped device release",
+          "run tests without skipping or disabling failing regressions"
+        ],
+        "ci_web_run": 43153097772,
+        "ci_text_run": 43153097727,
+        "new_followup_pr": 97,
+        "new_followup_head": "33ba329a4b6af82e7a9f8440e4aa17f037d4ed12"
+      },
+      {
+        "id": "A5",
+        "area": "Text Center RAM/ASR/HTTP/receiver cleanup",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": null,
+        "source_branch": "main",
+        "new_branch": "fix/exit01-text-asr-quit-2026-11-12",
+        "handoff_issue": 80,
+        "comment_id": 6813721489,
+        "status": "EXIT01_TEXT_DRAFT_93_PYTHON_3_VERSIONS_CI_GREEN",
+        "new_pr": 93,
+        "compared_ahead": 10,
+        "changed_files": 11,
+        "ci": "Latest Text tests 43157896901 SUCCESS; real ASR/HTTP/device release unverified.",
+        "head_sha": "6172e55a2510a79eaf5a02bfc44087b25d8a7830",
+        "base_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
+      },
+      {
+        "id": "A6",
+        "area": "Independent cross-application EXIT-01 QA / process-and-memory acceptance verification",
+        "repo": "Tihulu/TIHULU-TEXT-CENTER",
+        "original_pr": null,
+        "source_sha": null,
+        "new_branch": null,
+        "comment_id": null,
+        "status": "FIRST_QA_HOLD_REPORT_DONE_SECOND_7_DRAFT_REVIEW_DUE",
+        "handoff_issue": 81,
+        "scope": "Read-only coordination; compare A1-A5 Draft PRs, 15 EXIT-01 acceptance matrix, no source edits to owner-managed AI Tools or Survival Kit, no new implementation branch",
+        "new_pr": null,
+        "qa_matrix": "apps/_coordination/EXIT01_QA_ACCEPTANCE_MATRIX.md",
+        "qa_cases_total": 15,
+        "qa_cases_fully_accepted": 0,
+        "qa_fully_accepted_cases": 0,
+        "review_scope": [
+          "Media #91",
+          "#96 sidecar",
+          "Flight #16",
+          "Satellite #92",
+          "#95 WebUSB",
+          "RFGeo #94",
+          "#97 source fix",
+          "Text #93"
+        ]
+      }
+    ],
+    "new_draft_prs_created": 5,
+    "new_ci_executed": "Media 4 workflows pass, Flight four-OS+Pi pass current, Text Python pass, RFGeo 82/83 JS pass one in-flight read release timeout, Satellite all portable runtime and Debian native pass but gh-pages asset parity fail",
+    "source_code_modified_by_coordinator": false,
+    "preexisting_original_gates_open": 17,
+    "additional_exit01_gate_open": true,
+    "owner_must_start_worker_chats": true,
+    "scope": "New independent app-specific feature Draft PR per worker; only app-owned resources, mock tests, no real GPU/NPU/SDR or external service stop/merge",
+    "qa_supervision": "Coordinator handles QA/History Issue #81 and confirms app-owned worker, GPU VRAM, NPU resources after separately approved physical acceptance",
+    "coordination_correction": "A6 original Survival Kit/AI Model Manager implementation prompt is superseded. Tihulu/Tihulu-AI-Tools Rust AI Tools and Tihulu/tihulu-survival-kit already exist and are personally managed by owner. No duplicate A6 feature PR should be created in either repository. A6 is cross-app QA only.",
+    "implementation_agents": 5,
+    "qa_agents": 1,
+    "no_AI_Tools_or_Survival_Kit_duplicate_development": true,
+    "no_new_source_PR_on_AI_Tools_or_Survival_Kit": true,
+    "implementation_branches_confirmed": 5,
+    "implementation_draft_prs_confirmed": 5,
+    "verified_source_progress_as_of_date": "2026-11-12",
+    "hardware_release_accepted": false,
+    "remaining_critical_failures": [
+      "Satellite native #92 and WebUSB #95 published Pages/source 8-file parity red; owner approval needed for safe publication",
+      "Real installed RAM/VRAM/NPU/SDR owned-session release 0/15 accepted",
+      "Stacked PR integration, external borrowed service persistence, physical device and rollback acceptance unverified",
+      "Original 17 general release gates OPEN; no merge/release"
+    ],
+    "qa_documented_cases": 15,
+    "qa_fully_accepted_cases": 0
+  },
+  "satellite_webusb_ui_recovery": {
+    "status": "DRAFT_95_BROWSER_TEXT_NATIVE_AND_RUNTIME_GREEN_PUBLISHED_PAGES_PARITY_RED",
+    "owner_request": "Repair broken Satellite Center web/PWA site using native Qt screenshot 0.3.0 preview10 as design reference with Chromium WebUSB runtime",
+    "repository": "Tihulu/TIHULU-TEXT-CENTER",
+    "new_branch": "feature/satellite-webusb-ui-parity-2026-11-12",
+    "source_original_pr": 37,
+    "source_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+    "source_comparison_ahead": 18,
+    "source_comparison_behind": 0,
+    "new_draft_pr_verified": true,
+    "recovery_contract": "apps/_coordination/SATELLITE_WEBUSB_UI_RECOVERY_ACCEPTANCE.md",
+    "expected_testing_cases": 15,
+    "accepted_cases": 0,
+    "current_published_site_verified_repaired": false,
+    "current_published_pages_deployed": false,
+    "publication_source_parity_mismatch_count": 8,
+    "owned_paths": [
+      "satellite_center/browser/**",
+      "browser-only tests/docs"
+    ],
+    "protected_paths": [
+      "satellite_center/__main__.py",
+      "satellite_center/native_web_shell.py",
+      "satellite_center/desktop.py",
+      "existing Satellite EXIT-01 PR #92",
+      "original Satellite PR #37",
+      "gh-pages"
+    ],
+    "scopes": "new isolated browser-only Draft PR, no real WebUSB hardware, no site deploy without explicit owner approval",
+    "note": "Source capture_duration.mjs has 128 MiB memory budget and separate conditional 2 GB/900s foreground disk streaming. Keep both source capabilities, test and label truthfully; do not confuse obsolete 60s prose with hard runtime limit.",
+    "web_files_changed_at_checkpoint": [
+      "satellite_center/browser/browser.css",
+      "satellite_center/browser/index.html",
+      "satellite_center/browser/reception.html",
+      "satellite_center/browser/satellite-sw.js",
+      "satellite_center/browser/web_pwa.mjs",
+      "satellite_center/browser/web_shell.mjs",
+      "satellite_center/browser/webusb_lifecycle.mjs"
+    ],
+    "review_comment_issue_id": 6814674366,
+    "code_review_findings": [
+      "Generation ownership gate webusb_lifecycle.mjs defined but not yet imported by browser.js or HTML at previous checkpoint; actual integration not proven",
+      "Service worker cache-first static assets may retain old module versions; new release/cache invalidation test needed",
+      "UI text assumes simple 60s/128MiB clips but optional explicit 900s/2GB disk stream still exists and must not be silently removed"
+    ],
+    "source_diff_verified": true,
+    "website_repair_executed_ci": "Browser-only 43157391802 PASS, Text 43157391828 PASS, native Debian 43157391784 PASS, portable 43157391855 FAIL solely pages-source-parity; Linux/x64/ARM64/Windows/macOS runtime jobs all PASS. No public Pages deploy or real USB acceptance.",
+    "new_draft_pr": 95,
+    "latest_checked_head": "f2be8f210ce10e0c1462cc2a3edaba854d424311",
+    "changed_file_count_at_first_pr": 13
+  },
+  "standalone_application_acceptance": {
+    "owner_request": "All five applications must install, open, run their own core features and quit without another TIHULU application installed; optional cross-app APIs only.",
+    "priority": "P0",
+    "status": "MANDATORY_CONTRACT_DOCUMENTED_NOT_IMPLEMENTED_OR_INSTALLED_ACCEPTED",
+    "contract": "apps/_coordination/STANDALONE_APPLICATION_ACCEPTANCE.md",
+    "case_ids": [
+      "STAND-01",
+      "STAND-02",
+      "STAND-03",
+      "STAND-04",
+      "STAND-05",
+      "STAND-06",
+      "STAND-07",
+      "STAND-08",
+      "STAND-09",
+      "STAND-10",
+      "STAND-11",
+      "STAND-12"
+    ],
+    "accepted_cases": 0,
+    "total_cases": 12,
+    "original_general_gate_count_unchanged": 17,
+    "existing_general_gates": [
+      "REG-14",
+      "REG-03",
+      "REG-02",
+      "REG-12",
+      "EXIT-01"
+    ],
+    "text_center_retained_in_original_repo": true,
+    "flight_radar_already_independent_repo": true,
+    "destination_repositories_created_empty": 3,
+    "destination_migrations_completed": 0,
+    "first_commit_or_cutover_authorized": false,
+    "native_hardware_and_installed_acceptance_not_verified": true,
+    "note": "Separate GitHub repos do not certify standalone runtime. Optional integration cannot require other app. Exclusive SDR hardware must show BUSY and protect foreign sessions."
+  }
+}

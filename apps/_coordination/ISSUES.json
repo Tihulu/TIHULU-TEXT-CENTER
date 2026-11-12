@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "created_on": "2026-11-11",
+  "canonical_issue_repo": "Tihulu/TIHULU-TEXT-CENTER",
+  "master_issue_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+  "entries": [
+    {
+      "issue": 75,
+      "role": "coordinator",
+      "requirements": 97,
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75",
+      "owner": "central coordinator"
+    },
+    {
+      "issue": 76,
+      "role": "audit_worker",
+      "app": "media-center",
+      "requirement_ids": "MEDIA-001..MEDIA-041",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/76",
+      "prompt": "apps/_coordination/prompts/01_media_center.md",
+      "status": "issue_created_worker_not_started",
+      "report_pr": null
+    },
+    {
+      "issue": 77,
+      "role": "audit_worker",
+      "app": "flight-radar",
+      "requirement_ids": "FLIGHT-001..FLIGHT-017",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/77",
+      "prompt": "apps/_coordination/prompts/02_flight_radar.md",
+      "status": "issue_created_worker_not_started",
+      "report_pr": null
+    },
+    {
+      "issue": 78,
+      "role": "audit_worker",
+      "app": "satellite-center",
+      "requirement_ids": "SAT-001..SAT-008",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/78",
+      "prompt": "apps/_coordination/prompts/03_satellite_center.md",
+      "status": "issue_created_worker_not_started",
+      "report_pr": null
+    },
+    {
+      "issue": 79,
+      "role": "audit_worker",
+      "app": "geolocation-center",
+      "requirement_ids": "GEO-001..GEO-008",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+      "prompt": "apps/_coordination/prompts/04_rf_geolocation.md",
+      "status": "issue_created_worker_not_started",
+      "report_pr": null
+    },
+    {
+      "issue": 80,
+      "role": "audit_worker",
+      "app": "text-center",
+      "requirement_ids": "TEXT-001..TEXT-008",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/80",
+      "prompt": "apps/_coordination/prompts/05_text_center_rename.md",
+      "status": "issue_created_worker_not_started",
+      "report_pr": null
+    },
+    {
+      "issue": 81,
+      "role": "audit_worker",
+      "app": "cross-app",
+      "requirement_ids": "CROSS-001..CROSS-015",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/81",
+      "prompt": "apps/_coordination/prompts/06_central_qa_history_brand.md",
+      "status": "issue_created_worker_not_started",
+      "report_pr": null
+    }
+  ],
+  "communication_rule": "Each worker reports to its own issue; cross-workstream requests are posted on affected issue and linked on central #75. Do not assert ChatGPT chats automatically share state.",
+  "authorization": "Only documentation and read-only audit; no runtime source, installs, active logos, merges, new repo bootstrap or rename."
+}

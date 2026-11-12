@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "observed_date_utc": "2026-11-11",
+  "status": "static_changed_path_audit_only_not_merge_conflict_or_functional_test",
+  "sources": [
+    {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "number": 65,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+      "head_sha": "20b0417aa7edba2f86b297e7cabdd062e9b24291",
+      "changed_files": 54,
+      "status": "open_draft",
+      "base": "fix/media-radio-library-translation-reading-2026-11-10"
+    },
+    {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "number": 67,
+      "original_url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67",
+      "head_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "changed_files": 8,
+      "status": "open_draft",
+      "base": "integration/preserve-all-apps-2026-11-11"
+    },
+    {
+      "repo": "Tihulu/tihulu-flight-radar",
+      "number": 7,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+      "head_sha": "4ef8245b87fc78cec6cc4f5f9043d68e08cf45d3",
+      "changed_files": 5,
+      "status": "open_draft",
+      "base": "main"
+    },
+    {
+      "repo": "Tihulu/tihulu-flight-radar",
+      "number": 13,
+      "original_url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+      "head_sha": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+      "changed_files": 44,
+      "status": "open_draft",
+      "base": "main"
+    }
+  ],
+  "overlaps": [
+    {
+      "a": "source_pr#65",
+      "b": "source_pr#67",
+      "count": 3,
+      "paths": [
+        "kaffeine_next/captions_overlay.py",
+        "kaffeine_next/native_media_panel.h",
+        "kaffeine_next/native_radio_tab.h"
+      ],
+      "status": "three_common_modified_paths_but_verified_linear_history_65_to_66_to_67_not_two_unrelated_feature_deltas",
+      "owners": [
+        "Media Center worker"
+      ],
+      "note": "GitHub compare proves PR #66 descends from #65 by 3 commits and #67 descends from #66 by 20 commits. The main missing-change hazard is future migration from docs branch (#82) without #67 source, not a proven current textual merge conflict."
+    },
+    {
+      "a": "flight_pr#7",
+      "b": "flight_pr#13",
+      "count": 0,
+      "paths": [],
+      "status": "no_identical_path_changed_but_semantic_behavior_conflicts_not_ruled_out",
+      "owners": [
+        "Flight Radar worker"
+      ],
+      "note": "Different files can still create lifecycle/API/ownership regressions. Both PRs remain unmerged."
+    }
+  ],
+  "next_requirements": [
+    "Do not merge, rebase, cherry-pick or rewrite original PRs to resolve this audit",
+    "Capture precise patch overlap and behavioral tests only on worker-owned Draft planning branches",
+    "Protect legacy 0.3.1 and current default release, recorded subtitles/lyrics timing and external readsb/tar1090 ownership",
+    "Reconcile remaining application feature PRs/branches before any code transfer"
+  ],
+  "method": "Compared changed file path lists from GitHub PR changed filenames; NOT checked git merge-tree, not run software, not checked hardware.",
+  "ancestry_recheck_status": "corrected_lineage_verified",
+  "followup_ancestry_report": "apps/_coordination/PR_ANCESTRY_AUDIT.json"
+}

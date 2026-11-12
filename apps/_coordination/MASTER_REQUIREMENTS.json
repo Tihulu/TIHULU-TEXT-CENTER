@@ -1,0 +1,2541 @@
+{
+  "schema_version": 1,
+  "as_of_utc": "2026-11-11",
+  "inventory_kind": "INITIAL_CONSOLIDATED_REQUIREMENTS__NOT_A_COMPLETENESS_CERTIFICATE",
+  "scope": "five_canonical_app_repos_plus_cross_app_history_development_and_optional_related_survival_kit_items",
+  "root_source_repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "root_source_repo_id": 1447637221,
+  "canonical_topology_ref": "apps/CANONICAL_REPOSITORY_TOPOLOGY.json",
+  "original_pr_history_ref": "apps/_archives/HISTORY_COVERAGE_AUDIT.json",
+  "instruction": "Records are consolidated requested behaviors; NOT proof of code implementation, testing or release. Verify source PR and exact user conversation before any claim. Privacy-review any conversational export to public GitHub.",
+  "total_initial_requirements": 97,
+  "count_by_app": {
+    "media-center": 41,
+    "flight-radar": 17,
+    "satellite-center": 8,
+    "geolocation-center": 8,
+    "text-center": 8,
+    "cross-app": 15
+  },
+  "records": [
+    {
+      "id": "MEDIA-001",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P0",
+      "acceptance": "Keep native Kaffeine Next TV channel list, scan, EPG, subtitles, Teletext and channel switching without feature loss.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-002",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P0",
+      "acceptance": "Fix channel scan crash, weak-signal handling, PAT/PMT/HEVC issues, old PID/audio/video state when switching.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-003",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P0",
+      "acceptance": "Maintain real RF SNR, quality, frequency, signal strength and scan progress (no invented telemetry).",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-004",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P0",
+      "acceptance": "Fix TV/radio/TV transition crashes and exclusive SDR/DVB device handoff with hard stop.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-005",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P1",
+      "acceptance": "Ensure fullscreen video hides unnecessary bottom bars and preserves playback controls.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-006",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P0",
+      "acceptance": "Keep native TV functionality and native desktop RF input without requiring browser WebUSB.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-007",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P0",
+      "acceptance": "Keep teletext pages/subtitle source selection; compare with spoken dialogue and auto-fallback to Whisper on mismatch.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-008",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P0",
+      "acceptance": "Prevent caption settings/dialog or channel switching from hiding current subtitles, retaining old program PIDs or blocking live playback.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-009",
+      "app": "media-center",
+      "area": "TV / DVB-T2",
+      "priority": "P0",
+      "acceptance": "Keep TV buffered caption timing stable with enough read-ahead, visible offset and easy-read modes.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-010",
+      "app": "media-center",
+      "area": "Radio / DAB+ / FM / AM",
+      "priority": "P1",
+      "acceptance": "Show all DAB multiplex blocks by default; scan ensembles and stations, with searchable favorites/channel lists.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-011",
+      "app": "media-center",
+      "area": "Radio / DAB+ / FM / AM",
+      "priority": "P1",
+      "acceptance": "Support DLS/DLS+, Journaline, MOT slideshow navigation and genuine live spectrum/waterfall and quality widgets.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-012",
+      "app": "media-center",
+      "area": "Radio / DAB+ / FM / AM",
+      "priority": "P0",
+      "acceptance": "Wait for actual welle-cli API readiness/dynamically selected port; show process/USB/decoder errors and avoid infinite loading.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-013",
+      "app": "media-center",
+      "area": "Radio / DAB+ / FM / AM",
+      "priority": "P1",
+      "acceptance": "Support FM RDS/RadioText and searchable online/radio station sources, analog tuning where supported.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-014",
+      "app": "media-center",
+      "area": "Radio / DAB+ / FM / AM",
+      "priority": "P1",
+      "acceptance": "Maintain LW/MW/SW/AM/FM feature choices without inventing unsupported frequencies or demodulators.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-015",
+      "app": "media-center",
+      "area": "Radio / DAB+ / FM / AM",
+      "priority": "P0",
+      "acceptance": "Prevent radio AI subtitles from stopping/restarting, long expanding buffers, repeating/transcription drift, duplicate provider lines.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-016",
+      "app": "media-center",
+      "area": "Radio / DAB+ / FM / AM",
+      "priority": "P0",
+      "acceptance": "When radio fails, recover only resources owned by Media Center, never kill user's external readsb/tar1090 services.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-017",
+      "app": "media-center",
+      "area": "Radio / DAB+ / FM / AM",
+      "priority": "P1",
+      "acceptance": "Expose separate Internet Load / Radio Load, device lease and source details; keep radio/TV fast transition progress.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-018",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P0",
+      "acceptance": "Use one live caption timeline and apply user offset once per segment, never again as reading delay.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-019",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P0",
+      "acceptance": "Keep spoken words visible even if sound labels [music]/[noise]/TESTSEITE or lyric matching is active; labels may use separate lines.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-020",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P0",
+      "acceptance": "Show original spoken text even when optional translation model, Whisper or source fails.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-021",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P0",
+      "acceptance": "Keep independent TV/radio captions, DVB Teletext, DAB DLS, Whisper and lyrics source attribution and no duplicated captions.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-022",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P1",
+      "acceptance": "Maintain optimized easy readability, punctuation and natural chunk boundaries with adjustable font/background/opacity/position.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-023",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P1",
+      "acceptance": "Support selectable source language Auto Detect; default English output; optional Whisper speech→English→configured translation model target pipeline.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-024",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P1",
+      "acceptance": "Keep direct translation options (such as DE→TR) and installed model inventory Argos/NLLB/MADLAD/other model readiness without imaginary capability.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-025",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P1",
+      "acceptance": "Preserve optional speaker labeling and experimental two-speaker overlap separation without allowing failed separation to block ordinary dialogue.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-026",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P0",
+      "acceptance": "Keep adjustable transcription/subtitle delay and buffer policy; audio/video should not drift because of additive repeated waits.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-027",
+      "app": "media-center",
+      "area": "Whisper / Subtitle / Translation",
+      "priority": "P1",
+      "acceptance": "Distinguish truly available CPU/GPU/NPU backends from simply detected RTX 5080; support fail-safe fallback and optional paired remote GPU.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-028",
+      "app": "media-center",
+      "area": "Lyrics / Karaoke / Lipsync",
+      "priority": "P0",
+      "acceptance": "Separate karaoke lipsync from Whisper speech lipsync and subtitle easy-read pacing.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-029",
+      "app": "media-center",
+      "area": "Lyrics / Karaoke / Lipsync",
+      "priority": "P0",
+      "acceptance": "Show LYRICS FOUND distinct from LYRICS MATCHED and allow user-configured confidence thresholds.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-030",
+      "app": "media-center",
+      "area": "Lyrics / Karaoke / Lipsync",
+      "priority": "P1",
+      "acceptance": "Provide opt-in lyrics-found preview playback highlighting at lower confidence, clearly marked as estimated.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-031",
+      "app": "media-center",
+      "area": "Lyrics / Karaoke / Lipsync",
+      "priority": "P0",
+      "acceptance": "Use installed Qwen forced-aligner where available; fallback to Whisper; never infer a match solely from web lyric lookup.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-032",
+      "app": "media-center",
+      "area": "Lyrics / Karaoke / Lipsync",
+      "priority": "P0",
+      "acceptance": "Stop karaoke progress during instrumental/no-vocals and resume at verified sung words rather than clock-based auto-scroll.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-033",
+      "app": "media-center",
+      "area": "Lyrics / Karaoke / Lipsync",
+      "priority": "P0",
+      "acceptance": "Fix Lyrics Refresh, Full Lyrics and separate floating blue lyrics window; matched word highlighted and optional yellow translation.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-034",
+      "app": "media-center",
+      "area": "Lyrics / Karaoke / Lipsync",
+      "priority": "P0",
+      "acceptance": "Refresh sync from retained recent buffer, not entire growing buffer; allow separately adjustable ~10-second karaoke offset.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-035",
+      "app": "media-center",
+      "area": "Lyrics / Karaoke / Lipsync",
+      "priority": "P1",
+      "acceptance": "Preserve lyric sources, legal provider policy, song continuity/metadata cache and transcription when matched lyrics unavailable.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-036",
+      "app": "media-center",
+      "area": "Recording / Local media / Desktop",
+      "priority": "P0",
+      "acceptance": "Keep single embedded media player: video shares TV settings and audio shares radio settings; do not spawn extra playback windows.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-037",
+      "app": "media-center",
+      "area": "Recording / Local media / Desktop",
+      "priority": "P1",
+      "acceptance": "Offer optional full-file transcription before playing local audio/video, then replay with completed captions.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-038",
+      "app": "media-center",
+      "area": "Recording / Local media / Desktop",
+      "priority": "P0",
+      "acceptance": "Preserve live and offline timed transcripts with TXT/SRT/VTT/ASS/JSON and supported verified LRC exports; distinguish complete from live.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-039",
+      "app": "media-center",
+      "area": "Recording / Local media / Desktop",
+      "priority": "P0",
+      "acceptance": "Preserve TV/radio recording/export, selected subtitle/audio tracks, optional MKV or rendered MP4 subtitle behavior and never overwrite original recordings.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-040",
+      "app": "media-center",
+      "area": "Recording / Local media / Desktop",
+      "priority": "P0",
+      "acceptance": "Keep separate Start/Stop and Exit; Stop releases own receiver while leaving window and user's external services intact.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "MEDIA-041",
+      "app": "media-center",
+      "area": "Recording / Local media / Desktop",
+      "priority": "P0",
+      "acceptance": "Preserve legacy rollback, main/PR references, one-line cross-platform installer and user settings on updates.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/65",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/67"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 1
+    },
+    {
+      "id": "FLIGHT-001",
+      "app": "flight-radar",
+      "area": "Aircraft / Data / UI",
+      "priority": "P0",
+      "acceptance": "Keep genuine ADS-B/Mode-S via readsb and optional internet, with I/R/I-R attribution and per-ICAO deduplication.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-002",
+      "app": "flight-radar",
+      "area": "Aircraft / Data / UI",
+      "priority": "P0",
+      "acceptance": "Keep internet providers separate (adsb.lol, adsb.fi, OpenSky and policy-gated sources) with independent layer selection and rate limits.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-003",
+      "app": "flight-radar",
+      "area": "Aircraft / Data / UI",
+      "priority": "P0",
+      "acceptance": "Use the real upstream tar1090 view and license attribution, not a lookalike; function even without antenna with real internet traffic.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-004",
+      "app": "flight-radar",
+      "area": "Aircraft / Data / UI",
+      "priority": "P1",
+      "acceptance": "Keep Köln default, map drag, nearest-aircraft focus, receiver focus, fit/follow, icons, legends, mobile list and popups.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-005",
+      "app": "flight-radar",
+      "area": "Aircraft / Data / UI",
+      "priority": "P1",
+      "acceptance": "Provide genuine departure/arrival route, origin/destination/time when a verified radio or internet source supplies it; unknown otherwise.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-006",
+      "app": "flight-radar",
+      "area": "Aircraft / Data / UI",
+      "priority": "P1",
+      "acceptance": "Show separate Radio Load and Internet Load, receiver/pairing status and correct hard stop semantics; do not claim SD R when missing.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-007",
+      "app": "flight-radar",
+      "area": "Aircraft / Data / UI",
+      "priority": "P1",
+      "acceptance": "Preserve geographic country/region/city search DE/TR and saved location/manual coordinates, with offline fallback.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-008",
+      "app": "flight-radar",
+      "area": "Aircraft / Data / UI",
+      "priority": "P1",
+      "acceptance": "Keep aircraft detail overlays, multiple selected model layers, natural resize, controls not covering overlays.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-009",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P0",
+      "acceptance": "RF On enables/disables localization only, not ADS-B/Internet tracking; optional Location Circles default on with RF.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-010",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P0",
+      "acceptance": "Keep independent Aircraft/Location/LIVE Fit/BEST Fit circles, persistence/recomputation and explicitly labeled uncertainty.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-011",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P0",
+      "acceptance": "Use true received packets and honest horizon/PSF/Gaussian bounds; do not invent precise TOA/MLAT location from one SDR.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-012",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P1",
+      "acceptance": "Keep incremental bounded History, cache and performance limits, original evidence timestamps.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-013",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P0",
+      "acceptance": "Protect legacy/v0.3.1 and current releases, pinned versions and one-line restore path; reconcile open Draft PR #7 and #13.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-014",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P0",
+      "acceptance": "Keep native RTL-SDR/readsb separate from optional browser WebUSB and never stop externally managed services.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-015",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P0",
+      "acceptance": "Keep canonical standalone Pages and Text Center-generated mirror in source-SHA sync; verify both after any rename.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-016",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P0",
+      "acceptance": "Add feature/component/model/developer-agent matrices, root CLAUDE.md and DeepSeek guide to Flight Radar's own repo.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "FLIGHT-017",
+      "app": "flight-radar",
+      "area": "RF / Geolocation / History / Release",
+      "priority": "P0",
+      "acceptance": "Carry own PR history plus original Text Center source links and history gaps by immutable GitHub repository IDs.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/7",
+        "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+        "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/12"
+      ],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 2
+    },
+    {
+      "id": "SAT-001",
+      "app": "satellite-center",
+      "area": "Orbit / Reception / Processing",
+      "priority": "P0",
+      "acceptance": "Keep TLE orbital predictions, AOS/LOS/max elevation, Earth and sky maps, selected station and horizon orientation such as 280°.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 3
+    },
+    {
+      "id": "SAT-002",
+      "app": "satellite-center",
+      "area": "Orbit / Reception / Processing",
+      "priority": "P1",
+      "acceptance": "Offer best-pass/near-zenith planning and scheduled recording, optional alerts; verify local time zones and device readiness.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 3
+    },
+    {
+      "id": "SAT-003",
+      "app": "satellite-center",
+      "area": "Orbit / Reception / Processing",
+      "priority": "P0",
+      "acceptance": "Support ISS SSTV/Robot36 WAV and concurrent IQ when possible; NOAA APT; Meteor M2-3/M2-4 LRPT IQ workflows.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 3
+    },
+    {
+      "id": "SAT-004",
+      "app": "satellite-center",
+      "area": "Orbit / Reception / Processing",
+      "priority": "P0",
+      "acceptance": "Handle long RF captures and browser recording segment limits without losing frames, bytes or source time.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 3
+    },
+    {
+      "id": "SAT-005",
+      "app": "satellite-center",
+      "area": "Orbit / Reception / Processing",
+      "priority": "P0",
+      "acceptance": "Report empty CADU, analog telemetry missing, PLL unlock, unsupported decoder, zero-image output instead of claiming images.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 3
+    },
+    {
+      "id": "SAT-006",
+      "app": "satellite-center",
+      "area": "Orbit / Reception / Processing",
+      "priority": "P1",
+      "acceptance": "Keep wideband satellite/ham frequencies, amateur CubeSats, Iridium and per-pass capture profiles as supported, not invented.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 3
+    },
+    {
+      "id": "SAT-007",
+      "app": "satellite-center",
+      "area": "Orbit / Reception / Processing",
+      "priority": "P0",
+      "acceptance": "Keep SDR native desktop hardware, exclusive lease, Start/Stop, automatic decode/export ZIP/audio/visual products when verified.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 3
+    },
+    {
+      "id": "SAT-008",
+      "app": "satellite-center",
+      "area": "Orbit / Reception / Processing",
+      "priority": "P1",
+      "acceptance": "Keep exact IQ/sample-rate/frequency metadata, offline TLE/map planning and source provenance.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 3
+    },
+    {
+      "id": "GEO-001",
+      "app": "geolocation-center",
+      "area": "RF Positioning / Maps",
+      "priority": "P0",
+      "acceptance": "Preserve independent geolocation app, not only Flight Radar embedded UI; own positioning APIs and tests.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 4
+    },
+    {
+      "id": "GEO-002",
+      "app": "geolocation-center",
+      "area": "RF Positioning / Maps",
+      "priority": "P0",
+      "acceptance": "Support GNSS/NMEA, radio observations, aircraft evidence, valid TDOA/multilateration when hardware timestamps allow.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 4
+    },
+    {
+      "id": "GEO-003",
+      "app": "geolocation-center",
+      "area": "RF Positioning / Maps",
+      "priority": "P0",
+      "acceptance": "Expose PSF/Gaussian models, statistical uncertainty and source/provenance rather than fake precise coordinates.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 4
+    },
+    {
+      "id": "GEO-004",
+      "app": "geolocation-center",
+      "area": "RF Positioning / Maps",
+      "priority": "P1",
+      "acceptance": "Support large-circle performance optimization, indexing, incremental fit and bounded history.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 4
+    },
+    {
+      "id": "GEO-005",
+      "app": "geolocation-center",
+      "area": "RF Positioning / Maps",
+      "priority": "P0",
+      "acceptance": "Show source aircraft coverage rings separately from Location, LIVE Fit and BEST Fit positioning rings.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 4
+    },
+    {
+      "id": "GEO-006",
+      "app": "geolocation-center",
+      "area": "RF Positioning / Maps",
+      "priority": "P0",
+      "acceptance": "RF On enables real localized computation with optional location circle default, RF Off stops own radio computation.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 4
+    },
+    {
+      "id": "GEO-007",
+      "app": "geolocation-center",
+      "area": "RF Positioning / Maps",
+      "priority": "P1",
+      "acceptance": "Provide multiple independent map/model layers, offline maps, saved coordinate selection and map interaction.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 4
+    },
+    {
+      "id": "GEO-008",
+      "app": "geolocation-center",
+      "area": "RF Positioning / Maps",
+      "priority": "P0",
+      "acceptance": "Do not require latitude/longitude user input for verified RF 3+ aircraft region-estimation mode.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 4
+    },
+    {
+      "id": "TEXT-001",
+      "app": "text-center",
+      "area": "Radio / TV / Data",
+      "priority": "P0",
+      "acceptance": "Keep Text Center as active canonical source in TIHULU-TEXT-CENTER, including textcenter/ and web/ paths.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 5
+    },
+    {
+      "id": "TEXT-002",
+      "app": "text-center",
+      "area": "Radio / TV / Data",
+      "priority": "P0",
+      "acceptance": "FM RDS/RadioText+, DAB DLS/DLS+, Journaline, MOT slideshow, full scans and genuine frequency/source information.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 5
+    },
+    {
+      "id": "TEXT-003",
+      "app": "text-center",
+      "area": "Radio / TV / Data",
+      "priority": "P0",
+      "acceptance": "DVB-T2 scan, channel list, Teletext, playback, live subtitles, selected channels and recording metadata remain intact.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 5
+    },
+    {
+      "id": "TEXT-004",
+      "app": "text-center",
+      "area": "Radio / TV / Data",
+      "priority": "P1",
+      "acceptance": "Keep optional NOAA APT, AIS, ACARS, RTL-433 modules truthful about hardware capability and decoding state.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 5
+    },
+    {
+      "id": "TEXT-005",
+      "app": "text-center",
+      "area": "Radio / TV / Data",
+      "priority": "P0",
+      "acceptance": "Offer independent device manager, native RF desktop operation, hard stop and default on-demand/no-background lifecycle.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 5
+    },
+    {
+      "id": "TEXT-006",
+      "app": "text-center",
+      "area": "Radio / TV / Data",
+      "priority": "P1",
+      "acceptance": "Preserve local web desktop/tablet/mobile parity, saved favorites, source selection and responsive navigation.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 5
+    },
+    {
+      "id": "TEXT-007",
+      "app": "text-center",
+      "area": "Radio / TV / Data",
+      "priority": "P0",
+      "acceptance": "Continue Text Center development after other app cutovers, retaining original historical PR archive and code provenance.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 5
+    },
+    {
+      "id": "TEXT-008",
+      "app": "text-center",
+      "area": "Radio / TV / Data",
+      "priority": "P0",
+      "acceptance": "Protect existing Pages/PWA/installer URLs against a later explicitly approved rename of the SAME repository ID.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 5
+    },
+    {
+      "id": "CROSS-001",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "ZERO application feature, behavior, default, settings, recordings, data, installer, device ownership or existing icon changes in audit phase.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-002",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "English engineering internals, source docs, commits, GitHub Issue/PR and coding-agent prompts; UI languages English(default), Turkish, German in all five apps.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-003",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "Only use exact five previously approved red/black/white TIHULU mascot logo PNG masters; verify hashes and real SVG later.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-004",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "Three user-created empty repos are Media, Satellite, RF Geolocation; Text Center stays in source repo, Flight Radar remains separate canonical.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-005",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "No loss of PR comments, reviews, issue timelines, decisions, original author/time: linked old repo + explicit transfer gaps + independent permitted snapshots.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-006",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "On any future origin repo rename, preserve original GitHub URLs and repo ID; resolve aliases, test Pages/PWA, GitHub raw scripts, workflow and PR links.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-007",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "Document FEATURE, COMPONENT, MODEL and DEVELOPMENT_AGENT matrices for each app in its canonical repository, with Claude/DeepSeek navigation.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-008",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "Six independent audit workers coordinate through GitHub Issues, distinct branches and Draft PRs; no shared file edits or unapproved merges.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-009",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "Only verified source-backed test success is reported as success; distinguish unit/static CI from real NooElec/Hauppauge physical tests.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-010",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "Preserve main, all prior Draft PRs (#65–#74), Flight Radar PRs (#7/#13), open issues, legacy rollback and active installed apps.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-011",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "Set explicit user authorization gates for first commits to empty repos, importing sources, icon activation, merges, release repoints and renames.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-012",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "Track progress from audited counts and tested gates; remaining hours/minutes stay null until workload is inventoried and assumptions documented.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-013",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P1",
+      "acceptance": "Treat optional paired GPU remote processing, offline-first CPU/GPU/NPU support, models and permissions as modular nonbreaking future changes.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-014",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P2",
+      "acceptance": "Keep separate related Survival Kit News/Emergency/AI requirements inventory without silently grafting them onto these five apps.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    },
+    {
+      "id": "CROSS-015",
+      "app": "cross-app",
+      "area": "Preservation / Localization / Migration",
+      "priority": "P0",
+      "acceptance": "For each demand distinguish Requested, Draft coded, Verified in CI, Verified on device, Released; never promote from code presence alone.",
+      "engineering_language": "en",
+      "ui_locales": [
+        "en",
+        "tr",
+        "de"
+      ],
+      "source_kind": "consolidated_user_request_requires_source_validation",
+      "source_prs": [],
+      "implementation_state": "unknown_requires_source_and_pr_audit",
+      "verification_state": "not_verified_in_current_inventory",
+      "hardware_test_state": "not_run_for_this_requirement",
+      "release_state": "not_claimed",
+      "exclusions": [
+        "do_not_change_existing_runtime_during_audit",
+        "do_not_merge_or_create_active_release_without_separate_approval"
+      ],
+      "owner_workstream": 6
+    }
+  ]
+}
