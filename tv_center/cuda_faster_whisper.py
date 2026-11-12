@@ -181,30 +181,81 @@ class FasterWhisperCUDA:
 
 class _PersistentCUDAWorker:
     def __init__(self):
+        # The I/O lock serializes clips, but Quit must never wait for a
+        # running 90-second inference while holding that lock.
         self.lock = threading.Lock()
+        self._state_lock = threading.Lock()
+        # Serialize terminate/reap so concurrent timeout and Qt Quit both
+        # wait for the SAME owned child to be reaped (never an external PID).
+        self._reap_lock = threading.Lock()
+        self._closing = threading.Event()
         self.process = None
         self.path = None
 
     def _stop(self):
-        p = self.process
-        self.process = None
-        self.path = None
-        if p and p.poll() is None:
-            p.terminate()
+        """Terminate/reap only the held Popen child with bounded deadlines.
+
+        Keep a failed child handle for a later explicit Quit retry; losing the
+        handle before a successful reap would incorrectly imply STOPPED.
+        """
+        with self._reap_lock:
+            with self._state_lock:
+                p = self.process
+            if p is None:
+                return
+            reaped = False
             try:
-                p.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                p.kill()
+                if p.poll() is None:
+                    try:
+                        p.terminate()
+                    except ProcessLookupError:
+                        pass  # Exited between poll and terminate.
+                    try:
+                        p.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        if p.poll() is None:
+                            try:
+                                p.kill()
+                            except ProcessLookupError:
+                                pass
+                        try:
+                            p.wait(timeout=2)  # Always reap after kill.
+                        except subprocess.TimeoutExpired as exc:
+                            raise RuntimeError(
+                                "App-owned CUDA worker did not exit after kill"
+                            ) from exc
+                else:
+                    p.wait(timeout=0.25)  # Reap already-exited children.
+                reaped = True
+            finally:
+                for stream in (p.stdin, p.stdout):
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except (OSError, ValueError):
+                            pass
+                if reaped:
+                    with self._state_lock:
+                        if self.process is p:
+                            self.process = None
+                            self.path = None
+                else:
+                    # A failed reap is NOT a completed shutdown. No new
+                    # inference can reuse a possibly live owned child.
+                    self._closing.set()
 
     def close(self):
-        with self.lock:
-            self._stop()
+        """Permanently reject inference, interrupt and reap the owned child."""
+        self._closing.set()  # This must happen BEFORE any contended lock.
+        self._stop()
 
     def transcribe(self, pcm, language, model_path):
         return self.transcribe_details(pcm, language, model_path)["text"]
 
     def transcribe_details(self, pcm, language, model_path, *, music_mode=False,
                            speech_priority=False, timeout_s=90):
+        if self._closing.is_set():
+            raise RuntimeError("CUDA Faster-Whisper worker is shutting down")
         if (type(timeout_s) not in (int,float) or not 4 <= timeout_s <= 90):
             raise ValueError("Invalid CUDA transcription deadline")
         if not isinstance(pcm, bytes) or not 0 < len(pcm) <= 4_000_000:
@@ -219,25 +270,43 @@ class _PersistentCUDAWorker:
             "speech_priority":bool(speech_priority),
         }, separators=(",", ":")).encode("utf-8") + b"\n"
         with self.lock:
-            if self.process is None or self.process.poll() is not None:
+            if self._closing.is_set():
+                raise RuntimeError("CUDA Faster-Whisper worker is shutting down")
+            with self._state_lock:
+                previous = (self.process if self.process is not None and
+                            self.process.poll() is not None else None)
+            if previous is not None:
                 self._stop()
-                self.process = subprocess.Popen(
-                    [str(worker.python), "-u", "-m",
-                     "tv_center.cuda_faster_whisper", "--serve"],
-                    env=worker.worker_env(), stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                    bufsize=0, close_fds=True)
+            with self._state_lock:
+                if self._closing.is_set():
+                    raise RuntimeError("CUDA Faster-Whisper worker is shutting down")
+                if self.process is None:
+                    # Only this Popen handle is owned. Do not probe or kill
+                    # unrelated CUDA jobs, remote hosts or user processes.
+                    self.process = subprocess.Popen(
+                        [str(worker.python), "-u", "-m",
+                         "tv_center.cuda_faster_whisper", "--serve"],
+                        env=worker.worker_env(), stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                        bufsize=0, close_fds=True)
+                p = self.process
             try:
-                self.process.stdin.write(payload)
-                self.process.stdin.flush()
+                if self._closing.is_set():
+                    raise RuntimeError("CUDA Faster-Whisper worker is shutting down")
+                p.stdin.write(payload)
+                p.stdin.flush()
                 ready, _, _ = select.select(
-                    [self.process.stdout], [], [], float(timeout_s))
+                    [p.stdout], [], [], float(timeout_s))
+                if self._closing.is_set():
+                    raise RuntimeError("CUDA Faster-Whisper worker is shutting down")
                 if not ready:
                     self._stop()
                     raise TimeoutError(
                         f"CUDA Faster-Whisper clip exceeded {timeout_s}s "
                         "budget; real-time captions use a shorter deadline")
-                reply = self.process.stdout.readline(10000)
+                reply = p.stdout.readline(10000)
+                if self._closing.is_set():
+                    raise RuntimeError("CUDA Faster-Whisper worker is shutting down")
                 if not reply.endswith(b"\n"):
                     self._stop()
                     raise RuntimeError("GPU worker exited or returned incomplete output")
@@ -268,6 +337,15 @@ class _PersistentCUDAWorker:
 
 _worker = _PersistentCUDAWorker()
 atexit.register(_worker.close)
+
+
+def shutdown_cuda_worker():
+    """Full Quit: release only the model process launched by this interpreter.
+
+    Safe to repeat (including atexit). Model files remain on disk; the
+    child's process exit releases its CUDA context/VRAM through the driver.
+    """
+    _worker.close()
 
 
 def transcribe_cuda(pcm, language, model_path):
