@@ -288,9 +288,38 @@ def argos_install(source, target):
                   and getattr(p, "type", "translate") == "translate"), None)
     if found is None:
         raise ModelError("Requested translation package is unavailable from official Argos index")
-    # Official Argos download + install; only run after interactive confirmation.
+    # Never overwrite an installed/borrowed pair.
+    if any(p.from_code == source and p.to_code == target
+           for p in package.get_installed_packages()):
+        raise ModelError("Argos pair already installed; preserve existing package")
+    # Official Argos download + install; only after interactive confirmation.
     path = found.download()
     package.install_from_path(path)
+    # Do not presume system/global Argos packages are Media-owned.
+    # An ownership record is possible only when the package landed inside
+    # the Media-owned model namespace and was absent before this invocation.
+    matches = [p for p in package.get_installed_packages()
+               if p.from_code == source and p.to_code == target]
+    if len(matches) == 1:
+        location = Path(matches[0].package_path)
+        owned = media_paths().data
+        if location.is_relative_to(owned) and not location.is_symlink():
+            validate_storage_directory(location)
+            stat_info = location.lstat()
+            receipt_dir = owned / "argos-ownership"
+            validate_storage_directory(receipt_dir)
+            receipt_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            receipt = receipt_dir / (source + "-" + target + ".json")
+            record = {"owner": "tihulu-media-center", "source": source,
+                      "target": target, "path": str(location),
+                      "dev": stat_info.st_dev, "ino": stat_info.st_ino}
+            try:
+                with receipt.open("x", encoding="utf-8") as out:
+                    os.chmod(receipt, 0o600)
+                    json.dump(record, out, sort_keys=True)
+            except FileExistsError:
+                # Existing receipt is not proof this invocation owns it.
+                pass
     return f"{source} -> {target}"
 
 
@@ -306,13 +335,41 @@ def argos_installed_pairs():
 
 
 def argos_remove(source, target):
+    import stat
+    if (source not in ("tr", "de", "en") or target not in ("tr", "de", "en")
+        or source == target):
+        raise ModelError("Invalid Argos language pair")
     from argostranslate import package
     installed = [p for p in package.get_installed_packages()
                  if p.from_code == source and p.to_code == target]
     if len(installed) != 1:
         raise ModelError("Expected exactly one installed Argos package for this language pair")
-    location = Path(installed[0].package_path).resolve()
-    if not location.is_relative_to(Path.home().resolve()):
-        raise ModelError("Refusing to uninstall Argos package outside the user's home directory")
+    location = Path(installed[0].package_path)
+    owned = media_paths().data
+    receipt_dir = owned / "argos-ownership"
+    receipt = receipt_dir / (source + "-" + target + ".json")
+    # A path under HOME, a matching language pair, or an external SSD are
+    # NOT ownership evidence. Borrowed/shared packages stay installed.
+    if not location.is_relative_to(owned):
+        raise ModelError("Borrowed Argos pack: outside Media-owned data")
+    validate_storage_directory(receipt_dir)
+    validate_storage_directory(location)
+    if receipt.is_symlink() or not receipt.is_file():
+        raise ModelError("Argos package lacks a Media ownership receipt")
+    try:
+        if receipt.stat().st_size > 2048:
+            raise ValueError("Oversized receipt")
+        provenance = json.loads(receipt.read_text(encoding="utf-8"))
+        identity = location.lstat()
+    except (OSError, ValueError) as exc:
+        raise ModelError("Argos provenance cannot be verified") from exc
+    if (provenance.get("owner") != "tihulu-media-center" or
+        provenance.get("source") != source or provenance.get("target") != target or
+        provenance.get("path") != str(location) or
+        (identity.st_dev, identity.st_ino) !=
+        (provenance.get("dev"), provenance.get("ino")) or
+        not stat.S_ISDIR(identity.st_mode)):
+        raise ModelError("Argos pack identity changed; preserve borrowed files")
     package.uninstall(installed[0])
+    receipt.unlink()
     return f"{source} -> {target}"
