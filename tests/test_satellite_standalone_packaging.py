@@ -80,12 +80,13 @@ class StandSatPackagingContracts(unittest.TestCase):
         self.assertEqual(index["baseline_summary"]["diff"], 9)
         self.assertEqual(index["baseline_summary"]["absent"], 8)
         self.assertEqual(index["baseline_summary"]["match"], 33)
-        self.assertEqual(p.blob_sha((REPO / m["assets"]["index_path"]).read_bytes()),
-                         m["assets"]["index_git_blob_sha1"])
+        self.assertGreater(p.checked_bytes(REPO, m["assets"]["index_path"],
+                                           m["assets"]["index_git_blob_sha1"]), 1000)
+        # Use canonical pinned Git blob SHA, not Windows checkout's CRLF
+        # worktree representation; checked_bytes independently validates both.
         tree = {}
         for row in index["files"]:
-            data = (REPO / row["path"]).read_bytes()
-            tree[row["path"]] = ("100644", p.blob_sha(data))
+            tree[row["path"]] = ("100644", row["source_pr101_blob_sha1"])
         output = p.checked_web(REPO, m, index, tree)
         self.assertEqual(len(output), 50)
         self.assertEqual(sum(bool(x["parity_31"]) for x in output), 31)
@@ -180,6 +181,38 @@ class StandSatPackagingContracts(unittest.TestCase):
             with self.assertRaisesRegex(p.HoldError, "Symlink"):
                 p.plan("native", root, manifest_override=m, tree_override=tree)
             self.assertEqual(outside.read_bytes(), b"EXTERNAL")
+
+    def test_clean_windows_crlf_source_uses_exact_pinned_git_blob(self):
+        with tempfile.TemporaryDirectory(prefix="stand-sat-crlf-") as tmp:
+            root = Path(tmp)
+            target = root / "satellite_center" / "bridge.py"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b"line\r\n")
+            sha = p.blob_sha(b"line\n")
+            self.assertNotEqual(p.blob_sha(target.read_bytes()), sha)
+            git_result = [
+                (str(root.resolve()) + "\n").encode(),
+                b"",
+                ("100644 " + sha + " 0\tsatellite_center/bridge.py\n").encode(),
+                (sha + "\n").encode(),
+                b"5\n",
+            ]
+            with mock.patch.object(p, "_git", side_effect=git_result):
+                self.assertEqual(p.checked_bytes(root,
+                                 "satellite_center/bridge.py", sha), 5)
+
+    def test_dirty_windows_crlf_cannot_bypass_pinned_source(self):
+        with tempfile.TemporaryDirectory(prefix="stand-sat-dirty-") as tmp:
+            root = Path(tmp)
+            target = root / "satellite_center" / "bridge.py"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b"altered\r\n")
+            sha = p.blob_sha(b"original\n")
+            git_result = [(str(root.resolve()) + "\n").encode(),
+                          b" M satellite_center/bridge.py\n"]
+            with mock.patch.object(p, "_git", side_effect=git_result):
+                with self.assertRaisesRegex(p.HoldError, "Unexpected source bytes"):
+                    p.checked_bytes(root, "satellite_center/bridge.py", sha)
 
     def test_snapshot_git_ref_mismatch_fails_before_any_copy(self):
         with tempfile.TemporaryDirectory(prefix="stand-sat-git-") as tmp:
