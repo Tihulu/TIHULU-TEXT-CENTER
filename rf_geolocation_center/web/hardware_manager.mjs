@@ -7,7 +7,9 @@
 const $=id=>document.getElementById(id);
 const VID_RTL=0x0bda,PID_RTL=0x2838,VID_HAUPPAUGE=0x2040;
 let lastReceiverStatus="NOT CONNECTED";
-let refreshing=false;
+let refreshing=false,closed=false;
+const listeners=[];
+const listen=(target,type,handler)=>{target.addEventListener(type,handler);listeners.push([target,type,handler]);};
 const set=(id,value)=>{const e=$(id);if(e)e.textContent=String(value)};
 const hex=n=>Number(n).toString(16).padStart(4,"0");
 function classify(device){
@@ -21,6 +23,7 @@ function supported(){
  return !!(window.isSecureContext&&navigator.usb?.getDevices&&navigator.usb?.requestDevice);
 }
 function addRow(device){
+ if(closed)return;
  const root=$("hardware-list");if(!root)return;
  const cls=classify(device),row=document.createElement("div");row.className="hardware-device";
  const details=document.createElement("div");details.className="hardware-device-info";
@@ -49,6 +52,7 @@ function addRow(device){
  root.append(row);
 }
 async function refresh({announce=false}={}){
+ if(closed)return [];
  if(!supported()){
   set("hardware-count","WebUSB unavailable");
   set("hardware-message","WebUSB needs HTTPS and desktop Chrome, Brave or Edge. Firefox/Safari cannot expose this browser device picker. A TV tuner still requires its native DVB driver.");
@@ -60,6 +64,7 @@ async function refresh({announce=false}={}){
  refreshing=true;
  try{
   const devices=await navigator.usb.getDevices();
+  if(closed)return [];
   const root=$("hardware-list");if(root)root.replaceChildren();
   for(const device of devices.slice(0,40))addRow(device);
   if(root&&!devices.length){
@@ -69,10 +74,12 @@ async function refresh({announce=false}={}){
   if(announce)set("hardware-message",devices.length+" permitted device(s) detected by the browser. This is NOT proof a USB interface can be claimed. Use Connect this RTL-SDR to start a supported radio receiver.");
   return devices;
  }catch(error){
+  if(closed)return [];
   set("hardware-message","Cannot list browser-permitted USB devices: "+String(error?.message||error));return [];
  }finally{refreshing=false}
 }
 async function addDevice(){
+ if(closed)return;
  if(!supported()){
   await refresh({announce:true});return;
  }
@@ -82,6 +89,7 @@ async function addDevice(){
   // Empty filters = generic USB permission request; protected-class devices may
   // remain unavailable and no unauthorized device is enumerated.
   const device=await navigator.usb.requestDevice({filters:[]});
+  if(closed)return;
   const c=classify(device);
   set("hardware-message","USB permission added: "+c.label+" ("+hex(device.vendorId)+":"+hex(device.productId)+"). "+
     (c.type==="rtl"?"Use Connect this RTL-SDR to open the actual radio receiver.":
@@ -89,13 +97,15 @@ async function addDevice(){
       "This device has no implemented decoder; it is NOT a location source."));
   await refresh();
  }catch(error){
+  if(closed)return;
   if(error?.name==="NotFoundError")set("hardware-message","No USB device selected. Nothing was opened or changed.");
   else set("hardware-message","USB device permission failed: "+String(error?.message||error)+
     ". Browser USB policy, protected interfaces or OS ownership may prevent selection.");
  }
 }
 export function initHardwareManager({setView}){
- if(!$("hardware-add"))return;
+ if(!$("hardware-add"))return {stop:()=>{}};
+ closed=false;
  const mount=(source,targetId)=>{
   const el=$(source),dest=$(targetId);if(el&&dest)dest.append(el);
  };
@@ -125,10 +135,10 @@ export function initHardwareManager({setView}){
   setView("earth");const details=$("simple-hardware");
   if(details){details.open=true;details.scrollIntoView({behavior:"smooth",block:"center"})}
  });
- window.addEventListener("tihulu:hardware-tv-help",()=>{
+ listen(window,"tihulu:hardware-tv-help",()=>{
   setView("radio");const e=$("simple-tv-guide");if(e){e.open=true;e.scrollIntoView({behavior:"smooth",block:"nearest"})}
  });
- window.addEventListener("tihulu:receiver-status",e=>{
+ listen(window,"tihulu:receiver-status",e=>{
   lastReceiverStatus=String(e.detail?.status||"NOT CONNECTED");
   const msg=String(e.detail?.message||"").slice(0,500);
   set("hardware-message","RTL-SDR: "+lastReceiverStatus+" · "+msg);
@@ -137,8 +147,14 @@ export function initHardwareManager({setView}){
   $("hardware-add").disabled=true;$("hardware-refresh").disabled=true;
  }
  if(navigator.usb?.addEventListener){
-  navigator.usb.addEventListener("connect",()=>{void refresh({announce:true})});
-  navigator.usb.addEventListener("disconnect",()=>{void refresh({announce:true})});
+  listen(navigator.usb,"connect",()=>{void refresh({announce:true})});
+  listen(navigator.usb,"disconnect",()=>{void refresh({announce:true})});
  }
  void refresh();
+ return {stop:()=>{
+  if(closed)return;
+  closed=true;
+  for(const [target,event,handler] of listeners)target.removeEventListener(event,handler);
+  listeners.length=0;
+ }};
 }

@@ -8,6 +8,9 @@ const $=id=>document.getElementById(id);
 const TOWER_KEY="tihulu.rfgeo.catalog.towers.v1";
 const AIR_KEY="tihulu.rfgeo.catalog.aircraft.v1";
 let towers=[],aircraft=[],antennaAircraft=[],antennaAt=0,fmReadings=[],busy=false,controller=null,initialDiscoveryDone=false;
+let closed=false,channel=null,staleTimer=null;
+const listeners=[];
+const listen=(target,event,handler)=>{target.addEventListener(event,handler);listeners.push([target,event,handler]);};
 const txt=(id,value)=>{const e=$(id);if(e)e.textContent=String(value)};
 function cached(key){
  try{
@@ -26,6 +29,7 @@ function reference(){
  return {lat,lon,km};
 }
 function sync(){
+ if(closed)return;
  window.dispatchEvent(new CustomEvent("tihulu:catalog-updated",{
   detail:{towers:towers.slice(0,150),aircraft:aircraft.slice(0,150),antennaAircraft:antennaAircraft.slice(0,150),fmReadings:fmReadings.slice(0,130)}
  }));
@@ -58,6 +62,7 @@ function buildRow(target,entry,kind){
  target.append(row);
 }
 function render(){
+ if(closed)return;
  const towerList=$("catalog-tower-list"),airList=$("catalog-aircraft-list");
  if(towerList){
   towerList.replaceChildren();
@@ -91,7 +96,7 @@ function render(){
  sync();
 }
 async function discover(){
- if(busy)return;
+ if(busy||closed)return;
  let area;try{area=reference()}catch(e){txt("catalog-status",e.message);return}
  const cacheKey=JSON.stringify(area);
  if(navigator.onLine===false){
@@ -117,6 +122,7 @@ async function discover(){
   if(!response.ok)throw Error("OpenStreetMap Overpass HTTP "+response.status);
   const body=await response.text();
   if(body.length>2000000)throw Error("Oversized tower catalog response");
+  if(closed)return;
   const result=normalizeRadioTowers(JSON.parse(body),area,150);
   towers=result;
   save(TOWER_KEY,towers,area);
@@ -125,6 +131,7 @@ async function discover(){
     towers.filter(s=>s.frequenciesMHz?.length).length+" include an explicit FM frequency tag. "+
     "Published site positions and channel tags are NOT verified by RF. Select a frequency-tagged source for antenna sampling.");
  }catch(e){
+  if(closed)return;
   if(e.name==="AbortError"){txt("catalog-status","Catalog discovery stopped.");return}
   const previous=cached(TOWER_KEY);
   if(previous){towers=previous.entries;render();txt("catalog-status","Live Overpass unavailable ("+e.message+"). Using OFFLINE CACHE from "+new Date(previous.at).toLocaleString()+".");}
@@ -133,7 +140,7 @@ async function discover(){
  }finally{busy=false;controller=null}
 }
 async function discoverAircraft(){
- if(busy)return;
+ if(busy||closed)return;
  let area;try{area=reference()}catch(e){txt("catalog-status",e.message);return}
  const previous=cached(AIR_KEY);
  if(navigator.onLine===false){
@@ -151,10 +158,12 @@ async function discoverAircraft(){
   const response=await fetch("https://opensky-network.org/api/states/all?"+q,{signal:controller.signal,cache:"no-store"});
   if(!response.ok)throw Error("OpenSky HTTP "+response.status);
   const body=await response.text();if(body.length>1500000)throw Error("Aircraft response too large");
+  if(closed)return;
   aircraft=normalizeOpenSkyStates(JSON.parse(body),Date.now()).slice(0,150);
   save(AIR_KEY,aircraft,area);render();
   txt("catalog-status",aircraft.length+" online aircraft references from OpenSky. All are INTERNET-only: NOT received or decoded by this antenna and NEVER used as RF ranging sources.");
  }catch(e){
+  if(closed)return;
   if(e.name==="AbortError"){txt("catalog-status","Aircraft lookup stopped.");return}
   aircraft=previous?.entries||[];render();
   txt("catalog-status","OpenSky unavailable ("+e.message+"); "+
@@ -163,6 +172,7 @@ async function discoverAircraft(){
  }finally{busy=false;controller=null}
 }
 function showScan(result){
+ if(closed)return;
  // Single-channel spot probes update the matching frequency without erasing a prior full FM survey.
  const combined=result.length===1?[...fmReadings.filter(r=>Math.abs(r.frequencyMHz-result[0].frequencyMHz)>.005),...result]:result;
  fmReadings=matchFMScanToCatalog(combined,towers);
@@ -175,6 +185,7 @@ function showScan(result){
  if(fmReadings.length)window.dispatchEvent(new CustomEvent("tihulu:rf-scan-finished",{detail:{count:fmReadings.length,method:"LIVE RTL-SDR TUNER ENERGY"}}));
 }
 function acceptAntennaAircraft(message){
+ if(closed)return;
  if(!message||message.app!=="tihulu-flight-radar"||
    !Number.isFinite(message.timestamp)||Math.abs(Date.now()-message.timestamp)>15000)return;
  if(message.type==="stopped"){
@@ -206,11 +217,12 @@ function acceptAntennaAircraft(message){
 export function initCatalogDiscovery(){
  if(!$("catalog-discover"))return;
  if(typeof BroadcastChannel!=="undefined"){
-  const channel=new BroadcastChannel("tihulu.rfgeo.adsb.v1");
+  channel=new BroadcastChannel("tihulu.rfgeo.adsb.v1");
   channel.addEventListener("message",e=>acceptAntennaAircraft(e.data));
-  window.addEventListener("pagehide",()=>channel.close(),{once:true});
+  listen(window,"pagehide",()=>{void stop()});
   // Last live snapshot is never persisted; expire stale browser-to-browser RF observations.
-  setInterval(()=>{
+  staleTimer=setInterval(()=>{
+   if(closed)return;
    if(antennaAt&&Date.now()-antennaAt>20000){
     antennaAt=0;antennaAircraft=[];
     txt("catalog-adsb-status","Direct antenna aircraft feed became stale; no live Flight Radar snapshot received in 20 seconds.");
@@ -225,7 +237,7 @@ export function initCatalogDiscovery(){
  if(lastAircraft)aircraft=lastAircraft.entries;
  render();
  $("catalog-map-center")?.addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:catalog-use-map-center")));
- window.addEventListener("tihulu:catalog-auto-discover",()=>{
+ listen(window,"tihulu:catalog-auto-discover",()=>{
    if(initialDiscoveryDone)return;
    initialDiscoveryDone=true;
    if(navigator.onLine!==false)void discover();
@@ -233,6 +245,7 @@ export function initCatalogDiscovery(){
 
  $("catalog-discover")?.addEventListener("click",()=>void discover());
  $("catalog-add-frequencies")?.addEventListener("click",()=>{
+  if(closed)return;
    const entries=towers.flatMap(s=>(s.frequenciesMHz||[]).filter(f=>f>=87.5&&f<=108).map(f=>({...s,frequencyMHz:f}))).slice(0,90);
    if(!entries.length){txt("catalog-status","No cached catalog sites with explicit FM frequencies to import. Run Discover first; missing station frequencies must not be invented.");return}
    window.dispatchEvent(new CustomEvent("tihulu:rf-autosources",{detail:entries}));
@@ -241,30 +254,44 @@ export function initCatalogDiscovery(){
 
  $("catalog-aircraft")?.addEventListener("click",()=>void discoverAircraft());
  $("catalog-fm-scan")?.addEventListener("click",()=>{
+  if(closed)return;
   txt("catalog-fm-status","FM SWEEP REQUESTED: real RTL-SDR 87.5–108 MHz frequency levels. Receiver must be connected. No RDS source ID or range will be decoded.");
   window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-request",{detail:{startMHz:87.5,stopMHz:108,stepMHz:.1}}));
  });
  $("catalog-cancel")?.addEventListener("click",()=>{
+  if(closed)return;
   controller?.abort();window.dispatchEvent(new Event("tihulu:rf-fm-sweep-stop"));
   txt("catalog-fm-status","Stop requested for bounded FM sweep. Receiver remains connected.");
  });
  $("catalog-fit-map")?.addEventListener("click",()=>window.dispatchEvent(new Event("tihulu:catalog-fit-map")));
- window.addEventListener("tihulu:catalog-map-center",e=>{
+ listen(window,"tihulu:catalog-map-center",e=>{
   const p=e.detail;
   if(!p||![p.lat,p.lon].every(Number.isFinite))return;
   $("catalog-center-lat").value=p.lat.toFixed(6);$("catalog-center-lon").value=p.lon.toFixed(6);
   txt("catalog-status","Search center set from Earth Map viewport (reference only, NOT your actual location).");
  });
- window.addEventListener("tihulu:rf-fm-sweep-progress",e=>{
+ listen(window,"tihulu:rf-fm-sweep-progress",e=>{
   const d=e.detail||{};
   txt("catalog-fm-status",Math.round(d.completed||0)+"/"+Math.round(d.total||0)+
      " actual frequencies scanned with RTL-SDR · "+(d.frequencyMHz||0).toFixed(1)+" MHz. NOT station identity.");
  });
- window.addEventListener("tihulu:rf-fm-sweep-results",e=>showScan(e.detail?.readings||[]));
- window.addEventListener("tihulu:rf-fm-sweep-failed",e=>txt("catalog-fm-status",
+ listen(window,"tihulu:rf-fm-sweep-results",e=>showScan(e.detail?.readings||[]));
+ listen(window,"tihulu:rf-fm-sweep-failed",e=>txt("catalog-fm-status",
   "REAL RF sweep failed: "+String(e.detail?.message||"Unknown USB error")+
   ". No fake frequency levels inserted. Other SDR processes or USB transfers may be blocking the receiver."));
- window.addEventListener("tihulu:rf-survey-clear-all",()=>{
+ listen(window,"tihulu:rf-survey-clear-all",()=>{
   towers=[];aircraft=[];fmReadings=[];localStorage.removeItem(TOWER_KEY);localStorage.removeItem(AIR_KEY);render();
  });
+
+ function stop(){
+   if(closed)return;
+   closed=true;
+   controller?.abort();controller=null;busy=false;
+   if(staleTimer!==null){clearInterval(staleTimer);staleTimer=null;}
+   if(channel){channel.close();channel=null;}
+   for(const [target,event,handler] of listeners)target.removeEventListener(event,handler);
+   listeners.length=0;
+   towers=[];aircraft=[];antennaAircraft=[];fmReadings=[];antennaAt=0;
+ }
+ return {stop};
 }

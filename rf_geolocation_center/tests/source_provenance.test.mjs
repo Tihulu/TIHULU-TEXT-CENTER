@@ -48,6 +48,6 @@ test("UI shows explicit acquisition channels in Dashboard and Earth Map",()=>{
   "origin-aircraft","origin-aircraft-method","source-proof"]){
    assert.ok(h.includes('id="'+id+'"'),"Missing UI ID: "+id);
  }
- assert.match(a,/window\.addEventListener\("tihulu:receiver-status"/);
+ assert.match(a,/listenWindow\("tihulu:receiver-status"/);
  assert.match(a,/renderSourceProvenance/);
 });

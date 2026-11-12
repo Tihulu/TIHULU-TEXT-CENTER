@@ -39,7 +39,7 @@ test("map projection caches DOM viewport instead of re-reading it for each circl
  assert.match(app,/const worldWidth=256\*Math\.pow\(2,state\.map\.zoom\)/);
  assert.match(app,/const pt=\(lat,lon\)=>\{/);
  assert.match(app,/let dx=p\.x-center\.x/);
- assert.match(app,/if\(moved<4\)\{drag=null;return\}/);
+ assert.match(app,/if\(cancel\|\|Math\.hypot\(dx,dy\)<3\)return/);
 });
 test("antenna-only unknown-position screen never disguises references as a fix",()=>{
  const app=read("web/app.mjs");

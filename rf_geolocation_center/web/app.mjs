@@ -9,12 +9,29 @@ import {initCatalogDiscovery} from "./catalog_discovery.mjs";
 import {initSimpleUI} from "./simple_ui.mjs";
 import {initHardwareManager} from "./hardware_manager.mjs";
 import {initDVBBridge} from "./dvb_bridge_client.mjs";
+import {createExitLifecycle} from "./exit_lifecycle.mjs";
 import {matchedBroadcastSources,mapBoundsForSources} from "../core/scan_map.mjs";
 import {exampleRings,ringPoints,validRangeSources} from "../core/evidence.mjs";
 import {LOCATION_LAYERS,layerReadiness,visibleLayerPreferences} from "../core/location_layers.mjs";
 import {positionProvenance,radioProvenance,orbitalProvenance,aircraftProvenance} from "../core/source_provenance.mjs";
 
 const $=id=>document.getElementById(id), svgNS="http://www.w3.org/2000/svg";
+const lifecycle=createExitLifecycle(status=>{
+ const node=$("notice"),foot=$("foot-status");
+ const label=status==="QUIT"?"QUIT COMPLETE · owned jobs and handles released or reported":
+   status==="HARD_STOPPED"?"HARD STOP COMPLETE · reload before acquiring any device":
+   status==="RF_STOPPED"?"RF MODULE STOPPED · other modules remain available":
+   status==="STOPPING"?"STOPPING · new work prohibited":status;
+ if(node)node.textContent=label;
+ if(foot)foot.textContent=label;
+});
+const appListeners=[];
+const listenWindow=(type,callback,options)=>{
+ const guard=e=>{if(!lifecycle.isQuit())callback(e)};
+ window.addEventListener(type,guard,options);
+ appListeners.push([type,guard,options]);
+};
+let resizeObserver=null,serialEpoch=0;
 const state={
   browser:null,networkFix:null,serialFix:null,serialAt:0,receiverHistory:[],gnssFile:null,sp3:null,layerPrefs:null,
   rfOnly:false,rfSources:[],rfRanges:[],rfSolution:null,catalogTowers:[],catalogAircraft:[],catalogAntennaAircraft:[],catalogFM:[],radioDecoded:[],usbStatus:"NOT CONNECTED",usbMessage:"No RF sample from antenna",
@@ -23,7 +40,7 @@ const state={
   serialPort:null,serialReader:null,reading:false,usbSelection:null,activeView:"dashboard"
 };
 const fmt=(n,d=5)=>Number(n).toFixed(d);
-const msg=m=>{$("notice").textContent=m;$("foot-status").textContent=m.slice(0,80)};
+const msg=m=>{if(lifecycle.isQuit())return;$("notice").textContent=m;$("foot-status").textContent=m.slice(0,80)};
 const safeCoord=(lat,lon)=>{validateLLA(lat,lon);return {lat,lon}};
 const make=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e};
 function svgel(tag,attrs={},label){
@@ -751,9 +768,11 @@ $("evidence-clear")?.addEventListener("click",()=>{
 let drag=null,panFrame=0,wheelSteps=0;
 const mapElement=$("earth-map");
 function panPreview(dx,dy){
+ if(lifecycle.isQuit())return;
  if(panFrame)cancelAnimationFrame(panFrame);
  panFrame=requestAnimationFrame(()=>{
   panFrame=0;
+  if(lifecycle.isQuit())return;
   for(const id of ["osm-tiles","earth-overlay"]){
    const layer=$(id);
    if(layer){layer.style.transform="translate3d("+dx+"px,"+dy+"px,0)";
@@ -822,31 +841,59 @@ mapElement?.addEventListener("dblclick",event=>{
  if(event.target.closest("[data-map-marker], #map-source-popup"))return;
  event.preventDefault();zoomAtClient(event.clientX,event.clientY,event.shiftKey?-1:1);
 });
-window.addEventListener("resize",()=>{if(state.activeView==="earth")renderEarth()});
+listenWindow("resize",()=>{if(state.activeView==="earth")renderEarth()});
 async function disconnect(){
+ serialEpoch++;
  state.reading=false;
+ const warnings=[];
+ const bounded=async(task,label)=>{
+  let timer;
+  try{
+   const completed=await Promise.race([
+    Promise.resolve().then(task).then(()=>true),
+    new Promise(resolve=>{timer=setTimeout(()=>resolve(false),1500)})
+   ]);
+   if(!completed)warnings.push(label+" did not finish within 1500 ms");
+  }catch(error){warnings.push(label+": "+String(error?.message||error))}
+  finally{clearTimeout(timer)}
+ };
  const reader=state.serialReader;state.serialReader=null;
- if(reader){try{await reader.cancel()}catch{}}
- if(state.serialPort){try{await state.serialPort.close()}catch{}state.serialPort=null}
+ if(reader){
+  await bounded(()=>reader.cancel(),"Owned serial reader cancel");
+  try{reader.releaseLock()}catch(error){warnings.push("Serial reader lock: "+String(error?.message||error))}
+ }
+ const port=state.serialPort;state.serialPort=null;
+ if(port)await bounded(()=>port.close(),"Owned serial port close");
  state.serialFix=null;state.serialAt=0;
- setText("serial-state","DISCONNECTED");setText("stage-device","UNAVAILABLE");
- setText("rf-state","NO RF RECEIVER OPEN");renderPosition(true);renderDiagnostics();
+ setText("serial-state",warnings.length?"STOP PARTIAL — "+warnings.join("; ").slice(0,160):"DISCONNECTED");
+ setText("stage-device","UNAVAILABLE");
+ if(!lifecycle.isQuit()){setText("rf-state","NO RF RECEIVER OPEN");renderPosition(true);renderDiagnostics()}
+ if(warnings.length){
+  const error=Error("Owned serial resources not fully released: "+warnings.join("; ").slice(0,240));
+  if(!lifecycle.isQuit())msg(error.message);
+  throw error;
+ }
 }
 $("serial-connect")?.addEventListener("click",async()=>{
+ if(lifecycle.isQuit())return;
+ let epoch=null;
  if(!("serial" in navigator)){msg("Web Serial unavailable. Use supported desktop Chromium or import a receiver log.");return}
  try{
    if(state.serialPort)return;
+   epoch=++serialEpoch;
    const port=await navigator.serial.requestPort();
+   if(lifecycle.isQuit()||epoch!==serialEpoch)return;
    await port.open({baudRate:9600});
+   if(lifecycle.isQuit()||epoch!==serialEpoch){try{await port.close()}catch{}return;}
    state.serialPort=port;state.reading=true;setText("serial-state","CONNECTED / LIVE NMEA");
    setText("stage-device","NMEA SERIAL CONNECTED");setText("rf-state","GNSS SERIAL OPEN (NO SDR CLAIM)");
    msg("GNSS serial connected. No RTL-SDR claimed.");
    let buf="";
-   while(state.reading&&port.readable){
+   while(!lifecycle.isQuit()&&epoch===serialEpoch&&state.reading&&port.readable){
      const reader=port.readable.getReader();state.serialReader=reader;
      try{
-       while(state.reading){
-         const r=await reader.read();if(r.done)break;
+       while(!lifecycle.isQuit()&&epoch===serialEpoch&&state.reading){
+         const r=await reader.read();if(r.done||lifecycle.isQuit()||epoch!==serialEpoch)break;
          buf+=new TextDecoder().decode(r.value||new Uint8Array());
          if(buf.length>10000)buf=buf.slice(-2000);
          const lines=buf.split(/\r?\n/);buf=lines.pop()||"";
@@ -855,14 +902,14 @@ $("serial-connect")?.addEventListener("click",async()=>{
      }finally{try{reader.releaseLock()}catch{}if(state.serialReader===reader)state.serialReader=null}
    }
  }catch(e){msg("Serial receiver unavailable: "+e.message)}
- finally{await disconnect()}
+ finally{if(epoch===serialEpoch)await disconnect()}
 });
-$("serial-disconnect")?.addEventListener("click",()=>{disconnect();msg("Own NMEA serial port released")});
+$("serial-disconnect")?.addEventListener("click",()=>{void disconnect().then(()=>msg("Own NMEA serial port released")).catch(e=>msg(e.message))});
 $("hard-stop")?.addEventListener("click",()=>{
- disconnect();state.usbSelection=null;setText("usb-state","No USB device selected; no RF capture started");
+ state.usbSelection=null;setText("usb-state","No USB device selected; no RF capture started");
  setText("stage-device","UNAVAILABLE");msg("HARD STOP: only this page's own serial reader was stopped; readsb/Gqrx not touched");
 });
-window.addEventListener("pagehide",()=>{disconnect()});
+listenWindow("pagehide",()=>{void lifecycle.quit()});
 $("refs-file")?.addEventListener("change",e=>importFile(e.target,100_000,async text=>{
  const list=JSON.parse(text);if(!Array.isArray(list)||list.length>200)throw Error("Expected <= 200 source-attributed reference points");
  const results=list.map(p=>{
@@ -947,12 +994,12 @@ function fitRfSurveyMap(){
  renderEarth();
  msg("Earth Map centered on user-supplied transmitter locations and RF-only hypothetical rings; NO OS/device coordinates used.");
 }
-window.addEventListener("tihulu:rf-only-mode",e=>{
+listenWindow("tihulu:rf-only-mode",e=>{
  state.rfOnly=!!e.detail?.enabled;
  renderPosition(false);renderDiagnostics();renderSourceProvenance();
  msg(state.rfOnly?"RF-ONLY session: GNSS/browser/device/cached locations excluded from the selected position.":"RF-ONLY disabled; source provenance remains separate.");
 });
-window.addEventListener("tihulu:rf-survey-updated",e=>{
+listenWindow("tihulu:rf-survey-updated",e=>{
  const d=e.detail||{};
  state.rfSources=Array.isArray(d.sources)?d.sources.slice(0,60):[];
  state.rfRanges=Array.isArray(d.ranges)?d.ranges.slice(0,32):[];
@@ -960,7 +1007,7 @@ window.addEventListener("tihulu:rf-survey-updated",e=>{
  if(state.rfOnly){renderPosition(false)}else if(state.activeView==="earth")renderEarth();
  renderSourceProvenance();renderDiagnostics();
 });
-window.addEventListener("tihulu:rf-fit-map",fitRfSurveyMap);
+listenWindow("tihulu:rf-fit-map",fitRfSurveyMap);
 $("map-source-popup-close")?.addEventListener("click",()=>{$("map-source-popup").hidden=true});
 $("earth-map")?.addEventListener("keydown",event=>{
  if(event.key==="Escape"){
@@ -971,7 +1018,7 @@ $("earth-map")?.addEventListener("keydown",event=>{
 });
 
 $("map-source-popup")?.addEventListener("pointerdown",event=>event.stopPropagation());
-window.addEventListener("tihulu:show-tv-on-map",()=>{
+listenWindow("tihulu:show-tv-on-map",()=>{
  const matches=mapMatches().filter(m=>m.kind==="tv");
  if(matches.length)focusMappedSources(matches,"TV channels with frequency-matched public broadcasting sites");
  else if((state.dvbChannels||[]).length){
@@ -985,7 +1032,7 @@ $("map-focus-scan")?.addEventListener("click",()=>{
  if(matches.length)focusMappedSources(matches,"Actual scanned FM/TV frequencies matched to published transmitter candidates");
  else focusMappedSources(state.catalogTowers,"OSM catalog sites only; scan-to-site identification not available");
 });
-window.addEventListener("tihulu:radio-metadata",e=>{
+listenWindow("tihulu:radio-metadata",e=>{
  const records=Array.isArray(e.detail?.events)?e.detail.events:[];
  state.radioDecoded=records.slice(0,60);
  if(state.activeView==="earth")renderEarth();
@@ -993,17 +1040,17 @@ window.addEventListener("tihulu:radio-metadata",e=>{
    Number.isFinite(Date.parse(m.observedAt))&&Date.now()-Date.parse(m.observedAt)<3600000);
  if(recent.length)focusMappedSources(recent,"Recently decoded RDS frequency matches and mapped transmitter candidates");
 });
-window.addEventListener("tihulu:tv-channels-updated",e=>{
+listenWindow("tihulu:tv-channels-updated",e=>{
  if(state.activeView==="earth")renderEarth();
  const match=mapMatches().filter(m=>m.kind==="tv");
  if(e.detail?.fromNative&&match.length)focusMappedSources(match,"New real DVB scan channels and matching OSM TV site frequencies");
 });
-window.addEventListener("tihulu:rf-scan-finished",()=>{
+listenWindow("tihulu:rf-scan-finished",()=>{
  const fm=mapMatches().filter(m=>m.kind==="fm");
  if(fm.length)focusMappedSources(fm,"Real RTL-SDR FM energy overlap and OSM frequency catalog");
  else{setView("earth");msg("Actual FM receiver spectrum scanned, but no identified transmitter site has a matching published frequency. No false map position created.")}
 });
-window.addEventListener("tihulu:catalog-updated",e=>{
+listenWindow("tihulu:catalog-updated",e=>{
  const data=e.detail||{};
  state.catalogTowers=Array.isArray(data.towers)?data.towers.slice(0,150):[];
  state.catalogAircraft=Array.isArray(data.aircraft)?data.aircraft.slice(0,150):[];
@@ -1012,10 +1059,10 @@ window.addEventListener("tihulu:catalog-updated",e=>{
  if(state.activeView==="earth")renderEarth();
  else renderMethodReadiness(state.sp3?state.visible:state.autoOrbits);
 });
-window.addEventListener("tihulu:catalog-use-map-center",()=>{
+listenWindow("tihulu:catalog-use-map-center",()=>{
  window.dispatchEvent(new CustomEvent("tihulu:catalog-map-center",{detail:{lat:state.map.lat,lon:state.map.lon}}));
 });
-window.addEventListener("tihulu:catalog-fit-map",()=>{
+listenWindow("tihulu:catalog-fit-map",()=>{
  const sites=state.catalogTowers.length?state.catalogTowers:state.catalogAircraft;
  if(!sites.length){setView("radio");msg("First discover some published transmitters or online aircraft to show on the map.");return}
  state.map.lat=sites.reduce((t,p)=>t+p.lat,0)/sites.length;
@@ -1028,8 +1075,8 @@ $("live-rf-only")?.addEventListener("click",()=>{
  const input=$("rf-only");if(input&&!input.checked){input.checked=true;input.dispatchEvent(new Event("change"))}
  setView("radio");msg("Antenna-only RF positioning: choose a source, connect RTL-SDR, capture and calibrate. OS GPS/Wi-Fi/IP excluded.");
 });
-window.addEventListener("tihulu:find-request",()=>{ if(state.rfOnly){setView("radio");msg("RF-ONLY: browser/GPS ignored. Capture known fixed transmitter signals using WebUSB and a user-provided calibration.");return} if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
-window.addEventListener("tihulu:orbit",e=>{
+listenWindow("tihulu:find-request",()=>{ if(state.rfOnly){setView("radio");msg("RF-ONLY: browser/GPS ignored. Capture known fixed transmitter signals using WebUSB and a user-provided calibration.");return} if(state.serialFix&&Date.now()-state.serialAt<90000){ window.dispatchEvent(new CustomEvent("tihulu:position",{detail:{lat:state.serialFix.lat,lon:state.serialFix.lon,alt:state.serialFix.altEllipsoidMeters??0,provider:"Dedicated GNSS serial NMEA"}})); msg("Using fresh receiver-provided NMEA position; browser location not requested."); }else{$("locate")?.click()}});
+listenWindow("tihulu:orbit",e=>{
   if(!Array.isArray(e.detail?.satellites))return;
   state.autoOrbits=e.detail.satellites.slice(0,450);
   renderMethodReadiness(state.sp3?state.visible:state.autoOrbits);
@@ -1040,7 +1087,7 @@ window.addEventListener("tihulu:orbit",e=>{
 });
 state.layerPrefs=visibleLayerPreferences(restore(STORAGE_LAYERS));
 for(const layer of LOCATION_LAYERS){const input=layerToggle(layer.id);if(input)input.checked=state.layerPrefs[layer.id]}
-window.addEventListener("tihulu:receiver-status",event=>{
+listenWindow("tihulu:receiver-status",event=>{
  const detail=event.detail||{};
  state.usbStatus=typeof detail.status==="string"?detail.status:"UNKNOWN";
  state.usbMessage=typeof detail.message==="string"?detail.message:"";
@@ -1060,29 +1107,66 @@ if(Array.isArray(savedRefs)&&savedRefs.length<=200){
  state.references=savedRefs.filter(p=>p&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&["aircraft","station"].includes(p.type)&&p.name&&p.source);
 }
 renderCatalog();renderHistory();renderDiagnostics();renderPosition(true);renderSky();capabilities();
-initAutoExplorer();
-initUsbSDR(msg);
-initRFSurvey();
-initCatalogDiscovery();
+const explorer=initAutoExplorer();
+const usb=initUsbSDR(msg);
+const survey=initRFSurvey();
+const catalog=initCatalogDiscovery();
 initSimpleUI({state,source,setView,renderEarth,renderPosition,fitRfSurveyMap});
-initHardwareManager({setView});
-initDVBBridge();
+const hardware=initHardwareManager({setView});
+const bridge=initDVBBridge();
+lifecycle.register("webusb","rf",()=>usb.quit());
+lifecycle.register("rf-survey","rf",()=>survey.stop());
+lifecycle.register("serial","device",disconnect);
+lifecycle.register("hardware-permissions","device",()=>hardware.stop());
+lifecycle.register("native-bridge-client","device",()=>bridge.quit());
+lifecycle.register("orbit-explorer","ui",()=>explorer.stop());
+lifecycle.register("catalog-discovery","ui",()=>catalog.stop());
+lifecycle.register("app-timers","ui",()=>{
+ if(panFrame){cancelAnimationFrame(panFrame);panFrame=0;}
+ if(resizeObserver){resizeObserver.disconnect();resizeObserver=null;}
+ clearInterval(appTick);
+});
+lifecycle.register("map-ui","ui-controls",()=>{
+ for(const [type,guard,options] of appListeners)window.removeEventListener(type,guard,options);
+ appListeners.length=0;
+ state.receiverHistory=[];state.references=[];state.autoOrbits=[];state.visible=[];
+ state.catalogAircraft=[];state.catalogAntennaAircraft=[];state.catalogTowers=[];state.catalogFM=[];
+ state.rfSources=[];state.rfRanges=[];state.radioDecoded=[];state.serialFix=null;state.browser=null;
+ document.querySelectorAll("button,input,select,textarea").forEach(node=>{node.disabled=true});
+ if(mapElement)mapElement.style.pointerEvents="none";
+});
+$("rf-module-stop")?.addEventListener("click",()=>{
+ void lifecycle.stopRf().then(({results})=>{
+  const failed=(results||[]).filter(r=>!r.released);
+  if(failed.length)$("notice").textContent="RF stop incomplete: "+failed.map(r=>r.name).join(", ");
+ });
+});
+$("hard-stop")?.addEventListener("click",()=>{void lifecycle.hardStop().then(out=>{
+ if(out.incomplete.length)$("notice").textContent="HARD STOP PARTIAL: "+out.incomplete.map(r=>r.name).join(", ");
+});});
+$("quit-app")?.addEventListener("click",()=>{void lifecycle.quit().then(out=>{
+ if(out.incomplete.length)$("notice").textContent="QUIT PARTIAL: "+out.incomplete.map(r=>r.name).join(", ");
+});});
+listenWindow("pagehide",()=>{void lifecycle.quit()});
+listenWindow("tihulu:rf-only-mode",e=>{if(!e.detail?.enabled)void usb.release()});
 if(typeof ResizeObserver==="function"){
  const mapElement=$("earth-map");
  if(mapElement){
   let pending=false;
   const observer=new ResizeObserver(()=>{
+   if(lifecycle.isQuit())return;
    if(pending||state.activeView!=="earth")return;
    pending=true;
-   requestAnimationFrame(()=>{pending=false;if(state.activeView==="earth")renderEarth()});
+   requestAnimationFrame(()=>{pending=false;if(!lifecycle.isQuit()&&state.activeView==="earth")renderEarth()});
   });
-  observer.observe(mapElement);
+  observer.observe(mapElement);resizeObserver=observer;
  }
 }
 
 setView("earth"); // Clean, map-first experience; original science workbench remains under Advanced Tools.
 
-setInterval(()=>{
+const appTick=setInterval(()=>{
+ if(lifecycle.isQuit())return;
  if(state.serialFix&&Date.now()-state.serialAt>90000){state.serialFix=null;renderPosition(false);renderDiagnostics();msg("Stale serial NMEA fix expired")}
  if(state.browser&&Date.now()-Date.parse(state.browser.acquiredAt||0)>=5*60*1000){
    state.browser=null;renderPosition(false);renderDiagnostics();

@@ -8,7 +8,7 @@ import {calibratedRange,solveCalibratedRF} from "../core/rf_ranging.mjs";
 const $=id=>document.getElementById(id);
 const KEY="tihulu.rfgeo.rf-survey.v1";
 const FRESH_MAX_MS=10*60*1000;
-let sources=[],selected="",rfOnly=false,solution=null,rangeEstimates=[];
+let sources=[],selected="",rfOnly=false,solution=null,rangeEstimates=[],stopped=false;
 function message(id,content){const el=$(id);if(el)el.textContent=content}
 function safeLoad(){
  try{
@@ -31,6 +31,7 @@ function persist(){
 }
 function sourceById(){return sources.find(s=>s.id===selected)||null}
 function broadcast(){
+ if(stopped)return;
  window.dispatchEvent(new CustomEvent("tihulu:rf-survey-updated",{
   detail:{rfOnly,sources:sources.map(s=>({id:s.id,name:s.name,type:s.type,lat:s.lat,lon:s.lon,
    frequencyMHz:s.frequencyMHz,hasActualRF:!!s.lastObservation,catalogId:s.catalogId||null,catalog:s.catalog||null,metadataOrigin:s.metadataOrigin||"USER SUPPLIED",
@@ -44,6 +45,7 @@ function freshness(s,now){
   Date.parse(s.lastObservation.measuredAt)<=now+30000);
 }
 function compute(){
+ if(stopped||!rfOnly){solution=null;rangeEstimates=[];return;}
  const now=Date.now();
  rangeEstimates=sources.filter(s=>s.type==="station"&&freshness(s,now))
    .map(s=>({id:s.id,name:s.name,type:"station",lat:s.lat,lon:s.lon,frequencyMHz:s.frequencyMHz,
@@ -93,13 +95,15 @@ function render(){
  message("rf-session-status",rfOnly?"RF-ONLY ON · Device GPS, browser location, Wi-Fi/IP and last-known position EXCLUDED from this map's position solve.":"RF-ONLY OFF · The main automatic position may use GNSS/device providers; antenna observations remain separately attributed.");
 }
 function setRfOnly(enabled){
+ if(stopped)return;
  rfOnly=!!enabled;
  if($("rf-only"))$("rf-only").checked=rfOnly;
  solution=null; // explicit solve required after switching mode; never silently mix sources
- render();compute();
+ render();if(rfOnly)compute();else{solution=null;rangeEstimates=[];broadcast();}
  window.dispatchEvent(new CustomEvent("tihulu:rf-only-mode",{detail:{enabled:rfOnly}}));
 }
 function addSource(){
+ if(stopped)return;
  const name=String($("rf-name")?.value||"").trim();
  const type=$("rf-type")?.value,frequencyMHz=Number($("rf-freq")?.value);
  const lat=Number($("rf-lat")?.value),lon=Number($("rf-lon")?.value);
@@ -114,6 +118,7 @@ function addSource(){
  message("rf-measurement-status","Added USER-SUPPLIED "+type+" source "+name+". Coordinates/frequency are NOT identified or confirmed by the RTL-SDR.");
 }
 function addCatalogCandidate(candidate){
+ if(stopped)return false;
  if(!candidate||candidate.type!=="station"||!String(candidate.id).startsWith("osm-")||
    !Number.isFinite(candidate.lat)||Math.abs(candidate.lat)>90||!Number.isFinite(candidate.lon)||Math.abs(candidate.lon)>180||
    !Number.isFinite(candidate.frequencyMHz)||candidate.frequencyMHz<87.5||candidate.frequencyMHz>108)
@@ -135,6 +140,7 @@ function capture(){
  window.dispatchEvent(new CustomEvent("tihulu:rf-capture-request",{detail:{frequencyMHz:s.frequencyMHz,sourceId:s.id}}));
 }
 function acceptCapture(event){
+ if(stopped)return;
  const observation=event.detail;
  const s=sources.find(source=>source.id===observation?.sourceId);
  if(!s||!observation||observation.hardwareId!=="RTL2832U WebUSB 0bda:2838"||
@@ -213,4 +219,15 @@ export function initRFSurvey(){
    message("rf-measurement-status","Local RF-only survey cleared. No OS location requested.");});
  window.addEventListener("tihulu:rf-observation",acceptCapture);
  window.addEventListener("tihulu:rf-survey-clear-all",()=>{sources=[];selected="";solution=null;rangeEstimates=[];localStorage.removeItem(KEY);compute();render()});
+ function stop(){
+   if(stopped)return;
+   stopped=true;rfOnly=false;solution=null;rangeEstimates=[];
+   sources=sources.map(s=>({...s,lastObservation:null,rangeHypothesis:null}));
+   const toggle=$("rf-only");if(toggle)toggle.checked=false;
+   message("rf-session-status","RF MODULE STOPPED — reload to start a new RF session. Other applications and their SDR leases are unaffected.");
+   message("rf-solution-report","No active RF solver or pending radio observation.");
+   window.dispatchEvent(new CustomEvent("tihulu:rf-only-mode",{detail:{enabled:false,stopped:true}}));
+ }
+ return {stop};
+
 }

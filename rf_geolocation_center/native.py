@@ -13,6 +13,7 @@ import json
 import hmac
 import secrets
 import re
+import signal
 from urllib.parse import parse_qs
 from .dvb_bridge import DVBScanBridge
 from .radio_metadata import read_local_radio_metadata
@@ -31,6 +32,7 @@ ASSETS = {
     "/web/receivers.mjs": ("web/receivers.mjs", "text/javascript"),
     "/web/auto_explorer.mjs": ("web/auto_explorer.mjs", "text/javascript"),
     "/web/usb_sdr.mjs": ("web/usb_sdr.mjs", "text/javascript"),
+    "/web/exit_lifecycle.mjs": ("web/exit_lifecycle.mjs", "text/javascript"),
     "/web/rf_survey.mjs": ("web/rf_survey.mjs", "text/javascript"),
     "/web/catalog_discovery.mjs": ("web/catalog_discovery.mjs", "text/javascript"),
     "/web/simple_ui.mjs": ("web/simple_ui.mjs", "text/javascript"),
@@ -214,7 +216,7 @@ Approve only if you started this local service and wish to connect your own TV t
             raise PermissionError("Loopback Host required")
         origin = self._bridge_origin()
         token = self.headers.get("X-Tihulu-Bridge-Token", "")
-        if not hmac.compare_digest(token, DVB.token):
+        if not token or not DVB.token or not hmac.compare_digest(token, DVB.token):
             raise PermissionError("Invalid local DVB bridge session token")
         return origin
 
@@ -253,10 +255,12 @@ Approve only if you started this local service and wish to connect your own TV t
             if not isinstance(data, dict):
                 raise ValueError("Expected object with adapter and listed profile")
             if route == "/api/dvb/scan":
-                result = DVB.start(data.get("adapter"), data.get("profile"))
+                result = DVB.start(data.get("adapter"), data.get("profile"), owner=data.get("owner"))
             else:
-                result = DVB.stop()
+                result = DVB.stop(owner=data.get("owner"))
             self._json(200, result, origin)
+        except PermissionError as error:
+            self._json(403, {"error": str(error)}, origin)
         except (ValueError, RuntimeError, TypeError) as error:
             self._json(400, {"error": str(error)}, origin)
 
@@ -325,6 +329,20 @@ def doctor():
     }
 
 
+def run_owned_server(server, bridge=DVB):
+    """Testable true native Quit: drain this app's bridge before closing HTTP."""
+    try:
+        server.serve_forever(poll_interval=0.3)
+    except KeyboardInterrupt:
+        print("\\nStopping this local app server.")
+    finally:
+        result = bridge.shutdown(timeout=3.0)
+        server.server_close()
+        if result["state"] != "STOPPED":
+            print("WARNING: RF Geolocation owned resources not fully released:", result)
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Local-only RF Geolocation browser app")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -340,14 +358,20 @@ def main(argv=None):
     PAGES_BRIDGE_ENABLED = bool(args.enable_pages_bridge)
     if args.port < 1024 or args.port > 65535:
         parser.error("Port must be 1024–65535")
-    with ThreadingHTTPServer(("127.0.0.1", args.port), LocalAppHandler) as server:
-        print("TIHULU RF Geolocation Center: http://127.0.0.1:" + str(args.port) + "/")
-        print("Loopback-only: no LAN binding or automatic RF scan. Native DVB scanner requires explicit consent.")
-        print("DVB browser bridge: " + ("official Pages allowed with token" if PAGES_BRIDGE_ENABLED else "localhost-only (use --enable-pages-bridge for official Pages)"))
-        print("No token copying needed: click Connect TV in TIHULU, then Approve in the local pairing window.")
-        print("No TV scanning starts until you press Scan TV in the browser.")
-        try:
-            server.serve_forever(poll_interval=0.3)
-        except KeyboardInterrupt:
-            print("\nStopping this local app server.")
-    return 0
+    def on_sigterm(_signum, _frame):
+        raise KeyboardInterrupt  # explicit process shutdown, not a blanket service stop
+    previous = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGTERM, on_sigterm)
+    try:
+        with ThreadingHTTPServer(("127.0.0.1", args.port), LocalAppHandler) as server:
+            server.daemon_threads = True  # bounded HTTP connection drain at Quit
+            print("TIHULU RF Geolocation Center: http://127.0.0.1:" + str(args.port) + "/")
+            print("Loopback-only: no LAN binding or automatic RF scan. Native DVB scanner requires explicit consent.")
+            print("DVB browser bridge: " + ("official Pages allowed with token" if PAGES_BRIDGE_ENABLED else "localhost-only (use --enable-pages-bridge for official Pages)"))
+            print("No token copying needed: click Connect TV in TIHULU, then Approve in the local pairing window.")
+            print("No TV scanning starts until you press Scan TV in the browser.")
+            outcome = run_owned_server(server)
+            return 0 if outcome["state"] == "STOPPED" else 1
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+

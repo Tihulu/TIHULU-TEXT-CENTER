@@ -184,6 +184,8 @@ class DVBScanBridge:
         self._process = None
         self._worker = None
         self._cancel = threading.Event()
+        self._closed = False
+        self._owner = None
         self._data = {"state": "IDLE", "channels": [], "startedAt": None,
                       "endedAt": None, "details": "No native DVB scan yet"}
 
@@ -201,7 +203,9 @@ class DVBScanBridge:
             snapshot["channels"] = list(self._data["channels"])
             return snapshot
 
-    def start(self, adapter, profile):
+    def start(self, adapter, profile, owner=None):
+        if owner is not None and (not isinstance(owner, str) or not re.fullmatch(r"[0-9a-f]{48}", owner)):
+            raise ValueError("Invalid scan owner session ID")
         if type(adapter) is not int or not 0 <= adapter <= 99:
             raise ValueError("Choose a valid enumerated DVB adapter")
         if not isinstance(profile, str) or len(profile) > 110:
@@ -214,9 +218,12 @@ class DVBScanBridge:
         if profile != DEFAULT_PROFILE and not any(p["id"] == profile for p in selections):
             raise ValueError("Scan profile must be a listed installed table or standard EU UHF raster")
         with self._lock:
+            if self._closed:
+                raise RuntimeError("Native bridge is shutting down")
             if self._worker is not None and self._worker.is_alive():
                 raise RuntimeError("A native DVB scan is already in progress")
             self._cancel = threading.Event()
+            self._owner = owner
             self._data = {"state": "RUNNING", "channels": [], "startedAt": time.time(),
                           "endedAt": None, "details": "Real Linux DVB frontend scanning; waiting for service table data",
                           "adapter": adapter, "profile": profile}
@@ -239,10 +246,13 @@ class DVBScanBridge:
                     shutil.copyfile(selected["_path"], initial)
                 cmd = [shutil.which("dvbv5-scan"), "-a", str(adapter),
                        "-O", "dvbv5", "-o", str(output), str(initial)]
-                process = subprocess.Popen(cmd, cwd=root, stdin=subprocess.DEVNULL,
-                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                           start_new_session=True)
+                # Atomically publish the child handle; Quit cannot miss a late spawn.
                 with self._lock:
+                    if cancel.is_set() or self._closed:
+                        raise InterruptedError("Scan cancelled before process launch")
+                    process = subprocess.Popen(cmd, cwd=root, stdin=subprocess.DEVNULL,
+                                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                               start_new_session=True)
                     self._process = process
                 try:
                     out, _ = process.communicate(timeout=MAX_SCAN_SECONDS)
@@ -267,22 +277,69 @@ class DVBScanBridge:
                 finally:
                     with self._lock:
                         self._process = None
-        except (OSError, ValueError, StopIteration) as error:
+        except (OSError, ValueError, StopIteration, InterruptedError) as error:
             details = "Native DVB scan error: " + str(error)[:500]
         with self._lock:
+            if cancel.is_set() or self._closed:
+                result_state, details, channels = "CANCELLED", "Owned DVB scan cancelled", []
             self._data.update({"state": result_state, "details": details,
                                "channels": channels, "endedAt": time.time(),
                                "source": "LINUX DVB-T/T2/C HARDWARE / NO GPS"})
             self._process = None
 
-    def stop(self):
+    def stop(self, owner=None, *, force=False):
+        """Stop only the scan started by this client. Force is internal Quit only."""
         with self._lock:
-            if self._data.get("state") != "RUNNING":
+            if not force and self._owner != owner and self._data.get("state") in ("RUNNING", "STOPPING"):
+                raise PermissionError("The active scan belongs to another client")
+            if self._data.get("state") not in ("RUNNING", "STOPPING"):
                 return self.status()
             self._cancel.set()
-            if self._process and self._process.poll() is None:
+            process = self._process
+            self._data.update(state="STOPPING", details="Cancelling app-owned DVB scan")
+            if process is not None and process.poll() is None:
                 try:
-                    self._process.terminate()
+                    process.terminate()
                 except OSError:
                     pass
-            return {"state": "STOPPING", "details": "User requested to stop native DVB scan"}
+            return {"state": "STOPPING", "details": "Cancellation requested for owned scan"}
+
+    def shutdown(self, timeout=3.0):
+        """Bounded process/thread cleanup on genuine native app Quit.
+
+        Never manages systemd, readsb/tar1090, a different process, or USB reset.
+        """
+        timeout = max(0.0, min(5.0, float(timeout)))
+        with self._lock:
+            self._closed = True
+            self._cancel.set()
+            process, worker = self._process, self._worker
+            if self._data.get("state") in ("RUNNING", "STOPPING"):
+                self._data.update(state="STOPPING", details="Native application Quit requested")
+        if process is not None and process.poll() is None:
+            try:
+                process.terminate()
+            except OSError:
+                pass
+        if worker is not None and worker is not threading.current_thread():
+            worker.join(timeout)
+        with self._lock:
+            process = self._process
+            worker = self._worker
+        if process is not None and process.poll() is None:
+            try:
+                process.kill()
+            except OSError:
+                pass
+        if worker is not None and worker is not threading.current_thread() and worker.is_alive():
+            worker.join(0.5)
+        worker_alive = bool(worker and worker.is_alive())
+        process_alive = bool(process and process.poll() is None)
+        with self._lock:
+            self._owner = None
+            self.token = ""  # revoked: stale HTTP clients cannot authorize a new scan
+            self._data.update(state="STOP_FAILED_PARTIAL" if worker_alive or process_alive else "STOPPED",
+                              details="Owned worker still active" if worker_alive or process_alive
+                              else "App-owned DVB worker and process released")
+            return {"state": self._data["state"], "owned_worker_alive": worker_alive,
+                    "owned_process_alive": process_alive}
