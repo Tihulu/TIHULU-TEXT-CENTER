@@ -173,8 +173,8 @@ class ModelLibrary:
         return str(file)
 
     def capability(self):
-        from textcenter.compute import detect_devices
-        from textcenter.transcripts import installed_translation_pairs
+        from tv_center.media_backend.compute import detect_devices
+        from tv_center.media_backend.translation import installed_translation_pairs
         profile = detect_devices()
         return {
             "devices": profile["devices"],
