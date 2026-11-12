@@ -201,6 +201,9 @@ private:
     static QString recordingsFolder() {
         QSettings config(QLatin1String("TIHULU"),QLatin1String("UnifiedRecordings"));
         QString name=config.value(QLatin1String("folder")).toString();
+        // A saved user recording path always wins. Environment overrides
+        // affect only the default for a fresh profile.
+        if(name.isEmpty())name=qEnvironmentVariable("TIHULU_MEDIA_RECORDINGS");
         if(name.isEmpty()) {
             QString movies=QStandardPaths::writableLocation(QStandardPaths::MoviesLocation);
             if(movies.isEmpty())movies=QDir::homePath();
