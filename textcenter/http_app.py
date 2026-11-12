@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Event, RLock, Thread
 import json
 from pathlib import Path
 import secrets
@@ -63,6 +64,11 @@ class LocalServer(ThreadingHTTPServer):
         self.dab = DABReader(store)
         self.dab_last = {"connected":False,"message":"No welle-cli web receiver checked yet"}
         self.csrf_token = secrets.token_urlsafe(32)
+        self._lifecycle_lock = RLock()
+        self.lifecycle = "RUNNING"
+        self._close_started = False
+        self._close_finished = Event()
+        self._close_report = {"lifecycle": "RUNNING", "errors": []}
         self.rds = FMRSDSupervisor(store)
         self.survey = FMSurveySupervisor(
             rds=self.rds, lock_dir=store.filename.parent / ".receiver-locks"
@@ -79,6 +85,85 @@ class LocalServer(ThreadingHTTPServer):
         self.postprocess=RecordingTranscriber(
             transcripts=self.transcripts,radio=self.live_fm,tv=self.live_tv)
         super().__init__(address, Handler)
+
+    def lifecycle_status(self):
+        with self._lifecycle_lock:
+            return {"lifecycle": self.lifecycle,
+                    "errors": list(self._close_report["errors"])}
+
+    def request_quit(self):
+        """Reject new POSTs before the separate server loop shutdown begins."""
+        with self._lifecycle_lock:
+            if self.lifecycle != "RUNNING":
+                return self.lifecycle_status()
+            self.lifecycle = "STOPPING"
+            self._close_report = {"lifecycle": "STOPPING", "errors": []}
+            # BaseServer.shutdown() must run on a different thread from
+            # serve_forever(); the handler may still finish its JSON response.
+            Thread(target=self.shutdown, name="tihulu-http-quit",
+                   daemon=True).start()
+            return self.lifecycle_status()
+
+    def close_owned(self):
+        """One owner performs cleanup; concurrent callers share its result."""
+        with self._lifecycle_lock:
+            if self._close_started:
+                event = self._close_finished
+                first = False
+            else:
+                self._close_started = True
+                self.lifecycle = "STOPPING"
+                self._close_report = {"lifecycle": "STOPPING", "errors": []}
+                first = True
+        if not first:
+            event.wait(timeout=12)
+            return self.lifecycle_status()
+
+        errors = []
+        for label, component in (
+            ("offline_asr", self.postprocess),
+            ("tv_relay", self.live_tv),
+            ("live_fm", self.live_fm),
+            ("fm_preview", self.audio),
+            ("spectrum_survey", self.survey),
+            ("fm_rds", self.rds),
+        ):
+            try:
+                result = component.quit()
+                if isinstance(result, dict):
+                    state = result.get("status")
+                    if result.get("active") or state == "stop_failed_partial":
+                        errors.append(label + ": owned worker not verified stopped")
+                thread = getattr(component, "_thread", None)
+                if thread and thread.is_alive():
+                    errors.append(label + ": owned thread still active")
+                for attr in ("thread", "worker", "watchdog"):
+                    worker = getattr(component, attr, None)
+                    if worker and worker.is_alive():
+                        errors.append(label + ": " + attr + " still active")
+                speech = getattr(component, "speech", None)
+                if speech is not None and speech.status()["worker_alive"]:
+                    errors.append(label + ": ASR worker still active")
+                for attr in ("process", "receiver", "encoder", "_process", "_rtlfm", "_redsea"):
+                    proc = getattr(component, attr, None)
+                    if proc is not None and proc.poll() is None:
+                        errors.append(label + ": owned process still active")
+            except Exception as exc:
+                errors.append(label + ": " + type(exc).__name__ +
+                              " during cleanup (verify owned handles)")
+        with self._lifecycle_lock:
+            self.lifecycle = "STOP_FAILED_PARTIAL" if errors else "STOPPED"
+            self._close_report = {"lifecycle": self.lifecycle, "errors": errors}
+            self._close_finished.set()
+            return self.lifecycle_status()
+
+    def server_close(self):
+        # The local port is this process's listener; never shut down upstream
+        # DVB, welle-cli, readsb/tar1090, other apps, or saved recordings.
+        try:
+            self.close_owned()
+        finally:
+            super().server_close()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -129,6 +214,8 @@ class Handler(BaseHTTPRequestHandler):
                         else "text/html" if route in ("/", "/index.html")
                         else "text/javascript" if route.endswith(".js") else "text/css")
                 return self._send(200, data, kind + "; charset=utf-8", cache="no-cache")
+            if route == "/api/lifecycle":
+                return self._json(200, self.server.lifecycle_status())
             if route == "/api/bootstrap":
                 return self._json(200, {
                     "version": __version__, "mode": "local_offline_first",
@@ -398,8 +485,16 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": "Internal error. See local server logs."})
 
     def do_POST(self):
+        # Lock start admission against full Quit. In-flight writes complete
+        # before STOPPING; no later task can be admitted afterwards.
+        with self.server._lifecycle_lock:
+            if self.server.lifecycle != "RUNNING":
+                return self._json(503, {"error": "Text Center is stopping; no new tasks accepted"})
+            return self._post_guarded()
+
+    def _post_guarded(self):
         route = urlsplit(self.path).path
-        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop"}
+        allowed = {"/api/feeds/add", "/api/feeds/refresh", "/api/bulletins", "/api/bookmarks", "/api/rds/start", "/api/rds/stop", "/api/fm-survey/start", "/api/fm-survey/stop", "/api/scans/start", "/api/scans/stop", "/api/audio/start", "/api/audio/stop", "/api/dab/refresh", "/api/live/radio/start", "/api/live/radio/stop", "/api/transcripts/translate", "/api/translation/text", "/api/live/tv/start", "/api/live/tv/stop", "/api/recordings/transcription/start", "/api/recordings/transcription/stop", "/api/quit"}
         if route not in allowed:
             return self._json(404, {"error": "Not found"})
         if self.headers.get("X-Tihulu-CSRF") != self.server.csrf_token:
@@ -418,6 +513,8 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict):
                 raise ValueError("Expected JSON object")
+            if route == "/api/quit":
+                return self._json(202, self.server.request_quit())
             if route == "/api/scans/start":
                 return self._json(202, self.server.survey.start(payload.get("band")))
             if route == "/api/scans/stop":
@@ -528,10 +625,9 @@ def run_server(store: Store, *, host: str = "127.0.0.1", port: int = 8787):
     except KeyboardInterrupt:
         pass
     finally:
-        server.postprocess.stop(wait=True)
-        server.live_tv.stop()
-        server.live_fm.stop(wait=True)
-        server.audio.stop(wait=True)
-        server.survey.stop(wait=True)
-        server.rds.stop(wait=True)
+        # server_close cancels/joins every Text-owned worker and closes socket.
+        # Failed teardown is explicitly recorded as STOP_FAILED_PARTIAL.
         server.server_close()
+        report = server.lifecycle_status()
+        if report["errors"]:
+            print("Text Center incomplete shutdown: " + "; ".join(report["errors"]))
