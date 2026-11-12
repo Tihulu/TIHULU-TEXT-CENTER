@@ -102,10 +102,14 @@ def owned(home):
             raise GuardError("Foreign regular Media current link")
         target = Path(os.readlink(release))
         folder = Path(home)/".local/opt/tihulu-media-center/releases"
-        if (not target.is_absolute() or target.parent != folder or
-                not H40.fullmatch((target/".tihulu-media-owned-release").read_text().strip())):
+        marker = target / ".tihulu-media-owned-release"
+        if not target.is_absolute() or target.parent != folder:
             raise GuardError("Unverified current Media release")
-        if target.name != (target/".tihulu-media-owned-release").read_text().strip()[:12]:
+        parents_safe(marker, home)
+        if marker.is_symlink() or not marker.is_file() or marker.stat().st_nlink != 1:
+            raise GuardError("Foreign/symlinked current release marker")
+        revision = marker.read_text(encoding="ascii").strip()
+        if not H40.fullmatch(revision) or target.name != revision[:12]:
             raise GuardError("Incorrect Media release marker")
         current = {"kind": "link", "target": str(target)}
     else:
@@ -175,6 +179,22 @@ def preflight(home, source, commit, ai=False, dab=False, analog=False):
     return {"owner": APP, "sha": commit, "dry_run": True, "source": str(source),
             "existing": original, "previous_package": installed,
             "previous_deb": old_pkg, "new_release": str(release),
+            "new_companion_deb": str(release / "companion.deb"),
+            "new_launcher": str(paths(home)["launch"]),
+            "new_alias": str(paths(home)["alias"]),
+            "new_desktop": str(paths(home)["desktop"]),
+            "new_current_pointer": str(paths(home)["current"]),
+            "companion_package_action": "reinstall exact local Media-only deb",
+            "companion_rollback": ("reinstall verified previous owned deb" if old_pkg
+                                   else "remove only newly installed Media-only deb"),
+            "system_dependencies": [
+                "git", "cmake", "g++", "make", "extra-cmake-modules",
+                "qtbase5-dev", "libqt5x11extras5-dev", "libkf5coreaddons-dev",
+                "libkf5dbusaddons5-dev", "libkf5i18n-dev", "libkf5kio-dev",
+                "libkf5solid-dev", "libkf5widgetsaddons-dev",
+                "libkf5windowsystem-dev", "libkf5xmlgui-dev", "libvlc-dev",
+                "libx11-dev", "libdvbv5-dev", "ffmpeg", "dvb-tools", "psmisc",
+            ],
             "steps": ["inspect clean SHA-pinned Media checkout",
                       "verify every launcher/desktop/alias/current owner",
                       "APT build dependencies; no model unless --with-ai",
