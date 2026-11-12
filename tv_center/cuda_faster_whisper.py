@@ -344,7 +344,7 @@ def main():
         raise SystemExit("Usage: --probe | --selftest | --download PATH | --serve")
     import numpy as np
     from faster_whisper import WhisperModel
-    from textcenter.compute import LANGUAGES as WHISPER_LANGUAGES
+    from tv_center.media_backend.compute import LANGUAGES as WHISPER_LANGUAGES
     model = None
     active_path = None
     for line in sys.stdin.buffer:
