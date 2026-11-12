@@ -21,7 +21,8 @@ test("home TV tuner is real native DVB adapter, not a made-up WebUSB driver",()=
  assert.match(native,/self\._pair_page\(\)/);
  assert.match(native,/PAGES_BRIDGE_ENABLED/);
  assert.match(native,/postMessage/);
- assert.match(html,/Advanced: manual session token/);
+ assert.match(html,/Secure one-click pairing/);
+ assert.doesNotMatch(html,/id="tv-bridge-token"/);
 });
 test("natural map dragging previews visual layers without repainting on every pointermove",()=>{
  const app=read("web/app.mjs"),css=read("web/style.css");
@@ -44,5 +45,6 @@ test("a USB register error has a user-initiated one-shot release/reconnect, neve
  assert.doesNotMatch(usb,/systemctl|modprobe|\/sys\/bus\/usb/);
  for(const id of ["hardware-recover","quick-radio-recover"])
   assert.ok(html.includes('id="'+id+'"'),"missing "+id);
- assert.match(read("sw.js"),/shell-v21/);
+ assert.match(read("sw.js"),/shell-v23/);
+ assert.match(read("sw.js"),/web\/exit_lifecycle\.mjs/);
 });
