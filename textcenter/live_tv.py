@@ -229,13 +229,14 @@ class LiveTV:
         self.stop_flag.set()
         if self.process is not None and self.process.poll() is None:
             try:
-                os.killpg(self.process.pid,signal.SIGTERM)
+                self.process.terminate()
                 self.process.wait(timeout=0.8)
             except (OSError,subprocess.TimeoutExpired):
                 try:
-                    os.killpg(self.process.pid,signal.SIGKILL)
+                    self.process.kill()
                     self.process.wait(timeout=0.3)
-                except (OSError,subprocess.TimeoutExpired):pass
+                except (OSError,subprocess.TimeoutExpired):
+                    pass
         if self.process and self.process.stdout:
             try:self.process.stdout.close()
             except OSError:pass
