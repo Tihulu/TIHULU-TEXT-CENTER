@@ -1,0 +1,1089 @@
+{
+  "schema_version": 1,
+  "kind": "WS04_SOURCE_ONLY_AUDIT_NOT_IMPLEMENTATION_CERTIFICATION",
+  "as_of": "2026-11-12",
+  "repository": "Tihulu/TIHULU-TEXT-CENTER",
+  "workstream": 4,
+  "assigned_issue": 79,
+  "central_issue": 75,
+  "draft_pr": 86,
+  "branch": "audit/ws04-rf-geolocation-2026-11-11",
+  "inspected_head_before_report_commits": "08be02ac30cd65f8ccba43a799c979654d8fefd1",
+  "original_draft": {
+    "pr": 16,
+    "head": "6664a04a6247826d71f6adeb795b137fd26de213",
+    "status": "draft",
+    "key_blob_shas_compared_identical_count": 10,
+    "full_tree_parity_verified": false
+  },
+  "issue_urls": [
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79",
+    "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/75"
+  ],
+  "guardrails": {
+    "allowed_paths": [
+      "apps/_coordination/workstreams/04/REPORT.md",
+      "apps/_coordination/workstreams/04/EVIDENCE.json"
+    ],
+    "runtime_changes": 0,
+    "merges": 0,
+    "migrations": 0,
+    "engineering_language": "en",
+    "required_ui_locales": [
+      "en",
+      "tr",
+      "de"
+    ]
+  },
+  "counts": {
+    "requirements_reviewed": 8,
+    "acceptance_fully_verified": 0,
+    "status_placements": {
+      "draft-coded": 4,
+      "requested": 4,
+      "unit-verified": 0,
+      "hardware-verified": 0,
+      "released": 0,
+      "unknown": 0
+    },
+    "test_files_source_inspected": 13,
+    "tests_executed_by_auditor": 0,
+    "hardware_tests_executed_by_auditor": 0
+  },
+  "requirements": [
+    {
+      "id": "GEO-001",
+      "requested_acceptance_not_certified": true,
+      "classification": "draft-coded",
+      "source_finding": "Standalone web/core and Python loopback launcher are in Draft source; independent distribution/native install/target repository acceptance not proved.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "lines": "L5-L25",
+          "blob_sha": "c886c7d951af430efb49bf5f64f9eb82dbd3ba42",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/positioning.mjs#L5-L25"
+        },
+        {
+          "path": "rf_geolocation_center/native.py",
+          "lines": "L1-L55",
+          "blob_sha": "dd36360f966b651400153acd8413f4089115a6f6",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/native.py#L1-L55"
+        },
+        {
+          "path": "rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md",
+          "lines": "L1-L18",
+          "blob_sha": "6fa9240f98f7c16c8aedc4cc369a5757fc4cfab3",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/docs/PLATFORM_TEST_MATRIX.md#L1-L18"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/core.test.mjs",
+          "blob_sha": "c7e3d0d17305716b3907bea744302c2576581a83",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/core.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/test_native.py",
+          "blob_sha": "1c3a5a1402c8e8523625248731fe4a387e24333d",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/test_native.py",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Independent release, native packages, true repository handoff/rollback.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-002",
+      "requested_acceptance_not_certified": true,
+      "classification": "draft-coded",
+      "source_finding": "Checksum-validated GNSS NMEA, satellite orbital references and experimental 2D ranges/TDOA constraints exist. TDOA explicitly returns positionFix:false, not an MLAT fix.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "lines": "L21-L56",
+          "blob_sha": "c886c7d951af430efb49bf5f64f9eb82dbd3ba42",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/positioning.mjs#L21-L56"
+        },
+        {
+          "path": "rf_geolocation_center/core/positioning.mjs",
+          "lines": "L72-L125",
+          "blob_sha": "c886c7d951af430efb49bf5f64f9eb82dbd3ba42",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/positioning.mjs#L72-L125"
+        },
+        {
+          "path": "rf_geolocation_center/core/source_catalog.mjs",
+          "lines": "L65-L84",
+          "blob_sha": "2a6c69a0097d785b72106d9d8fa4a46f89a9bd74",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/source_catalog.mjs#L65-L84"
+        },
+        {
+          "path": "rf_geolocation_center/web/receivers.mjs",
+          "lines": "L6-L73",
+          "blob_sha": "8c39217d6ef47fcc331add5bca4e9f026b58fa48",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/receivers.mjs#L6-L73"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/core.test.mjs",
+          "blob_sha": "c7e3d0d17305716b3907bea744302c2576581a83",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/core.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/source_catalog.test.mjs",
+          "blob_sha": "9f948429d856fcb2ff24f43a070ed0b4b0364e98",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/source_catalog.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "GNSS-SDR correlation/PVT, calibrated synchronized receiver timing, genuine aircraft multilateration.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-003",
+      "requested_acceptance_not_certified": true,
+      "classification": "requested",
+      "source_finding": "Unvalidated RMS residual and factor-three heuristic RF ranges exist; bounds explicitly are NOT statistical confidence. No PSF/Gaussian or covariance solver evidenced in inspected positioning modules.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/rf_ranging.mjs",
+          "lines": "L19-L44",
+          "blob_sha": "3186d79020edff60cd1b022e984d47c9e247fa0c",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/rf_ranging.mjs#L19-L44"
+        },
+        {
+          "path": "rf_geolocation_center/core/rf_ranging.mjs",
+          "lines": "L45-L84",
+          "blob_sha": "3186d79020edff60cd1b022e984d47c9e247fa0c",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/rf_ranging.mjs#L45-L84"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "blob_sha": "7c67cc3f286fe81f720813a776665b4f8cf0c92b",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "PSF/Gaussian estimator with synthetic error tests, uncertainty calibration and observed validation.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-004",
+      "requested_acceptance_not_certified": true,
+      "classification": "requested",
+      "source_finding": "Rings use 96 sampled segments (API 24..720); receiver in-memory history caps at 500 and survey source entries at 60. No audited spatial index, incremental fitter or large-ring benchmark.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/evidence.mjs",
+          "lines": "L14-L16",
+          "blob_sha": "57dfe4335eac2e2e89dab9e7e584b1fe556ad412",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/evidence.mjs#L14-L16"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L156-L159",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L156-L159"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L530-L565",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L530-L565"
+        },
+        {
+          "path": "rf_geolocation_center/web/rf_survey.mjs",
+          "lines": "L103-L112",
+          "blob_sha": "2fd6bef3fdc01f9bcffedd8e555f71a60264eabd",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/rf_survey.mjs#L103-L112"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/evidence.test.mjs",
+          "blob_sha": "caf675d71acfeb110b765b20a95dc42319455306",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/evidence.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "blob_sha": "9c7f73de5609d2c87323193543d80b640e1198a8",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Large dataset/time-budget performance tests, spatial index and incremental fit tests.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-005",
+      "requested_acceptance_not_certified": true,
+      "classification": "requested",
+      "source_finding": "Imported measured, demo, RF model and browser-accuracy circles are visually distinguished; aircraft references are separate. No independent aircraft COVERAGE rings vs Location/LIVE Fit/BEST Fit ring families evidenced.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L524-L568",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L524-L568"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L605-L651",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L605-L651"
+        },
+        {
+          "path": "rf_geolocation_center/index.html",
+          "lines": "L189-L204",
+          "blob_sha": "2694215928b40fa6de83931f1ed976848a439b2f",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/index.html#L189-L204"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/evidence.test.mjs",
+          "blob_sha": "caf675d71acfeb110b765b20a95dc42319455306",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/evidence.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/ui_contract.test.mjs",
+          "blob_sha": "2ada480025e883b9095a2ddb4098d243cf77d363",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/ui_contract.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Distinct source/LIVE/BEST/Location ring controls and visual regression suite.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-006",
+      "requested_acceptance_not_certified": true,
+      "classification": "draft-coded",
+      "source_finding": "RF-only mode excludes OS/GNSS/cached sources and capture is opt-in; Hard Stop is connected to app-owned release. However setRfOnly(false) calls compute() and does not call USB release, so RF Off lifecycle guarantee is unverified.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/web/rf_survey.mjs",
+          "lines": "L41-L67",
+          "blob_sha": "2fd6bef3fdc01f9bcffedd8e555f71a60264eabd",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/rf_survey.mjs#L41-L67"
+        },
+        {
+          "path": "rf_geolocation_center/web/rf_survey.mjs",
+          "lines": "L95-L101",
+          "blob_sha": "2fd6bef3fdc01f9bcffedd8e555f71a60264eabd",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/rf_survey.mjs#L95-L101"
+        },
+        {
+          "path": "rf_geolocation_center/web/usb_sdr.mjs",
+          "lines": "L359-L375",
+          "blob_sha": "b8426fddae87d9eeff202a9db5bafec97afa3d4b",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/usb_sdr.mjs#L359-L375"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L950-L960",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L950-L960"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/rf_ui_contract.test.mjs",
+          "blob_sha": "4f119804e58e35f84bd3cba69dc79de65794b9f6",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/rf_ui_contract.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/receiver_ux.test.mjs",
+          "blob_sha": "5b4fd4d1f349b6dfe8ee2129ae1d0345d5388bf6",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/receiver_ux.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/usb_resampler_regression.test.mjs",
+          "blob_sha": "2aff0e22e44d445f004d31b884f6df30cc9d0412",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/usb_resampler_regression.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "RF OFF disabled computation/lease release + background/stale capture integration test.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-007",
+      "requested_acceptance_not_certified": true,
+      "classification": "draft-coded",
+      "source_finding": "Nine named method layers, local preferences, browser drag/markers, PWA offline grid and saved references are coded. OSM tiles remain online-dependent; complete offline basemap and EN/TR/DE localization acceptance not evidenced.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/location_layers.mjs",
+          "lines": "L5-L43",
+          "blob_sha": "43eff60a70200533aa29ce9713f5b34b2d8a4e4d",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/location_layers.mjs#L5-L43"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L360-L381",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L360-L381"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L686-L711",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L686-L711"
+        },
+        {
+          "path": "rf_geolocation_center/sw.js",
+          "lines": "L1-L39",
+          "blob_sha": "8f75f976124a40e7ef6705847d4ed7a1fcc8188c",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/sw.js#L1-L39"
+        },
+        {
+          "path": "rf_geolocation_center/index.html",
+          "lines": "L2-L5",
+          "blob_sha": "2694215928b40fa6de83931f1ed976848a439b2f",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/index.html#L2-L5"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/location_layers.test.mjs",
+          "blob_sha": "2425c0f651b6d21b20e744f4b9ac6f8bdea4c165",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/location_layers.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "blob_sha": "9c7f73de5609d2c87323193543d80b640e1198a8",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/map_interactivity.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/ui_contract.test.mjs",
+          "blob_sha": "2ada480025e883b9095a2ddb4098d243cf77d363",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/ui_contract.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Native/offline mobile basemap and gestures, persisted coordinate selector, GUI translations.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    },
+    {
+      "id": "GEO-008",
+      "requested_acceptance_not_certified": true,
+      "classification": "requested",
+      "source_finding": "3+ externally calibrated fixed GROUND stations permit an unverified RF-only RSSI hypothesis without OS lat/lon; 3+ aircraft are categorically excluded from the ground-station solver, and decoded ADS-B positions are reference-only.",
+      "source_evidence": [
+        {
+          "path": "rf_geolocation_center/core/rf_ranging.mjs",
+          "lines": "L45-L59",
+          "blob_sha": "3186d79020edff60cd1b022e984d47c9e247fa0c",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/rf_ranging.mjs#L45-L59"
+        },
+        {
+          "path": "rf_geolocation_center/core/source_catalog.mjs",
+          "lines": "L65-L81",
+          "blob_sha": "2a6c69a0097d785b72106d9d8fa4a46f89a9bd74",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/core/source_catalog.mjs#L65-L81"
+        },
+        {
+          "path": "rf_geolocation_center/web/catalog_discovery.mjs",
+          "lines": "L177-L202",
+          "blob_sha": "cb1915cdd3a4b42bd4b8c393c32d44372929659d",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/catalog_discovery.mjs#L177-L202"
+        },
+        {
+          "path": "rf_geolocation_center/web/app.mjs",
+          "lines": "L320-L328",
+          "blob_sha": "3e7f5eaf4b5ee124c26cb7bdf72dca72329ff026",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/web/app.mjs#L320-L328"
+        }
+      ],
+      "candidate_test_evidence": [
+        {
+          "path": "rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "blob_sha": "7c67cc3f286fe81f720813a776665b4f8cf0c92b",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/rf_ranging.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/location_layers.test.mjs",
+          "blob_sha": "2425c0f651b6d21b20e744f4b9ac6f8bdea4c165",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/location_layers.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        },
+        {
+          "path": "rf_geolocation_center/tests/source_catalog.test.mjs",
+          "blob_sha": "9f948429d856fcb2ff24f43a070ed0b4b0364e98",
+          "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/source_catalog.test.mjs",
+          "reviewed_source": true,
+          "executed": false
+        }
+      ],
+      "missing_evidence": "Actual independent aircraft-derived measurements with valid timing/geometry, 3+ aircraft regional estimate and anti-false-fix gates.",
+      "unit_verified": false,
+      "hardware_verified": false,
+      "released": false
+    }
+  ],
+  "other_test_files_inspected": [
+    {
+      "path": "rf_geolocation_center/tests/simple_ui.test.mjs",
+      "blob_sha": "920ce6da699831856dd88284e7ee4a2c27d33175",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/simple_ui.test.mjs",
+      "executed": false
+    },
+    {
+      "path": "rf_geolocation_center/tests/provenance.test.mjs",
+      "blob_sha": "17dcf5abea40df6527f621b6a07a82c2c52ee37b",
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/08be02ac30cd65f8ccba43a799c979654d8fefd1/rf_geolocation_center/tests/provenance.test.mjs",
+      "executed": false
+    }
+  ],
+  "blockers": [
+    "P0: GNSS-SDR PVT and independently timestamped/synchronized aircraft multilateration missing.",
+    "P0: RF-only OFF not demonstrated to stop compute() or release USB receiver, despite Hard Stop path.",
+    "P1: PSF/Gaussian calibrated uncertainty and separate Location/LIVE/BEST fit ring families not evidenced.",
+    "P1: High-density spatial indexing/incremental fit and real performance budgets not evidenced.",
+    "P1: EN/TR/DE UI locale parity, offline maps, native cross-platform acceptance and rollback not verified.",
+    "Cross-team: Flight Radar actual antenna ADS-B/provenance integration is a dependency; see Issue #77."
+  ],
+  "methodology": "Read-only GitHub connector file inspection and PR comparison; fixture/pure-code/static-regex tests inspected, not run; no physical receiver or installed software touched.",
+  "evidence_limitations": [
+    "No hardware tests, no local test runner, no CI job started or green check asserted.",
+    "Core evidence is pinned to audit source SHA and file blob SHA.",
+    "Requested feature acceptance is not implied by source path/test presence.",
+    "Original Draft PR #16 and audit branch are divergent; ten sampled file blob identities match but complete branch parity has not been certified."
+  ],
+  "eta_hours_minutes": null,
+  "phase4": {
+    "revision": "WS04_PHASE_4_SYNTHETIC_REGRESSION_PLAN_2026_11_12",
+    "assigned_comment": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/issues/79#issuecomment-6811788094",
+    "coordination_plan": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/chore/master-requirements-zero-regression-coordination-2026-11-11/apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md#L37-L49",
+    "original_geo_pr": {
+      "url": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/16",
+      "head_sha": "6664a04a6247826d71f6adeb795b137fd26de213",
+      "branch": "feature/rf-geolocation-center-2026-11",
+      "draft": true,
+      "merged": false
+    },
+    "flight_canonical": {
+      "url": "https://github.com/Tihulu/tihulu-flight-radar",
+      "head_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+      "branch": "main"
+    },
+    "flight_isolated_pr14": {
+      "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/14",
+      "head_sha": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+      "base_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+      "draft": true,
+      "merged": false,
+      "only_changed_path": "tests/test_stage3_isolated_receiver_ownership.py",
+      "test_blob_sha": "311eb49a69825c34d8e7876efa210282abaf96ce",
+      "ci_run_id": 43133741667,
+      "ci_four_jobs": "completed_success",
+      "has_strict_expected_failure": true,
+      "ci_proves_receiver_hardware": false
+    },
+    "flight_unmerged_pr13": {
+      "url": "https://github.com/Tihulu/tihulu-flight-radar/pull/13",
+      "head_sha": "950f8278a625ce13a9a3c7e21bf9bf76d4b5888e",
+      "branch_not_canonical": true,
+      "required_independent_icao": 4,
+      "five_modes": [
+        "live10",
+        "liveX",
+        "best",
+        "history",
+        "historyBest"
+      ]
+    },
+    "flight_main_required_rf_icao": 3,
+    "scientific_contract": "ADS-B decoded aircraft coordinates identify aircraft, not receiver; single SDR lacks synchronized independent station receiver clock/TX times. RSSI and horizon circles are heuristic. Never claim GPS, calibrated MLAT, TDOA self-location, measured accuracy or 1-sigma confidence.",
+    "source_ref_index": {
+      "gGeo": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/positioning.mjs#L72-L125",
+      "gRSSI": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/rf_ranging.mjs#L19-L84",
+      "gSource": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/source_catalog.mjs#L65-L84",
+      "gSourceProv": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/source_provenance.mjs#L1-L53",
+      "gApp": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/app.mjs#L45-L105",
+      "gGeoRing": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/app.mjs#L524-L652",
+      "gOff": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/rf_survey.mjs#L41-L101",
+      "gLock": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/usb_sdr.mjs#L61-L75",
+      "gHard": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/usb_sdr.mjs#L359-L375",
+      "gNmea": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/positioning.mjs#L1-L56",
+      "gTests": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/tests/core.test.mjs#L49-L88",
+      "gRFTest": "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/tests/rf_ranging.test.mjs#L12-L40",
+      "fCoverage": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+      "fTiming": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/rf_timing_lab.js#L14-L95",
+      "fMerge": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/bridge.py#L99-L145",
+      "fControl": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L119-L264",
+      "fUnits": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L13-L109",
+      "fDocs": "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/docs/RF_COVERAGE_AND_TIMESTAMP_LIMITS.md#L20-L65",
+      "f13Coverage": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L1-L40",
+      "f13History": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_models.js#L1-L35",
+      "f13HistTests": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tests/rf_history_five_modes.test.cjs#L17-L67",
+      "f13PSF": "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L231-L249",
+      "f14Tests": "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L1-L108"
+    },
+    "geo_pr16_vs_audit_head_sample": {
+      "geolocation_head": "6664a04a6247826d71f6adeb795b137fd26de213",
+      "workstream_prephase_head": "b62ba58287ef9e76d42ca807829b26da68177e18",
+      "sample_count": 10,
+      "identical_blobs": 10,
+      "verified_subset_only": true,
+      "full_tree_parity_verified": false
+    },
+    "preservation_caveat": "Do not merge PR #16 or Flight #13/#14, cherry-pick into main, or interpret cross-repo interfaces as integration acceptance.",
+    "coverage": {
+      "cases_documented": 29,
+      "case_ids": [
+        "P4-GEO-01",
+        "P4-GEO-02",
+        "P4-GEO-03",
+        "P4-GEO-04",
+        "P4-GEO-05",
+        "P4-GEO-06",
+        "P4-GEO-07",
+        "P4-GEO-08",
+        "P4-GEO-09",
+        "P4-GEO-10",
+        "P4-GEO-11",
+        "P4-GEO-12",
+        "P4-GEO-13",
+        "P4-GEO-14",
+        "P4-GEO-15",
+        "P4-GEO-16",
+        "P4-GEO-17",
+        "P4-GEO-18",
+        "P4-GEO-19",
+        "P4-GEO-20",
+        "P4-GEO-21",
+        "P4-GEO-22",
+        "P4-GEO-23",
+        "P4-GEO-24",
+        "P4-GEO-25",
+        "P4-GEO-26",
+        "P4-GEO-27",
+        "P4-GEO-28",
+        "P4-GEO-29"
+      ],
+      "source_content_inspected": true,
+      "synthetic_cases_executed_by_this_worker": 0,
+      "service_actions": 0,
+      "physical_hardware_tests": 0,
+      "production_or_test_files_modified": 0,
+      "existing_ws04_source_audit_requirements": 8,
+      "proposed_specification_not_selected": true,
+      "reg_gates_still_open": [
+        "REG-03",
+        "REG-04",
+        "REG-05",
+        "REG-13",
+        "REG-14",
+        "REG-17"
+      ]
+    },
+    "cases": [
+      {
+        "id": "P4-GEO-01",
+        "reg": [
+          "REG-04",
+          "REG-05"
+        ],
+        "fixture_input": "Four OpenSky/internet aircraft with valid coordinates/ICAOs, no local antenna frame",
+        "expected_oracle": "0 RF eligible; map markers are internet references; no receiver estimate, no TDOA",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/source_catalog.mjs#L65-L84",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/bridge.py#L99-L145"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new synthetic negative",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-02",
+        "reg": [
+          "REG-04",
+          "REG-05"
+        ],
+        "fixture_input": "Hybrid I/R ICAO with fresh Internet position but stale or missing local RF position",
+        "expected_oracle": "Do not promote merged Internet coordinates to antenna evidence; aircraft can be displayed with I/R provenance but is RF-ineligible",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/bridge.py#L99-L145"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new synthetic negative",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-03",
+        "reg": [
+          "REG-04",
+          "REG-05"
+        ],
+        "fixture_input": "Malformed ICAO, wrong case duplicates, invalid lat/lon, null/NaN/infinity coordinates",
+        "expected_oracle": "Reject invalid or non-finite positions; normalize true 6-hex ICAO; count each ICAO once",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/source_catalog.mjs#L65-L84",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new mixed parser/model",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-04",
+        "reg": [
+          "REG-04"
+        ],
+        "fixture_input": "Four sightings but only one or two unique ICAO24 IDs",
+        "expected_oracle": "No 3- or 4-aircraft eligibility; history/trajectory samples must not increase independent count",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L1-L40",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_models.js#L1-L35"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new dedup boundary",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-05",
+        "reg": [
+          "REG-04"
+        ],
+        "fixture_input": "Exactly 3 spatially separated fresh valid local RF ICAOs, RF position source and altitude",
+        "expected_oracle": "Flight main may enter horizon possible-region model when overlap; PR #13 must be insufficient (<4). Neither is GPS; require explicit contract choice",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L1-L40"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing semantics; later A/B test",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-06",
+        "reg": [
+          "REG-04"
+        ],
+        "fixture_input": "Exactly 4 unique eligible antenna-positioned ICAOs and compatible horizon bounds",
+        "expected_oracle": "Both may compute possible-region centroid; PR #13 required>=4; accuracyMeters:null and confidence:null; do not assert location truth",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L1-L40"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new 4-boundary",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-07",
+        "reg": [
+          "REG-04",
+          "REG-05"
+        ],
+        "fixture_input": "Valid RF aircraft with seen/seen_pos 61s (outer or nested antenna); Internet or fused 1s position",
+        "expected_oracle": "Reject as currently live RF if any age exceeds 60s; stale records cannot be relabeled fresh by rendering",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/bridge.py#L99-L145"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new clock/staleness",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-08",
+        "reg": [
+          "REG-04"
+        ],
+        "fixture_input": "History recorded_rf true capturedAtMs >2h old, future beyond +5s, bad radius, or duplicate live ICAO",
+        "expected_oracle": "Main drops out-of-window/invalid history; does not duplicate unique ICAO; historical point never becomes a live plane",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing logic; add edge fixtures",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-09",
+        "reg": [
+          "REG-04"
+        ],
+        "fixture_input": "One aircraft contributes 15 valid along-track points in PR #13",
+        "expected_oracle": "Independent ICAO count=1; reject 4-plane eligibility even with >4 constraints; retain per-ICAO trajectory semantics",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L1-L40",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_models.js#L1-L35"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new path-count negative",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-10",
+        "reg": [
+          "REG-04"
+        ],
+        "fixture_input": "Permute 4 RF aircraft list order, maintaining same measurements and epochs",
+        "expected_oracle": "Compare modeled feasibility status and center within numerical tolerance; should not track latest/first aircraft; require test tied to PR #13 spec",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L1-L40",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tests/rf_history_five_modes.test.cjs#L17-L67"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new metamorphic test; not verified",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-11",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "RF ADC sample indices + host read time, no calibrated transmit clock or synchronized stations",
+        "expected_oracle": "No propagation delay/range, GPS fix, or TDOA inference; keep transmit_timestamp_available=false, receiver_position_fix_available=false",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/rf_timing_lab.js#L14-L95",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/docs/RF_COVERAGE_AND_TIMESTAMP_LIMITS.md#L20-L65"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing source negative",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-12",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "NMEA invalid checksum, quality=0, or valid parsed NMEA with absent accuracy",
+        "expected_oracle": "Reject invalid fix; valid dedicated GNSS NMEA may be a reported GNSS fix with accuracy null, never RTL-SDR GPS",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/positioning.mjs#L1-L56",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/tests/core.test.mjs#L49-L88",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/source_provenance.mjs#L1-L53"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing synthetic and proposed stale test",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-13",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "Fresh GNSS NMEA versus >90s serial record / >5min device record / cached location",
+        "expected_oracle": "Only independently fresh valid GNSS or device location may be live; cached/stale is NOT LIVE; browser provider remains method-unknown",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/app.mjs#L45-L105",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/source_provenance.mjs#L1-L53"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new fixture time boundaries",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-14",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "Two synchronized real receiver-site timing constraints with physically plausible deltaSeconds",
+        "expected_oracle": "tdoaConstraints returns hyperbola constraints positionFix:false; never a solved receiver position. No GNSS-disciplined timing or independent real RX proven",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/positioning.mjs#L72-L125",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/tests/core.test.mjs#L49-L88"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing synthetic constraint oracle",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-15",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "Unsynchronized stations, impossible deltaSeconds*c > baseline, missing receiver timestamp origin",
+        "expected_oracle": "Reject or no-fix; never silently clamp to synthetic receiver coordinates",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/positioning.mjs#L72-L125",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/tests/core.test.mjs#L49-L88"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing negative and new origin tests",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-16",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "One RTL-SDR sees four aircraft and reads their ADS-B latitude/longitude",
+        "expected_oracle": "Not four independent synchronized receiving stations, no observability of receiver self-position; TDOA/MLAT output remains null/no-fix",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/positioning.mjs#L72-L125",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/docs/RF_COVERAGE_AND_TIMESTAMP_LIMITS.md#L20-L65",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/rf_timing_lab.js#L14-L95"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new scientific negative",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-17",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "RF level sample without independently known reference distance / same gain and frequency",
+        "expected_oracle": "calibratedRange rejects missing/mismatched calibration; relative dBFS and I/Q power not measured range",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/rf_ranging.mjs#L19-L84",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/tests/rf_ranging.test.mjs#L12-L40"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing source negative",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-18",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "Three fixed calibrated ground-transmitter RSSI hypotheses, all fresh <=10m and nondegenerate 2D geometry",
+        "expected_oracle": "Can produce experimental low/unvalidated propagation-model estimate, not a true measured range or GPS; residual not position accuracy",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/rf_ranging.mjs#L19-L84",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/rf_survey.mjs#L41-L101",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/tests/rf_ranging.test.mjs#L12-L40"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "source-supported partial",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-19",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "Three aircraft/satellites or collinear fixed stations, polar/out-of-bounds, contradictory range constraints",
+        "expected_oracle": "Reject aircraft/satellite fixed-station solve or unstable geometry; no fabricated fallback position",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/rf_ranging.mjs#L19-L84",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/positioning.mjs#L72-L125",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/tests/rf_ranging.test.mjs#L12-L40"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing / additional geometry",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-20",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "Altitude known for aircraft but only 2D RSSI rings and 2D trilateration solver",
+        "expected_oracle": "No 3D receiver height, 3D covariance or altitude fix; require 3D independent geometry/timebase and validation before any new claim",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/positioning.mjs#L72-L125",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/rf_ranging.mjs#L19-L84",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new 2D/3D negative",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-21",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "Feasible region, heuristic 3x RSSI bounds, best spread, Gaussian user-selected sigma",
+        "expected_oracle": "Model center and spread never sigma confidence, 68.3% coverage, accuracyMeters or calibrated covariance; null physical confidence mandatory",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/receiver_coverage.js#L231-L249",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/rf_ranging.mjs#L19-L84",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_models.js#L1-L35"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing source invariants / new confidence assertions",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-22",
+        "reg": [
+          "REG-05"
+        ],
+        "fixture_input": "Coverage aircraft rings; browser accuracy ring; imported measured circles; RSSI hypothesis rings; draft LIVE/BEST/HISTORY",
+        "expected_oracle": "Keep independently labeled layers and source provenance; forbid swapping rings as direct measurements, LIVE/BEST modeled center is not Location fix",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/app.mjs#L524-L652",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/web/receiver_coverage.js#L26-L142",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/950f8278a625ce13a9a3c7e21bf9bf76d4b5888e/tihulu_flight_radar/web/rf_history_models.js#L1-L35"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new visual/semantic matrix",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-23",
+        "reg": [
+          "REG-03"
+        ],
+        "fixture_input": "Switch Geolocation RF-only true to false during/after captured WebUSB session",
+        "expected_oracle": "RF Off must stop app-owned computation and release own SDR without killing external service; source currently calls compute() and lacks release() on RF Off: OPEN GAP",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/rf_survey.mjs#L41-L101",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/usb_sdr.mjs#L61-L75",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/usb_sdr.mjs#L359-L375"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "known gap; later strict failing test may be appropriate",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-24",
+        "reg": [
+          "REG-03"
+        ],
+        "fixture_input": "Geolocation Hard Stop while this page owns WebUSB and external readsb/gqrx is independently present",
+        "expected_oracle": "Only app-owned USB session can close; external readsb/tar1090/gqrx untouched; cancellations after stop cannot restore handles or fabricate captures",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/usb_sdr.mjs#L61-L75",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/usb_sdr.mjs#L359-L375"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "existing source path; new fake ownership tests",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-25",
+        "reg": [
+          "REG-03"
+        ],
+        "fixture_input": "Flight Linux services readsb and tar1090 pre-existing; passive Exit with release_local_service=True",
+        "expected_oracle": "No service_action(stop) allowed for externally owned services. Current Flight main violates oracle; PR #14 strict XFAIL characterizes defect",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L119-L264",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L1-L108"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "KNOWN STRICT-XFAIL, not passing acceptance",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-26",
+        "reg": [
+          "REG-03"
+        ],
+        "fixture_input": "Flight Linux services pre-existing; close(release_local_service=False), remote-mode close(True), or failed start",
+        "expected_oracle": "No externally owned stop; no false _service_started_by_app ownership, and no sudo/systemctl called in Remote JSON",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L119-L264",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L1-L108"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "PR14 mock fixtures",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-27",
+        "reg": [
+          "REG-03"
+        ],
+        "fixture_input": "Flight app starts previously inactive readsb; later passive Exit release True versus False; explicit user Stop",
+        "expected_oracle": "Respect persisted exit preference and actual ownership; explicit Stop is a separate action that current main invokes even on shared services; require separately approved semantics and concurrency tests",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L119-L264",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L1-L108"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new state-transition matrix; unresolved policy",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-28",
+        "reg": [
+          "REG-03"
+        ],
+        "fixture_input": "Systemctl restart concurrent, sudo denied, direct decoder process, stale status after start",
+        "expected_oracle": "Restricted command argv exactly sudo -n /usr/bin/systemctl action readsb.service tar1090.service; no external kill on errors; app-owned direct child release only",
+        "source_refs": [
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L13-L109",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/059b391280635d9aa4d2ac73c7318af9e135ebf5/tihulu_flight_radar/control.py#L119-L264",
+          "https://github.com/Tihulu/tihulu-flight-radar/blob/b6a7510466efd5978b1724b5ce88830c1ecf9d71/tests/test_stage3_isolated_receiver_ownership.py#L1-L108"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "new fake process/exception tests",
+        "hardware_verified": false
+      },
+      {
+        "id": "P4-GEO-29",
+        "reg": [
+          "REG-13",
+          "REG-14",
+          "REG-17"
+        ],
+        "fixture_input": "Cross-platform desktop/mobile app with EN(default)/TR/DE labels and independent Geolocation matrices",
+        "expected_oracle": "No locale or build acceptance implied by green synthetic tests; original PR #16 unmerged; check native packaging, rollback, local/web matrix and original history after separate approval",
+        "source_refs": [
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/web/app.mjs#L45-L105",
+          "https://github.com/Tihulu/TIHULU-TEXT-CENTER/blob/6664a04a6247826d71f6adeb795b137fd26de213/rf_geolocation_center/core/source_provenance.mjs#L1-L53"
+        ],
+        "status": "PROPOSED_NOT_EXECUTED",
+        "existing_scope_note": "future gate only",
+        "hardware_verified": false
+      }
+    ],
+    "open_questions": [
+      "Owner/coordinator must settle Flight 3 vs 4 RF aircraft prerequisite and which of five draft model modes are accepted; keep currently released main behavior unchanged before approval.",
+      "Define independent synchronized receiver-station timestamp clock origins, uncertainty, calibration/dataset provenance for any true TDOA/MLAT claim.",
+      "Distinguish user-approved explicit Stop from passive Exit and external-systemd readsb ownership; keep external readsb and tar1090 alive absent authorized owner change.",
+      "Define current versus historical staleness and source labels at cross-app import (BroadcastChannel and remote JSON), and guard against hybrid I/R copied coordinates.",
+      "Validate null covariance/confidence/accuracy, multiple rings and EN/TR/DE strings independently from synthetic green CI.",
+      "Need actual installed-device acceptance and future code authorization for defect fixes; not permitted in this phase."
+    ],
+    "eta_hours": null,
+    "eta_minutes": null
+  }
+}
