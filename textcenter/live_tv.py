@@ -146,6 +146,8 @@ class LiveTV:
             raise LiveTVError("User must confirm dedicated upstream TV tuner lease")
         with self.mutex:
             if self.closed:raise LiveTVError("TV relay is stopping or has quit")
+            if any(t is not None and t.is_alive() for t in (self.thread,self.watchdog)):
+                raise LiveTVError("Previous TV worker still stopping")
             if self.process is not None and self.process.poll() is None:
                 raise LiveTVError("Previous TV transcoder still stopping")
             if self.speech is not None and (
