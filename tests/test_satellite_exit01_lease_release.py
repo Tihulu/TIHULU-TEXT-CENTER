@@ -201,6 +201,32 @@ class Exit01SatelliteTests(unittest.TestCase):
         self.assertEqual(prior_image.read_bytes(), b"ALREADY SAVED IMAGE")
         self.assertFalse(self.station.decoder_active)
 
+    def test_bounded_quit_reports_incomplete_owned_wav_postprocess(self):
+        # A fake in-memory conversion session must not yield a false "released".
+        self.station.postprocess_active = True
+        incomplete = self.station.close(timeout_seconds=0.03)
+        self.assertEqual(incomplete["state"], "stop_failed_partial")
+        self.assertTrue(incomplete["owned_postprocess_worker_alive"])
+        self.station.postprocess_active = False
+        complete = self.station.close(timeout_seconds=0.2)
+        self.assertTrue(complete["app_released"])
+        self.assertFalse(complete["owned_postprocess_worker_alive"])
+
+    def test_qt_unjoinable_capture_marker_never_receives_thread_join(self):
+        class FakeQtDummy:
+            def join(self, *args):
+                raise AssertionError("Qt thread must not be joined as Python thread")
+
+            def is_alive(self):
+                raise AssertionError("Qt dummy thread lifetime cannot be polled")
+
+        self.station.active_worker = FakeQtDummy()
+        incomplete = self.station.close(timeout_seconds=0.03)
+        self.assertEqual(incomplete["state"], "stop_failed_partial")
+        self.assertTrue(incomplete["owned_capture_worker_alive"])
+        self.station.active_worker = None
+        self.assertEqual(self.station.close(timeout_seconds=0.2)["state"], "stopped")
+
     def test_invalid_decoder_does_not_reserve_worker_or_launch_satdump(self):
         with self.assertRaises(ValueError):
             self.station.decode_meteor("not-a-meteor")
