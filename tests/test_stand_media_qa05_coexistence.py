@@ -115,6 +115,15 @@ class CoexistenceTests(IndependentHomeFixture):
         self.assertEqual(foreign.read_bytes(), b"FOREIGN DESKTOP KEEP")
         self.assertEqual(self.hash_stable(), self.stable_sha)
 
+    def test_unowned_standalone_data_and_transaction_paths_are_not_adopted(self):
+        foreign_state = guard.layout(self.home)["state"] / "private.txt"
+        foreign_state.parent.mkdir(parents=True)
+        foreign_state.write_bytes(b"FOREIGN STATE KEEP")
+        with self.assertRaisesRegex(guard.Hold, "Unowned standalone"):
+            guard.preflight(self.home, self.source, self.rev)
+        self.assertEqual(foreign_state.read_bytes(), b"FOREIGN STATE KEEP")
+        self.assertEqual(self.hash_stable(), self.stable_sha)
+
     def test_modified_launcher_refuses_full_rollback_before_any_write(self):
         guard.activate(self.home, self.source, self.rev, self.artifact)
         launch = guard.layout(self.home)["launcher"]
