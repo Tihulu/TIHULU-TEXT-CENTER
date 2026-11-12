@@ -111,6 +111,10 @@ class FMPreview:
         with self._mutex:
             if self._closed:
                 raise AudioError("FM preview has quit")
+            if self._thread is not None and self._thread.is_alive():
+                raise AudioError("Previous FM preview worker still stopping")
+            if self._process is not None and self._process.poll() is None:
+                raise AudioError("Previous FM preview child still running")
             if self._state["active"]:
                 raise AudioError("A listening preview is already in progress")
             ready = self.availability()
@@ -172,12 +176,13 @@ class FMPreview:
             result=self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=3)
-        if wait:
-            with self._mutex:
-                if thread and thread.is_alive():
-                    self._state.update(status="stop_failed_partial",
-                        error="FM preview worker did not stop in time")
-                result=self._snapshot()
+        with self._mutex:
+            self._wav=None
+            self._state["clip_ready"]=False
+            if wait and thread and thread.is_alive():
+                self._state.update(status="stop_failed_partial",
+                    error="FM preview worker did not stop in time")
+            result=self._snapshot()
         return result
 
     def quit(self):
