@@ -4222,6 +4222,9 @@ def main(argv=None):
             station.close()
             return result
     window=SatelliteWindow()
+    # Also close owned processes for QApplication.quit()/OS session termination,
+    # not only for a user clicking the window's close control.
+    app.aboutToQuit.connect(window.station.close)
     window.show()
     return app.exec_()
 
