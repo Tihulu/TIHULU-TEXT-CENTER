@@ -949,12 +949,16 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "SOURCE_BRANCH_ACTIVE_WITH_CODE_DRAFT_PR_NOT_YET_VERIFIED",
+        "status": "GEO_SOURCE_BRANCH_20_AHEAD_TWO_MOCK_TEST_FILES_ADDED_NO_NEW_DRAFT_PR_YET",
         "new_pr": null,
         "compared_ahead": 9,
-        "changed_files": 12,
-        "ci": "not verified on a dedicated PR",
-        "source_branch_ahead_at_checkpoint": 16
+        "changed_files": 13,
+        "ci": "Source test files now exist, no isolated PR-triggered CI verified because no separate PR yet",
+        "source_branch_ahead_at_checkpoint": 20,
+        "specific_test_files": [
+          "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
+          "rf_geolocation_center/tests/test_exit_lifecycle.py"
+        ]
       },
       {
         "id": "A5",
@@ -1008,10 +1012,10 @@
     "verified_source_progress_as_of_date": "2026-11-12",
     "hardware_release_accepted": false,
     "remaining_critical_failures": [
-      "A3 satellite source-versus-published Pages parity eight files; current rerun outcome not yet verified",
-      "A4 RFGeo Draft PR and deterministic CI not yet verified",
-      "Actual RAM/VRAM/NPU/SDR owned-process post-Quit measurements absent across all apps",
-      "Stacked Draft PR integrations, old source preservation, rollback and installed UX still need acceptance"
+      "A3 Satellite eight published Pages/source differences (CI red, all other app-specific portable/native CI green)",
+      "A4 RFGeo dedicated Draft PR and actual CI not yet verified despite source tests present",
+      "All 15 independent real machine RAM/VRAM/NPU/SDR ownership-release acceptance cases OPEN",
+      "No application source PR merged, installed app tested, device/service touched, or approved release/rollback"
     ],
     "qa_documented_cases": 15,
     "qa_fully_accepted_cases": 0
