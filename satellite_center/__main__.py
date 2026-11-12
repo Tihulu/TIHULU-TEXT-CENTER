@@ -372,6 +372,7 @@ class Station:
                         "app_released": (self.device_lock is None and
                                          not self.launching and
                                          not self.decoder_active and
+                                         not self.postprocess_active and
                                          not self.session.get("active") and
                                          all(p.poll() is not None for p in self.owned_processes)),
                         "quitting": self.closed.is_set(),
@@ -1647,8 +1648,8 @@ class Station:
             if self.closed.is_set():
                 raise RuntimeError("Application Quit; original IQ preserved, WAV conversion cancelled")
             self.postprocess_active = True
-        from .native_signal_tools import fm_to_wav
         try:
+            from .native_signal_tools import fm_to_wav
             report=fm_to_wav(
                 self.archive/iq["file"],self.archive,sample_rate,
                 int(PROFILES[profile]["freq"]),0)
