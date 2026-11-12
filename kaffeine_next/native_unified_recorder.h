@@ -199,7 +199,7 @@ public:
 
 private:
     static QString recordingsFolder() {
-        QSettings config(QLatin1String("TIHULUStandalone"),QLatin1String("StandaloneRecordings"));
+        QSettings config(QLatin1String("TIHULUStandalone"),QLatin1String("UnifiedRecordingsStandalone"));
         QString name=config.value(QLatin1String("folder")).toString();
         // A saved user recording path always wins. Environment overrides
         // affect only the default for a fresh profile.
@@ -300,7 +300,7 @@ private:
         if(savedFolder.isEmpty() || !QDir().mkpath(savedFolder)) {
             report(tr("Cannot create recording directory."));return;
         }
-        QSettings config(QLatin1String("TIHULUStandalone"),QLatin1String("StandaloneRecordings"));
+        QSettings config(QLatin1String("TIHULUStandalone"),QLatin1String("UnifiedRecordingsStandalone"));
         config.setValue(QLatin1String("folder"),savedFolder);
         subtitlesAfter_=aiChoice->isChecked();
         singing_=musicChoice->isChecked();
@@ -397,7 +397,7 @@ private:
     void addToLibrary(const QString &path) {
         const QFileInfo file(path);
         if(!file.isFile() || file.size()==0)return;
-        QSettings cfg(QLatin1String("TIHULUStandalone"),QLatin1String("StandaloneRecordings"));
+        QSettings cfg(QLatin1String("TIHULUStandalone"),QLatin1String("UnifiedRecordingsStandalone"));
         QStringList items=cfg.value(QLatin1String("paths")).toStringList();
         if(!items.contains(file.absoluteFilePath()))items.prepend(file.absoluteFilePath());
         while(items.size()>500)items.removeLast();
@@ -507,7 +507,7 @@ private:
         root->addWidget(list,1);
         auto populate=[&](){
             list->clear();
-            QSettings cfg(QLatin1String("TIHULUStandalone"),QLatin1String("StandaloneRecordings"));
+            QSettings cfg(QLatin1String("TIHULUStandalone"),QLatin1String("UnifiedRecordingsStandalone"));
             for(const QString &path:cfg.value(QLatin1String("paths")).toStringList()){
                 const QFileInfo f(path);
                 if(!f.isFile() || f.size()==0)continue;
