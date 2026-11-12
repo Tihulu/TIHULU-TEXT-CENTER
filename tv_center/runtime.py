@@ -7,11 +7,12 @@ remain usable if this optional environment is absent.
 from __future__ import annotations
 import os
 from pathlib import Path
+from .paths import media_paths
 import shutil
 import subprocess
 import sys
 
-ROOT = Path.home() / ".local/share/tihulu-tv-center/ai-runtime"
+ROOT = media_paths().data / "ai-runtime"
 MARKER = ".tihulu-owned-ai-runtime"
 ARGOS_READY = ".tihulu-argos-ready"
 

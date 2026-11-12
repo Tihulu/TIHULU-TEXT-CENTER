@@ -8,6 +8,9 @@ from .whisper_engine import WhisperRuntime
 from .runtime import AIRuntime
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "media-paths":
+        from .media_paths_cli import main as media_paths_main
+        return media_paths_main(sys.argv[2:])
     if len(sys.argv) >= 2 and sys.argv[1] == "ai-check":
         from .ai_diagnostics import main as diagnose_ai
         return diagnose_ai()
@@ -15,7 +18,7 @@ def main():
         # TV and radio share this same read-only installed-model catalog.
         # Discover output targets without downloading models or accessing RF.
         from .installed_languages import catalog
-        from textcenter.compute import LANGUAGES
+        from tv_center.media_backend.compute import LANGUAGES
         from .installed_languages import NAMES
         info=catalog(scan_argos=True)
         selected=AISettings().values
@@ -31,7 +34,7 @@ def main():
         from .cuda_faster_whisper import FasterWhisperCUDA
         model_path=str(selected.get("model_path") or "")
         speech_inventory=[
-            row["name"] for row in ModelLibrary().installed()
+            row["name"] for row in ModelLibrary(selected.get("model_dir") or None).installed()
             if row["installed"]]
         cuda_available=FasterWhisperCUDA().installed()
         if cuda_available:
@@ -139,7 +142,7 @@ def main():
         os.execv(str(launcher), [str(launcher), "--lastchannel", *arguments])
     print("Unknown command. Use: tv, ai-market, ai, doctor, "
           "kaffeine-captions, kaffeine-doctor, ai-check, media-captions, "
-          "media-captions-ui, recording-export, radio-captions, lyrics-lookup, lyrics-import, remote-hub, legacy-player", file=sys.stderr)
+          "media-captions-ui, media-paths, recording-export, radio-captions, lyrics-lookup, lyrics-import, remote-hub, legacy-player", file=sys.stderr)
     return 2
 
 if __name__ == "__main__":

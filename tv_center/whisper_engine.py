@@ -7,11 +7,12 @@ cmake and a C++ compiler. Real ARM64 performance not yet benchmarked.
 from __future__ import annotations
 import os
 from pathlib import Path
+from .paths import media_paths
 import shutil
 import subprocess
 import sys
 
-ROOT = Path.home()/".local/share/tihulu-tv-center/whisper-runtime"
+ROOT = media_paths().data / "whisper-runtime"
 MARKER = ".tihulu-managed-whisper"
 RELEASE = "v1.9.5"
 RELEASE_SHA_PREFIX = "d1be6fd"

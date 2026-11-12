@@ -14,7 +14,7 @@ def inspect():
     from tv_center.runtime import AIRuntime
     from tv_center.translation_market import TranslationModelMarket
     from tv_center.whisper_engine import WhisperRuntime
-    from textcenter.compute import detect_devices, choose_backend
+    from tv_center.media_backend.compute import detect_devices, choose_backend
 
     settings = AISettings()
     settings.configure_environment()
@@ -81,7 +81,7 @@ def inspect():
             if gpu["detected"] and not npu["detected"] else
             "Use dedicated NPU only if its compatible model/runtime is installed."),
         "next_step": (
-            "GPU READY: run 'tihulu-tv-center ai-check --deep' to test CUDA "
+            "GPU READY: run 'tihulu-media-cli ai-check --deep' to test CUDA "
             "with a synthetic audio sample; real TV performance remains unverified."
             if choice.get("selected") == "gpu" and choice.get("ready") else
             "RTX GPU found but no ready CUDA speech engine. In Model Market "
@@ -105,7 +105,7 @@ def main():
     import sys
     args = sys.argv[2:] if len(sys.argv)>1 and sys.argv[1]=="ai-check" else sys.argv[1:]
     if args not in ([], ["--deep"]):
-        print("Usage: tihulu-tv-center ai-check [--deep]",file=sys.stderr)
+        print("Usage: tihulu-media-cli ai-check [--deep]",file=sys.stderr)
         return 2
     report = inspect()
     if args == ["--deep"]:

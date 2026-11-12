@@ -11,6 +11,7 @@ import base64
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import select
 import subprocess
 import sys
@@ -20,7 +21,7 @@ import atexit
 from .radio_karaoke_router import QWEN_ALIGN_LANGUAGES, LANGUAGE_NAMES
 
 MODEL_ID="Qwen/Qwen3-ForcedAligner-0.6B"
-ROOT=Path.home()/".local/share/tihulu-tv-center/qwen-aligner"
+ROOT=media_paths().data/"qwen-aligner"
 MARKER=".tihulu-owned-qwen-aligner"
 READY=".tihulu-qwen-weights-ready"
 

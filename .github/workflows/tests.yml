@@ -18,6 +18,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run offline unit and loopback HTTP tests
         run: python -m unittest discover -s tests -v
+      - name: Verify Media standalone in detached integration worktree
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/stand-media-integration" HEAD
+          (
+            cd "$RUNNER_TEMP/stand-media-integration"
+            python -m unittest discover -s tests -p 'test_stand_media*.py' -v
+          )
+          git worktree remove --force "$RUNNER_TEMP/stand-media-integration"
       - name: Check JS syntax
         run: node --check web/app.js
       - name: Verify no Python third-party dependencies

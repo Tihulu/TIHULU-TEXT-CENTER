@@ -10,6 +10,7 @@ import json
 import re
 import os
 from pathlib import Path
+from .paths import media_paths
 import shutil
 import tempfile
 import urllib.request
@@ -36,7 +37,7 @@ class ModelError(RuntimeError):
 
 class ModelLibrary:
     def __init__(self, root=None):
-        self.root = Path(root or Path.home()/".local/share/tihulu-tv-center/models").expanduser()
+        self.root = Path(root or media_paths().model_root()).expanduser()
         # Explicit alternate folder can be selected for external SSDs.
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.root = self.root.resolve()
@@ -173,8 +174,8 @@ class ModelLibrary:
         return str(file)
 
     def capability(self):
-        from textcenter.compute import detect_devices
-        from textcenter.transcripts import installed_translation_pairs
+        from tv_center.media_backend.compute import detect_devices
+        from tv_center.media_backend.translation import installed_translation_pairs
         profile = detect_devices()
         return {
             "devices": profile["devices"],

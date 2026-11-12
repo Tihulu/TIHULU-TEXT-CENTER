@@ -27,10 +27,10 @@ jobs:
         run: bash kaffeine_next/install_welle.sh
       - name: Smoke-test executable and source-address policy
         run: |
-          test -x "$HOME/.local/opt/tihulu-welle/bin/welle-cli"
-          test -f "$HOME/.local/opt/tihulu-welle/.tihulu-loopback-welle-revision"
-          "$HOME/.local/opt/tihulu-welle/bin/welle-cli" --help > /tmp/welle-help.txt 2>&1 || true
+          test -x "$HOME/.local/opt/tihulu-media-center-welle/bin/welle-cli"
+          test -f "$HOME/.local/opt/tihulu-media-center-welle/.tihulu-loopback-welle-revision"
+          "$HOME/.local/opt/tihulu-media-center-welle/bin/welle-cli" --help > /tmp/welle-help.txt 2>&1 || true
           grep -E "welle-cli|Receive|RTL|channel" /tmp/welle-help.txt | head -12
           grep -q 'htonl(INADDR_LOOPBACK)' kaffeine_next/install_welle.sh
-          if grep -q 'INADDR_ANY' "$HOME/.local/opt/tihulu-welle/.tihulu-loopback-welle-revision"; then exit 1; fi
+          if grep -q 'INADDR_ANY' "$HOME/.local/opt/tihulu-media-center-welle/.tihulu-loopback-welle-revision"; then exit 1; fi
           echo 'Pinned local radio receiver binary built; real antenna not connected in CI.'

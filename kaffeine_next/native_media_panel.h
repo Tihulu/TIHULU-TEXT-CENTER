@@ -402,7 +402,7 @@ private:
         if(mux->isChecked())arguments<<QLatin1String("--mux");
         if(burn->isChecked())arguments<<QLatin1String("--burn-video");
         if(stamps->isChecked())arguments<<QLatin1String("--timestamps");
-        formatExportProcess_.start(QLatin1String("tihulu-tv-center"),arguments);
+        formatExportProcess_.start(QLatin1String("tihulu-media-cli"),arguments);
         if(!formatExportProcess_.waitForStarted(800)) {
             message_->setText(tr("Cannot start offline export tool."));return;
         }
@@ -473,8 +473,10 @@ private:
             message_->setText(tr("Select up to six output languages."));
             return false;
         }
-        const QString cache=QStandardPaths::writableLocation(
-            QStandardPaths::AppLocalDataLocation);
+        QString cache=qEnvironmentVariable("TIHULU_MEDIA_CACHE");
+        if(cache.isEmpty())
+            cache=QStandardPaths::writableLocation(
+                QStandardPaths::CacheLocation);
         if(cache.isEmpty() || !QDir().mkpath(cache)) {
             message_->setText(tr("Cannot create a private subtitle cache."));
             return false;
@@ -506,7 +508,7 @@ private:
         cancelledByUser_=false;
         pausedForAi_=beforeOpen || wait_->isChecked();
         if(pausedForAi_) player_->stop();
-        process_.start(QLatin1String("tihulu-tv-center"),args);
+        process_.start(QLatin1String("tihulu-media-cli"),args);
         if(!process_.waitForStarted(800)) {
             if(pausedForAi_ && !beforeOpen)
                 player_->play(QUrl::fromLocalFile(path_));

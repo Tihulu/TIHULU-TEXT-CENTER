@@ -17,13 +17,14 @@ from difflib import SequenceMatcher
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import select
 import shutil
 import subprocess
 import sys
 import threading
 
-ROOT = Path.home()/".local/share/tihulu-tv-center/overlap-separation"
+ROOT = media_paths().data/"overlap-separation"
 MODEL_ID = "speechbrain/sepformer-wsj02mix"
 MODEL_REVISION = "3a28263"  # explicit vendor revision; never main at runtime
 MARKER = ".tihulu-owned-overlap-separation"

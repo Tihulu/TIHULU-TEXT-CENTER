@@ -5,6 +5,7 @@ separate native X11 child window; on Wayland set QT_QPA_PLATFORM=xcb.
 """
 from __future__ import annotations
 from pathlib import Path
+from .paths import media_paths
 import json
 import os
 import tempfile
@@ -421,7 +422,7 @@ def main():
         def refresh_channels(self, *_):
             country,medium=self.country.currentData(),self.delivery.currentData()
             profile=self.current_profile()
-            expected=Path.home()/".config/tihulu-tv-center"/("channels-"+profile+".conf")
+            expected=media_paths().config/("channels-"+profile+".conf")
             if expected.is_file():
                 scanned=read_channels([expected])
                 source_label="Saved DVBv5 scan · "+profile
@@ -500,7 +501,7 @@ def main():
                 "DVBv5 config (*.conf);;All files (*)")
             if not file:
                 return
-            target = Path.home() / ".config/tihulu-tv-center/channels.conf"
+            target = media_paths().config / "channels.conf"
             target.parent.mkdir(parents=True, exist_ok=True)
             from shutil import copyfile
             if Path(file).resolve() != target.resolve():

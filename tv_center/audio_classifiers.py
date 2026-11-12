@@ -13,12 +13,13 @@ import base64
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import select
 import subprocess
 import sys
 import threading
 
-ROOT=Path.home()/".local/share/tihulu-tv-center/audio-label-classifiers"
+ROOT=media_paths().data/"audio-label-classifiers"
 MARKER=".tihulu-owned-audio-labels"
 WEIGHTS={
     "sound":("MIT/ast-finetuned-audioset-10-10-0.4593","f826b80"),

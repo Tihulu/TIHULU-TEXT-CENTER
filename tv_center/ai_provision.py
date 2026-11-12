@@ -316,7 +316,7 @@ def main(args=None):
         result=install_baseline_models(progress=lambda msg:print(msg,flush=True))
         print(json.dumps(result,indent=2,ensure_ascii=False))
         return 0 if result["complete"] else 1
-    print("Usage: tihulu-tv-center ai [status|install|install-baseline]",
+    print("Usage: tihulu-media-cli ai [status|install|install-baseline]",
           file=sys.stderr)
     return 2
 

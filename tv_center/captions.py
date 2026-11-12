@@ -13,7 +13,7 @@ import time
 import threading
 from pathlib import Path
 
-from textcenter.compute import LANGUAGES as SUPPORTED
+from tv_center.media_backend.compute import LANGUAGES as SUPPORTED
 from .language_codes import language_code
 
 def _run(argv, timeout=30):
@@ -289,8 +289,8 @@ def asr_from_clip(path: Path, language: str, model: str,
                 channel=f"{service_id}:{audio_pid}")
     # Existing TEXT CENTER speech implementation handles local CPU/GPU selection.
     os.environ["TIHULU_WHISPER_MODEL"] = str(Path(model).expanduser())
-    from textcenter.compute import detect_devices, choose_backend
-    from textcenter.speech import transcribe_pcm
+    from tv_center.media_backend.compute import detect_devices, choose_backend
+    from tv_center.media_backend.speech import transcribe_pcm
     profile = detect_devices()
     selected = choose_backend(profile, selected_backend)
     # This vendor Whisper Base path currently lacks a proven automatic
@@ -441,7 +441,7 @@ def _translate_argos_local(text: str, source: str, target: str) -> str:
     if AIRuntime().status()["installed"]:
         from .translation_service import translate_argos
         return translate_argos(text, source, target)
-    from textcenter.transcripts import translate_offline
+    from tv_center.media_backend.translation import translate_offline
     return translate_offline(text, source, target, backend="cpu")
 
 

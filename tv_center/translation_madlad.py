@@ -8,6 +8,7 @@ from functools import lru_cache
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import shutil
 import subprocess
 import sys
@@ -23,7 +24,7 @@ class MadladMarket:
             from .ai_settings import AISettings
             folder=AISettings().values.get("model_dir","")
             root=(Path(folder)/"translator-models" if folder else
-                  Path.home()/".local/share/tihulu-tv-center/translator-models")
+                  media_paths().data/"translator-models")
         self.root=Path(root).expanduser()
         self.model=self.root/"madlad400-3b-mt"
         self.marker=self.model/".tihulu-madlad-ready"

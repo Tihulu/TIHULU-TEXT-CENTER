@@ -26,7 +26,7 @@ class SharedArgosRuntimeTests(unittest.TestCase):
         with patch("tv_center.runtime.AIRuntime") as ai, patch(
                 "tv_center.translation_service.translate_argos",
                 return_value="Bonjour") as managed, patch(
-                "textcenter.transcripts.translate_offline",
+                "tv_center.media_backend.translation.translate_offline",
                 side_effect=AssertionError("Do not read system packages")):
             ai.return_value.status.return_value={"installed":True}
             self.assertEqual(_translate_argos_local("Hello","en","fr"),"Bonjour")
@@ -34,7 +34,7 @@ class SharedArgosRuntimeTests(unittest.TestCase):
 
     def test_system_fallback_only_without_managed_runtime(self):
         with patch("tv_center.runtime.AIRuntime") as ai, patch(
-                "textcenter.transcripts.translate_offline",
+                "tv_center.media_backend.translation.translate_offline",
                 return_value="Günaydın") as system, patch(
                 "tv_center.translation_service.translate_argos",
                 side_effect=AssertionError("Managed runtime missing")):
@@ -144,7 +144,7 @@ class AccurateErrorsTests(unittest.TestCase):
 
 class PureArgosCPUTranslationTests(unittest.TestCase):
     def test_cpu_path_skips_cuda_probe_and_uses_valid_pivot(self):
-        from textcenter.transcripts import translate_offline
+        from tv_center.media_backend.translation import translate_offline
         class FakeModel:
             def __init__(self,code):
                 self.code=code
@@ -165,7 +165,7 @@ class PureArgosCPUTranslationTests(unittest.TestCase):
         fake.translate=worker
         with patch.dict(sys.modules,{"argostranslate":fake,
                                      "argostranslate.translate":worker}), patch(
-                "textcenter.transcripts.translation_devices",
+                "tv_center.media_backend.translation.translation_devices",
                 side_effect=AssertionError("No device scan in Argos CPU")):
             self.assertEqual(
                 translate_offline("Bonjour","fr","tr",backend="cpu"),

@@ -70,10 +70,12 @@ class BaselineInstallerTests(unittest.TestCase):
         self.assertIn('if keep_saved',code)
         self.assertIn('"backend": (self.ai.values.get("backend"',code)
 
-    def test_one_liner_defaults_to_baseline_and_no_ai_opt_out(self):
+    def test_installer_defaults_to_no_models_and_explicit_ai_opt_in(self):
         shell=(ROOT/"kaffeine_next/install.sh").read_text()
         self.assertIn('if [[ "$MODE" != --no-ai ]]; then',shell)
-        self.assertIn("tihulu-tv-center ai install-baseline",shell)
+        self.assertIn("tihulu-media-cli ai install-baseline",shell)
+        self.assertIn("MODE=--no-ai",shell)
+        self.assertIn("--with-ai) MODE=--with-ai",shell)
         self.assertIn('--no-ai) MODE=--no-ai',shell)
         self.assertNotIn("tihulu-tv-center ai install\n",shell)
 

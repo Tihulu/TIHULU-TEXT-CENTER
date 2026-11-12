@@ -587,7 +587,7 @@ QAbstractButton *StartTab::addShortcut''')
 		dialog->show();
 		diagnostics->start(QLatin1String("/bin/bash"),
 			QStringList() << QDir::homePath() +
-				QLatin1String("/.local/share/tihulu-kaffeine/dvb_diagnostics.sh"));
+				QLatin1String("/.local/share/tihulu-media-center/native/dvb_diagnostics.sh"));
 	});
 	QAction *webTvAction = dvbMenu->addAction(i18n("Web TV / Internet channels..."));
 	connect(webTvAction, &QAction::triggered, this, [this]() {
@@ -600,7 +600,7 @@ QAbstractButton *StartTab::addShortcut''')
 	menuBar->addMenu(aiMenu);
 	QAction *marketAction = aiMenu->addAction(i18n("Whisper + Translator Market"));
 	connect(marketAction, &QAction::triggered, this, [this]() {
-		if (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),
+		if (!QProcess::startDetached(QLatin1String("tihulu-media-cli"),
 			QStringList() << QLatin1String("ai-market")))
 			QMessageBox::warning(this, i18n("Whisper Market"),
 				i18n("Install the TIHULU offline AI companion first."));
@@ -626,7 +626,7 @@ QAbstractButton *StartTab::addShortcut''')
 		const QString name = runtime + QLatin1String("/tihulu-dvb-")
 			+ QString::number(QCoreApplication::applicationPid())
 			+ QLatin1String(".sock");
-		if (!QProcess::startDetached(QLatin1String("tihulu-tv-center"),
+		if (!QProcess::startDetached(QLatin1String("tihulu-media-cli"),
 			QStringList() << QLatin1String("kaffeine-captions")
 				<< QLatin1String("--socket") << name))
 			QMessageBox::warning(this, i18n("Live captions"),
@@ -682,7 +682,7 @@ QAbstractButton *StartTab::addShortcut''')
 		if(folder.isEmpty()) return;
 		hubProcess->setProperty("pinShown",false);
 		hubProcess->setProperty("partial",QByteArray());
-		hubProcess->start(QLatin1String("tihulu-tv-center"),
+		hubProcess->start(QLatin1String("tihulu-media-cli"),
 			{QLatin1String("remote-hub"),QLatin1String("--media-root"),folder,
 			 QLatin1String("--bind"),QLatin1String("127.0.0.1"),
 			 QLatin1String("--native-pid"),
@@ -690,7 +690,7 @@ QAbstractButton *StartTab::addShortcut''')
 		if(!hubProcess->waitForStarted(1500)) {
 			QMessageBox::warning(this,i18n("Remote hub"),
 				i18n("Cannot start Python companion; run "
-				"'tihulu-tv-center remote-hub --help' in terminal."));
+				"'tihulu-media-cli remote-hub --help' in terminal."));
 			return;
 		}
 		hubStop->setEnabled(true);

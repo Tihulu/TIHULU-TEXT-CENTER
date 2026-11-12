@@ -15,17 +15,70 @@ if (( EUID == 0 )); then
   exit 1
 fi
 # Explicit opt out for users who only want Kaffeine's DVB reception.
-MODE=default
+MODE=--no-ai
 WITH_DAB=0
 WITH_ANALOG=0
 for argument in "$@"; do
   case "$argument" in
     --no-ai) MODE=--no-ai ;;
+    --with-ai) MODE=--with-ai ;;
     --with-dab) WITH_DAB=1 ;;
     --with-analog) WITH_ANALOG=1 ;;
-    *) echo "Usage: bash install.sh [--no-ai] [--with-dab] [--with-analog]" >&2; exit 2 ;;
+    *) echo "Usage: bash install.sh [--no-ai|--with-ai] [--with-dab] [--with-analog]" >&2; exit 2 ;;
   esac
 done
+# Require a complete, SHA-pinned Media source checkout; never clone Text.
+MEDIA_SOURCE_DIR="${TIHULU_MEDIA_SOURCE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+if [[ ! -f "$MEDIA_SOURCE_DIR/tv_center/__main__.py" ||
+      ! -f "$MEDIA_SOURCE_DIR/kaffeine_next/patch_upstream.py" ]]; then
+  echo "Incomplete Media source; refusing standalone install." >&2; exit 1
+fi
+ACTUAL_MEDIA_SHA="$(git -C "$MEDIA_SOURCE_DIR" rev-parse HEAD 2>/dev/null || true)"
+EXPECTED_MEDIA_SHA="${TIHULU_MEDIA_SOURCE_SHA:-}"
+if [[ ! "$EXPECTED_MEDIA_SHA" =~ ^[0-9a-f]{40}$ ||
+      "$EXPECTED_MEDIA_SHA" != "$ACTUAL_MEDIA_SHA" ]]; then
+  echo "Set TIHULU_MEDIA_SOURCE_SHA to the exact reviewed Media commit." >&2
+  exit 1
+fi
+MEDIA_REVISION="${ACTUAL_MEDIA_SHA:0:12}"
+# A pre-existing legacy installation is not ours to overwrite.
+# A future migration must have an owner-approved backup/ownership manifest.
+OWNED_LAUNCHER_MARKER="$HOME/.local/share/tihulu-media-center/native/.tihulu-owned-launcher"
+for existing in "$HOME/.local/bin/tihulu-kaffeine" \
+                "$HOME/.local/bin/tihulu-media-center" \
+                "$HOME/.local/share/applications/tihulu-media-center.desktop"; do
+  if [[ -e "$existing" || -L "$existing" ]]; then
+    if [[ ! -f "$OWNED_LAUNCHER_MARKER" ]]; then
+      echo "Existing Media/legacy launcher found; preserving it. Manual migration review required." >&2
+      exit 1
+    fi
+  fi
+done
+# Verify both previously installed byte hashes before any replacement.
+# A customized/foreign launcher or desktop is never overwritten.
+OWNED_DESKTOP="$HOME/.local/share/applications/tihulu-media-center.desktop"
+OWNED_DESKTOP_MARKER="$HOME/.local/share/tihulu-media-center/native/.tihulu-owned-desktop"
+if [[ -L "$OWNED_LAUNCHER_MARKER" || -L "$OWNED_DESKTOP_MARKER" ]]; then
+  echo "Symlinked ownership marker; refusing." >&2; exit 1
+fi
+if [[ -e "$HOME/.local/bin/tihulu-kaffeine" ]]; then
+  KNOWN_HASH="$(cat "$OWNED_LAUNCHER_MARKER" 2>/dev/null || true)"
+  CURRENT_HASH="$(sha256sum "$HOME/.local/bin/tihulu-kaffeine" | awk '{print $1}')"
+  if [[ ! "$KNOWN_HASH" =~ ^[0-9a-f]{64}$ || "$KNOWN_HASH" != "$CURRENT_HASH" ]]; then
+    echo "Media launcher modified or unowned; preserve and review manually." >&2; exit 1
+  fi
+fi
+if [[ -e "$OWNED_DESKTOP" ]]; then
+  KNOWN_DESKTOP="$(cat "$OWNED_DESKTOP_MARKER" 2>/dev/null || true)"
+  CURRENT_DESKTOP="$(sha256sum "$OWNED_DESKTOP" | awk '{print $1}')"
+  if [[ ! "$KNOWN_DESKTOP" =~ ^[0-9a-f]{64}$ || "$KNOWN_DESKTOP" != "$CURRENT_DESKTOP" ]]; then
+    echo "Media desktop entry modified or unowned; preserving." >&2; exit 1
+  fi
+fi
+if [[ -L "$HOME/.local/bin/tihulu-media-center" &&
+      "$(readlink "$HOME/.local/bin/tihulu-media-center")" != tihulu-kaffeine ]]; then
+  echo "Media launcher symlink has another owner; preserve." >&2; exit 1
+fi
 echo "Building a separate GPL-compatible Kaffeine v2.0.19 fork."
 echo "This preserves system Kaffeine, channel lists, other SDR programs and AI models."
 sudo apt-get update
@@ -43,17 +96,18 @@ if (( WITH_ANALOG == 1 )); then
   sudo apt-get install -y --no-install-recommends rtl-sdr alsa-utils
 fi
 
-APPROOT="$HOME/.local/share/tihulu-kaffeine"
+APPROOT="$HOME/.local/share/tihulu-media-center/native"
 SOURCE="$APPROOT/upstream-v2.0.19"
-PREFIX="$HOME/.local/opt/tihulu-kaffeine"
-BUILD="$APPROOT/build-system-qt5"
+PREFIX="$HOME/.local/opt/tihulu-media-center/releases/$MEDIA_REVISION"
+BUILD="$APPROOT/build-$MEDIA_REVISION"
 LOGDIR="$APPROOT/logs"
 mkdir -p "$APPROOT" "$LOGDIR" "$HOME/.local/bin" "$HOME/.local/share/applications"
 # Migrate existing tuner/channel definitions ONCE into a distinct TIHULU
 # data directory. Never alter the system Kaffeine instance's own files.
 LEGACY_DATA="$HOME/.local/share/kaffeine"
 TIHULU_DATA="$HOME/.local/share/tihulu-media-center"
-if [[ -d "$LEGACY_DATA" && ! -e "$TIHULU_DATA" && ! -L "$LEGACY_DATA" ]]; then
+if [[ "${TIHULU_MEDIA_IMPORT_STOCK_KAFFEINE:-0}" == 1 &&
+      -d "$LEGACY_DATA" && ! -e "$TIHULU_DATA" && ! -L "$LEGACY_DATA" ]]; then
   mkdir -p "$TIHULU_DATA"
   # Copy settings/channels, not user-owned recordings/videos or unknown links.
   find "$LEGACY_DATA" -maxdepth 1 -type f \
@@ -62,7 +116,8 @@ if [[ -d "$LEGACY_DATA" && ! -e "$TIHULU_DATA" && ! -L "$LEGACY_DATA" ]]; then
   echo "Imported existing Kaffeine channel database/config as independent TIHULU copies."
 fi
 mkdir -p "$HOME/.config"
-if [[ -f "$HOME/.config/kaffeinerc" &&
+if [[ "${TIHULU_MEDIA_IMPORT_STOCK_KAFFEINE:-0}" == 1 &&
+      -f "$HOME/.config/kaffeinerc" &&
       ! -e "$HOME/.config/tihulu-media-centerrc" ]]; then
   cp -n -- "$HOME/.config/kaffeinerc" "$HOME/.config/tihulu-media-centerrc"
 fi
@@ -103,11 +158,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Read the matching feature branch during this standalone preview.
-# Override only when installing a release from another compatible branch.
-TIHULU_SOURCE_BRANCH="${TIHULU_SOURCE_BRANCH:-fix/tihulu-media-radio-dvb-2026-11-08}"
-git clone --depth 1 --single-branch --branch "$TIHULU_SOURCE_BRANCH" \
-  https://github.com/Tihulu/TIHULU-TEXT-CENTER.git "$temp/tihulu"
+# The caller supplies a pinned, reviewed Media source checkout.
+test -f "$MEDIA_SOURCE_DIR/kaffeine_next/assets/tihulu-media-center.svg"
 if [[ ! -d "$SOURCE/.git" ]]; then
   git clone --depth 1 --branch v2.0.19 \
     https://github.com/KDE/kaffeine.git "$SOURCE"
@@ -125,7 +177,7 @@ fi
 # while preserving local edits and existing user configuration.
 BUILDSRC="$temp/kaffeine-source"
 git -C "$SOURCE" worktree add --detach "$BUILDSRC" "$UPSTREAM_SHA"
-python3 "$temp/tihulu/kaffeine_next/patch_upstream.py" "$BUILDSRC"
+python3 "$MEDIA_SOURCE_DIR/kaffeine_next/patch_upstream.py" "$BUILDSRC"
 # Refuse to ship Kaffeine 2.0.19 with the known channel-import crash
 # (KDE #503740 / Debian #1110405). The wrong -1 to std::prev(end)
 # reads past the QMap end while several scanned channels are inserted.
@@ -139,10 +191,10 @@ echo "Verified Kaffeine DVB channel-import SQL iterator fix (no past-end iterato
 git -C "$BUILDSRC" diff --check
 # Keep the user-approved, loopback-only welle.io backend installer on disk
 # instead of trying to run an untrusted internet pipe from the native GUI.
-cp "$temp/tihulu/kaffeine_next/install_welle.sh" "$APPROOT/install_welle.sh"
+cp "$MEDIA_SOURCE_DIR/kaffeine_next/install_welle.sh" "$APPROOT/install_welle.sh"
 chmod 755 "$APPROOT/install_welle.sh"
 # Read-only frontend ownership check, accessible in the TV menu or CLI.
-cp "$temp/tihulu/kaffeine_next/dvb_diagnostics.sh" "$APPROOT/dvb_diagnostics.sh"
+cp "$MEDIA_SOURCE_DIR/kaffeine_next/dvb_diagnostics.sh" "$APPROOT/dvb_diagnostics.sh"
 chmod 755 "$APPROOT/dvb_diagnostics.sh"
 
 echo "Configuring clean Kaffeine native DVB scanner with isolated system Qt5"
@@ -167,8 +219,10 @@ test -x "$PREFIX/bin/kaffeine"
 # distinguish TIHULU from /usr/bin/kaffeine.
 ln -sfn kaffeine "$PREFIX/bin/tihulu-media-center"
 mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
-cp "$temp/tihulu/kaffeine_next/assets/tihulu-media-center.svg" \
-  "$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
+if [[ ! -e "$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg" ]]; then
+  cp -n "$MEDIA_SOURCE_DIR/kaffeine_next/assets/tihulu-media-center.svg" \
+    "$HOME/.local/share/icons/hicolor/scalable/apps/tihulu-media-center.svg"
+fi
 
 # The standalone PLAY-button player SVG is the new default. The user's
 # earlier, unmodified portrait PNG is preserved but is NOT implicitly reused
@@ -186,7 +240,11 @@ if [[ -n "${TIHULU_CUSTOM_LOGO:-}" ]]; then
     exit 1
   fi
   mkdir -p "$HOME/.local/share/icons/hicolor/64x64/apps"
-  cp -- "$TIHULU_CUSTOM_LOGO" "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
+  if [[ ! -e "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" ]]; then
+    cp -n -- "$TIHULU_CUSTOM_LOGO" "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
+  else
+    echo "Preserving existing user PNG; requested new custom icon not copied." >&2
+  fi
   DESKTOP_ICON="$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png"
 fi
 if [[ -f "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" &&
@@ -195,10 +253,25 @@ if [[ -f "$HOME/.local/share/icons/hicolor/64x64/apps/tihulu-media-center.png" &
   echo "To use the portrait again: TIHULU_USE_LEGACY_LOGO=1 tihulu-media-center"
 fi
 
-TIHULU_KAFFEINE_PRIMARY=1 bash "$temp/tihulu/tv_center/packaging/build-deb.sh" "$temp/debs"
-# The AI sidecar may already be installed at the same preview version.
-# Force reinstall so the previously visible legacy player is hidden.
-sudo apt-get install -y --reinstall "$temp/debs/tihulu-tv-center_0.1.0~dev1_all.deb"
+TIHULU_KAFFEINE_PRIMARY=1 bash "$MEDIA_SOURCE_DIR/tv_center/packaging/build-deb.sh" "$temp/debs"
+# A separate Media package must never overwrite the existing TV/Text package.
+sudo apt-get install -y "$temp/debs/tihulu-media-center-ai_0.1.0~dev2_all.deb"
+# Switch only a proven Media-owned current symlink after version is installed.
+BASE_PREFIX="$HOME/.local/opt/tihulu-media-center"
+CURRENT_LINK="$BASE_PREFIX/current"
+mkdir -p "$BASE_PREFIX/releases"
+printf '%s\n' "$ACTUAL_MEDIA_SHA" > "$PREFIX/.tihulu-media-owned-release"
+if [[ -e "$CURRENT_LINK" && ! -L "$CURRENT_LINK" ]]; then
+  echo "Refusing a non-symlink Media current path." >&2; exit 1
+fi
+if [[ -L "$CURRENT_LINK" ]]; then
+  OLD_LINK="$(readlink -f "$CURRENT_LINK")"
+  case "$OLD_LINK" in "$BASE_PREFIX"/releases/*) ;; *) echo "Foreign current link; refusing." >&2; exit 1;; esac
+  test -f "$OLD_LINK/.tihulu-media-owned-release" ||
+    { echo "Existing Media release is not verified as owned." >&2; exit 1; }
+fi
+ln -s "$PREFIX" "$CURRENT_LINK.next.${BASHPID}"
+mv -T "$CURRENT_LINK.next.${BASHPID}" "$CURRENT_LINK"
 
 cat > "$HOME/.local/bin/tihulu-kaffeine" <<'LAUNCH'
 #!/bin/sh
@@ -216,7 +289,7 @@ if [ -z "${TIHULU_VLC_PROFILE:-}" ]; then
 fi
 # Explicit per-session overrides for isolating decoder vs AAC audio faults.
 case "${1:-}" in
-  --diagnose-tuner) shift; exec /bin/bash "$HOME/.local/share/tihulu-kaffeine/dvb_diagnostics.sh" "$@" ;;
+  --diagnose-tuner) shift; exec /bin/bash "$HOME/.local/share/tihulu-media-center/native/dvb_diagnostics.sh" "$@" ;;
   --software-video) TIHULU_VLC_PROFILE=software; shift ;;
   --auto-video) TIHULU_VLC_PROFILE=auto; shift ;;
   --diagnose-no-audio) TIHULU_VLC_PROFILE=software-no-audio; shift ;;
@@ -238,11 +311,11 @@ fi
 # Avoid mixing native system libVLC/Qt5 with the user's Conda installation.
 exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
-  "$HOME/.local/opt/tihulu-kaffeine/bin/tihulu-media-center" "$@"
+  "$HOME/.local/opt/tihulu-media-center/current/bin/tihulu-media-center" "$@"
 LAUNCH
 chmod 755 "$HOME/.local/bin/tihulu-kaffeine"
 ln -sfn tihulu-kaffeine "$HOME/.local/bin/tihulu-media-center"
-cat > "$HOME/.local/share/applications/tihulu-kaffeine.desktop" <<DESKTOP
+cat > "$HOME/.local/share/applications/tihulu-media-center.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=TIHULU Media Center
@@ -256,6 +329,11 @@ Terminal=false
 Categories=AudioVideo;Video;TV;Audio;Player;
 DESKTOP
 
+# Store the exact bytes of launcher created by this installer for future
+# collision/upgrade review; do not migrate another application's launcher.
+sha256sum "$HOME/.local/bin/tihulu-kaffeine" | awk '{print $1}' > "$OWNED_LAUNCHER_MARKER"
+sha256sum "$OWNED_DESKTOP" | awk '{print $1}' > "$OWNED_DESKTOP_MARKER"
+
 if [[ "$MODE" != --no-ai ]]; then
   echo "Installing baseline offline models for the device: Whisper Tiny,"
   echo "Argos DE/EN/TR/FR and, where hardware permits, starter sound labels,"
@@ -263,7 +341,7 @@ if [[ "$MODE" != --no-ai ]]; then
   echo "Heavy upgrades stay in AI Market; no AI service starts in background."
   # This is the user-triggered install command, NEVER a model download on
   # application startup, radio tuning, background polling or library scan.
-  if ! tihulu-tv-center ai install-baseline; then
+  if ! tihulu-media-cli ai install-baseline; then
     echo "Some baseline AI models failed or were skipped; TV and existing" >&2
     echo "Whisper/translation models are preserved. See AI Model Market." >&2
   fi

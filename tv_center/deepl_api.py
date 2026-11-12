@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import stat
 import tempfile
 import urllib.error
@@ -19,7 +20,7 @@ ALLOWED_ENDPOINTS={
     "https://api.deepl.com/v2/translate",
     "https://api-free.deepl.com/v2/translate",
 }
-KEY_FILE=Path.home()/".config/tihulu-tv-center/deepl-api.key"
+KEY_FILE=media_paths().config/"deepl-api.key"
 
 
 def read_key(path=None):
