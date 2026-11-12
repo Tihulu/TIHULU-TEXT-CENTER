@@ -2,7 +2,7 @@
 
 Run explicitly on trusted GPU host only:
 python3 -m tv_center.remote_gpu_server --host 127.0.0.1 --port 8443 \
- --cert server.crt --key server.key --token-file ~/.config/tihulu-tv-center/remote-gpu-token
+ --cert server.crt --key server.key --token-file ~/.config/tihulu-media-center/remote-gpu-token
 
 For LAN access use a dedicated TLS hostname/certificate and firewall policy.
 The server never opens a DVB tuner; model and CUDA self-tests are distinct.
