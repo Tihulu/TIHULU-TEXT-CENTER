@@ -82,7 +82,7 @@ class MultilingualCaptions(unittest.TestCase):
                               service_id=42, audio_pid=0x120)
 
     def test_selected_audio_pid_can_recover_to_same_language(self):
-        from textcenter.compute import LANGUAGES, validate_language
+        from tv_center.media_backend.compute import LANGUAGES, validate_language
         self.assertGreaterEqual(len(LANGUAGES), 100)
         self.assertEqual(validate_language("pl"), "pl")
         self.assertEqual(validate_language("ja"), "ja")
@@ -96,11 +96,11 @@ class MultilingualCaptions(unittest.TestCase):
             with patch.dict(os.environ, {"TIHULU_TV_ASR_BACKEND":"cpu"}):
                 with patch("tv_center.captions._program_streams", return_value=streams), \
                      patch("tv_center.captions._run") as ff, \
-                     patch("textcenter.compute.detect_devices",
+                     patch("tv_center.media_backend.compute.detect_devices",
                            return_value={"speech":{"engine":"whisper.cpp CLI"}}), \
-                     patch("textcenter.compute.choose_backend",
+                     patch("tv_center.media_backend.compute.choose_backend",
                            return_value={"selected":"cpu","ready":True}), \
-                     patch("textcenter.speech.transcribe_pcm",
+                     patch("tv_center.media_backend.speech.transcribe_pcm",
                            return_value="Guten Tag") as transcribe:
                     ff.return_value.returncode = 0
                     ff.return_value.stdout = bytes(64000)
