@@ -106,6 +106,26 @@ def discover_legacy() -> list[dict]:
     items = []
     for name in names:
         path = home / name
+        # lstat() of the leaf alone follows symlinks in intermediate
+        # directories. Never inspect any foreign child through those links.
+        parent = home
+        unsafe_parent = False
+        for component in Path(name).parts[:-1]:
+            parent = parent / component
+            try:
+                parent_entry = parent.lstat()
+            except FileNotFoundError:
+                break
+            except OSError:
+                unsafe_parent = True
+                break
+            if stat.S_ISLNK(parent_entry.st_mode):
+                unsafe_parent = True
+                break
+        if unsafe_parent:
+            items.append({"path": str(path), "type": "symlink-parent",
+                          "action": "skip; no symlink traversal"})
+            continue
         try:
             entry = path.lstat()
         except FileNotFoundError:
