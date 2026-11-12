@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "exit01_five_of_five_Draft_PRS_four_full_CI_green_satellite_pages_parity_red_real_acceptance_unverified",
+  "stage": "phase6_exit01_five_draft_PRS_geo_usb_CI_red_sat_pages_red_webusb_new_branch_no_commits",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "5/5 new Draft PRs; latest RFGeo #94 CI all green; Media/Flight/Text green; Satellite platform runtime tests green but Pages/source parity red. 15/15 hardware/installed shutdown cases unaccepted, 17 original gates + new EXIT01 P0 open, none merged or released; no reliable time estimate.",
+    "reason": "5 EXIT01 Draft PRs open; current Media+Text CI green, Flight latest cross-OS pending, Geo USB read teardown 1/83 JS case red, Satellite Pages parity eight-file issue red despite portable/native runtime green. Separate Satellite WebUSB repair branch exists at source baseline with no code delta or new PR yet. New WEB-01..15 browser acceptance 0, EXIT01 installed resources 0/15, original 17 broader gates OPEN; release ETA unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "ALL_FIVE_EXIT01_DRAFT_PRS_OPEN_APP_CI_PASS_EXCEPT_SATELLITE_PAGES_PARITY",
+    "status": "FIVE_EXIT01_DRAFT_PRS_OPEN_MEDIA_TEXT_GREEN_FLIGHT_PENDING_GEO_USB_CI_FAIL_SAT_PAGES_CI_FAIL",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -900,11 +900,11 @@
         "new_branch": "fix/exit01-media-model-unload-2026-11-12",
         "handoff_issue": 76,
         "comment_id": 6813718607,
-        "status": "DRAFT_PR_OPEN_SOFTWARE_CI_ALL_4_WORKFLOWS_SUCCESS",
+        "status": "DRAFT_PR_OPEN_ALL_MEDIA_SOURCE_CI_GREEN",
         "new_pr": 91,
-        "head_sha": "9186ba3330c0a051f6172d4065687d9e3e059faa",
+        "head_sha": "acf3513d3d25c75d6e4e9bfa1b9aff7668349755",
         "base_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
-        "ci": "4 CI workflows completed SUCCESS; app-owned CUDA/Whisper and captions synthetic coverage",
+        "ci": "Four current-head Media CI runs PASS (Text, Native TV, Kaffeine, DVB/Radio), synthetic only",
         "changed_files": 3
       },
       {
@@ -916,11 +916,11 @@
         "new_branch": "fix/exit01-flight-clean-exit-2026-11-12",
         "handoff_issue": 77,
         "comment_id": 6813719331,
-        "status": "DRAFT_PR_OPEN_SOFTWARE_CI_FOUR_OS_AND_PI_SUCCESS",
+        "status": "DRAFT_PR_OPEN_PI_GREEN_FOUR_OS_NEW_RUN_PENDING",
         "new_pr": 16,
-        "head_sha": "7ae8b9b82b622b1d1e3f9914c89326af29da9784",
+        "head_sha": "649bf4b115d92583e55f0d720e91f21d2200cfbb",
         "base_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
-        "ci": "4 OS jobs (Ubuntu Debian macOS Windows) SUCCESS run 43151459770; Pi ARM64 SUCCESS run 43151459689",
+        "ci": "Pi ARM64 CI 43155383356 SUCCESS, new four-OS CI 43155383396 IN PROGRESS at checkpoint",
         "changed_files": 6
       },
       {
@@ -932,11 +932,11 @@
         "new_branch": "fix/exit01-satellite-lease-release-2026-11-12",
         "handoff_issue": 78,
         "comment_id": 6813720095,
-        "status": "DRAFT_PR_OPEN_ALL_NATIVE_PORTABLE_RUNTIME_JOBS_GREEN_PAGES_PARITY_RED",
+        "status": "EXIT01_DRAFT_PR_OPEN_PLATFORM_RUNTIME_GREEN_PAGES_PARITY_RED",
         "new_pr": 92,
-        "head_sha": "5ba72b575abd89ce716b5b51033a3df11167267d",
+        "head_sha": "4e35bf27abba8a4eee7ac27f9c099ea51ede711c",
         "base_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
-        "ci": "At exact PR head 5ba72b575abd89ce716b5b51033a3df11167267d: Text 43152107009 SUCCESS; Debian 43152106975 SUCCESS; portable CI 43152107002 FAILED only on pre-existing pages-source-parity. Portable Linux x64, Ubuntu ARM64, Windows and macOS runtime jobs all SUCCESS. Eight source/gh-pages files differ.",
+        "ci": "Text CI 43154486572 SUCCESS; Debian native 43154486664 SUCCESS; portable runtimes all PASS but Pages/source parity 43154486520 FAIL",
         "changed_files": 4,
         "source_feature_acceptance": "NOT_ACCEPTED_NO_REAL_DEVICES"
       },
@@ -949,17 +949,17 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "DRAFT_PR_94_OPEN_LATEST_JS_AND_TEXT_CI_SUCCESS_HARDWARE_UNVERIFIED",
+        "status": "DRAFT_PR_OPEN_ONE_INFLIGHT_USB_RELEASE_CI_FAILURE",
         "new_pr": 94,
         "compared_ahead": 9,
         "changed_files": 13,
-        "ci": "Latest head da1ee... RF Geolocation Center run 43153097772 SUCCESS and Text Center tests run 43153097727 SUCCESS. Earlier head had 8 JS failures, now fixed on new head. Real WebUSB/native SDR release not physically verified.",
+        "ci": "RFGeo 43154606229 FAIL: 83 JS tests, 82 PASS and 1 FAIL (in-flight USB read did not drain in 2500ms); 3 launcher jobs PASS and Text 43154606210 PASS",
         "source_branch_ahead_at_checkpoint": 20,
         "specific_test_files": [
           "rf_geolocation_center/tests/exit_lifecycle.test.mjs",
           "rf_geolocation_center/tests/test_exit_lifecycle.py"
         ],
-        "head_sha": "da1ee084873488cecacba987e0b6d6d37c7a70bc",
+        "head_sha": "772f21e11b510553b481fd483592b11cfcc3d1db",
         "base_sha": "6664a04a6247826d71f6adeb795b137fd26de213",
         "needs_review": [
           "old JS assertions and actual USB/DVB/maps behavior",
@@ -978,12 +978,12 @@
         "new_branch": "fix/exit01-text-asr-quit-2026-11-12",
         "handoff_issue": 80,
         "comment_id": 6813721489,
-        "status": "DRAFT_PR_OPEN_PYTHON_CI_3_VERSIONS_SUCCESS",
+        "status": "DRAFT_PR_OPEN_PYTHON_CI_GREEN",
         "new_pr": 93,
         "compared_ahead": 10,
         "changed_files": 11,
-        "ci": "Text Center tests Python 3.11 3.12 3.13 all success; run 43151850363",
-        "head_sha": "063975fe9d4492b874c6084d58869ca09d082f92",
+        "ci": "Text Python matrix 43155402054 SUCCESS",
+        "head_sha": "468d2ae9078bbbf25d98c7aa54825efe372de4df",
         "base_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
       },
       {
@@ -1004,7 +1004,7 @@
       }
     ],
     "new_draft_prs_created": 5,
-    "new_ci_executed": "Media all 4 workflows success; Flight cross-platform + Pi success; Text Python matrix success; RFGeo latest JS+Text success; Satellite native + portable runtime jobs success but Pages parity workflow red",
+    "new_ci_executed": "Media current-head 4 CI success; Text current-head CI success; Flight Pi success cross-OS in progress; Geo JS 82/83 pass 1 teardown race failure; Satellite all platform portable runtime/native Debian success Pages-source parity failure",
     "source_code_modified_by_coordinator": false,
     "preexisting_original_gates_open": 17,
     "additional_exit01_gate_open": true,
@@ -1021,12 +1021,44 @@
     "verified_source_progress_as_of_date": "2026-11-12",
     "hardware_release_accepted": false,
     "remaining_critical_failures": [
-      "Satellite #92 eight mismatching published Pages/source files; published parity CI still RED",
-      "No 15-case real RAM/VRAM/NPU/SDR installed teardown acceptance",
-      "Independent cross-app source review and original release gates incomplete",
-      "No merges, releases or app migrations"
+      "A4 RFGeo current-head USB in-flight sample teardown timeout CI red (82/83 JS pass)",
+      "A3 Satellite eight mismatch source/Pages parity CI red on native EXIT-01 PR",
+      "Flight newest four-OS CI not yet completed at latest checked SHA",
+      "No 15 actual native installed owned RAM/VRAM/NPU/SDR shutdown acceptance cases passed",
+      "No EXIT-01 PR merges or app migrations/release; original 17 broader gates still OPEN"
     ],
     "qa_documented_cases": 15,
     "qa_fully_accepted_cases": 0
+  },
+  "satellite_webusb_ui_recovery": {
+    "status": "ISOLATED_BRANCH_CREATED_NO_BROWSER_SOURCE_DELTA_YET_AT_CHECKPOINT",
+    "owner_request": "Repair broken Satellite Center web/PWA site using native Qt screenshot 0.3.0 preview10 as design reference with Chromium WebUSB runtime",
+    "repository": "Tihulu/TIHULU-TEXT-CENTER",
+    "new_branch": "feature/satellite-webusb-ui-parity-2026-11-12",
+    "source_original_pr": 37,
+    "source_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
+    "source_comparison_ahead": 0,
+    "source_comparison_behind": 0,
+    "new_draft_pr_verified": false,
+    "recovery_contract": "apps/_coordination/SATELLITE_WEBUSB_UI_RECOVERY_ACCEPTANCE.md",
+    "expected_testing_cases": 15,
+    "accepted_cases": 0,
+    "current_published_site_verified_repaired": false,
+    "current_published_pages_deployed": false,
+    "publication_source_parity_mismatch_count": 8,
+    "owned_paths": [
+      "satellite_center/browser/**",
+      "browser-only tests/docs"
+    ],
+    "protected_paths": [
+      "satellite_center/__main__.py",
+      "satellite_center/native_web_shell.py",
+      "satellite_center/desktop.py",
+      "existing Satellite EXIT-01 PR #92",
+      "original Satellite PR #37",
+      "gh-pages"
+    ],
+    "scopes": "new isolated browser-only Draft PR, no real WebUSB hardware, no site deploy without explicit owner approval",
+    "note": "Source capture_duration.mjs has 128 MiB memory budget and separate conditional 2 GB/900s foreground disk streaming. Keep both source capabilities, test and label truthfully; do not confuse obsolete 60s prose with hard runtime limit."
   }
 }
