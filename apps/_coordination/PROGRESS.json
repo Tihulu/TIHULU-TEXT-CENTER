@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase4_all_six_documentation_audits_complete_17_release_gates_still_open",
+  "stage": "phase5_flight_safe_exit_source_fix_draft_pr15_ci_in_progress_17_release_gates_open",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Six of six Phase4 source-based audit reports complete; no physical hardware or product feature acceptance, all 17 broad regression gates OPEN. Next phase app source fixes need explicit owner authorization, test-only coverage/migrations/installer effort unmeasured.",
+    "reason": "Flight P0 safety correction in separate Draft #15 with only controller and two legacy/one new tests changed; CI in progress. No merge, real systemd/SDR use, migration or release; 17 global gates remain open, implementation acceptance ETA unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -722,5 +722,43 @@
     "last_status_verified_date": "2026-11-12",
     "workers_with_partial_phase4_evidence": 0,
     "next_engineering_priority": "First resolve Flight external-service passive-exit P0 with separate source-fix approval; parallel scoped test-only and source parity gates for Text Media Satellite. QA history/packaging gates remain open."
+  },
+  "phase5_flight_safe_exit": {
+    "as_of": "2026-11-12",
+    "repo": "Tihulu/tihulu-flight-radar",
+    "draft_pr": 15,
+    "branch": "fix/exit-preserve-external-readsb-tar1090-2026-11-12",
+    "base_sha": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+    "head_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
+    "status": "DRAFT_SOURCE_PATCH_CI_IN_PROGRESS",
+    "changed_paths": [
+      "tihulu_flight_radar/control.py",
+      "tests/test_control.py",
+      "tests/test_tar_focus_sdr_exit.py",
+      "tests/test_passive_exit_service_ownership.py"
+    ],
+    "owned_service_exit_contract": "Paired systemctl Stop is allowed on passive Exit only when both readsb and tar1090 are confirmed app-started. External services never automatically stopped; mixed ownership causes warning and skips paired stop, possibly leaving app-started service active.",
+    "existing_installer_policy_changed": false,
+    "old_flight_test_only_pr14_unmodified": true,
+    "known_legacy_pr14_strict_xfail_on_original_main": true,
+    "synthetic_new_cases": 12,
+    "ci_initial_run": {
+      "id": 43146903023,
+      "conclusion": "failure",
+      "cause": "Two legacy tests expected unsafe external service Stop or simulated Stop failure from unowned services; assertions updated to owner-specific cases."
+    },
+    "ci_current_cross_platform_run": 43147050908,
+    "ci_current_conclusion": "in_progress_at_checkpoint_ubuntu_debian_unit_steps_passed",
+    "pi_arm64_run": 43147050916,
+    "pi_arm64_conclusion": "success",
+    "real_host_service_or_hardware_executed": false,
+    "source_fix_merged": false,
+    "regression_gate": "REG-03 STILL OPEN pending independent source review, full cross-platform CI and real installed host behavior if separately approved",
+    "limitations": [
+      "Mixed ownership cannot safely release individual app-owned unit under current paired-only sudoers policy; warn and leave active instead",
+      "Manual explicit Stop still paired and can stop external services when intentionally invoked",
+      "No process identity provenance or real cross-app radio validation",
+      "Original test-only PR #14 has strict baseline XFAIL that will XPASS on fixed source if merged unchanged"
+    ]
   }
 }
