@@ -5,6 +5,7 @@ stored. Safe writes are atomic and confined to a user-owned preferences file.
 """
 from __future__ import annotations
 from pathlib import Path
+from .paths import media_paths
 import json
 import os
 import tempfile
@@ -28,7 +29,7 @@ def service_type(channel) -> str:
 
 class ChannelPreferences:
     def __init__(self, path: Path | None = None):
-        self.path = Path(path or Path.home()/".config/tihulu-tv-center/channel-preferences.json")
+        self.path = Path(path or media_paths().config/"channel-preferences.json")
         self.data = {"version": 1, "profiles": {}}
         if self.path.is_file():
             if self.path.stat().st_size > 2_000_000:
