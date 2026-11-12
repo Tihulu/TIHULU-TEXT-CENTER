@@ -166,6 +166,9 @@ class RecordingTranscriber:
                         try: translated=self.translator(text,language,target)
                         except (TranslatorUnavailable,ValueError,RuntimeError,ImportError) as exc:
                             with self._lock:self._state["error"]="Translation unavailable: "+str(exc)[:170]
+                    if self._stop.is_set():
+                        status="cancelled"
+                        break
                     self.transcripts.add(
                         session=session,medium=medium,
                         source_id="saved_recording:"+file.name,
@@ -199,7 +202,13 @@ class RecordingTranscriber:
             if process and process.stdout:
                 process.stdout.close()
             with self._lock:
-                self._process=None
+                process_alive=(process is not None and process.poll() is None)
+                if not process_alive:
+                    self._process=None
+                if process_alive or (self._asr_process is not None and
+                                     self._asr_process.poll() is None):
+                    status="stop_failed_partial"
+                    error="Owned ffmpeg/Whisper subprocess could not be reaped"
                 self._state["active"]=False
                 self._state["status"]=status
                 if error:self._state["error"]=error
@@ -222,9 +231,11 @@ class RecordingTranscriber:
         if wait and thread and thread.is_alive() and current_thread()!=thread:
             thread.join(timeout=2)
         with self._lock:
-            if wait and ((thread and thread.is_alive() and current_thread()!=thread)
-                         or (self._asr_process is not None and self._asr_process.poll() is None)
-                         or (self._process is not None and self._process.poll() is None)):
+            alive=(thread is not None and thread.is_alive() and
+                   current_thread()!=thread)
+            children=tuple(proc for proc in (self._process,self._asr_process)
+                           if proc is not None and proc.poll() is None)
+            if wait and (alive or children):
                 self._state.update(status="stop_failed_partial",
                     error="Owned transcription worker or child did not exit in time")
             return self._snapshot()
