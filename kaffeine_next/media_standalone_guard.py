@@ -124,7 +124,7 @@ def read_json(path, home):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def atomic_json(path, home, data):
+def atomic_json(path, home, data, *, no_replace=False):
     safe_parent(path, home)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     payload = json.dumps(data, sort_keys=True, indent=2).encode() + b"\n"
@@ -135,7 +135,14 @@ def atomic_json(path, home, data):
         f.flush()
         os.fsync(f.fileno())
     os.chmod(tmp, 0o600)
-    os.replace(tmp, path)
+    try:
+        if no_replace:
+            # Atomic no-clobber publication, including newly arrived symlinks.
+            os.link(tmp, path, follow_symlinks=False)
+        else:
+            os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def abs_destination(home, key):
@@ -251,9 +258,32 @@ def proposed(home, rev, stage):
     return r
 
 
-def write_file(path, payload, executable, home):
+def verify_destination(path, expected, home):
+    """Verify the *previously owned* version immediately before publishing."""
+    safe_parent(path, home)
+    expected = expected or {"type": "absent"}
+    if expected["type"] == "absent":
+        if path.exists() or path.is_symlink():
+            raise Hold("Foreign destination appeared during transaction: " + str(path))
+        return
+    if expected["type"] == "file":
+        if (path.is_symlink() or not path.is_file()
+                or path.stat().st_nlink != 1
+                or digest(path) != expected["sha256"]
+                or bool(path.stat().st_mode & 0o111) != expected["executable"]):
+            raise Hold("Previously owned file changed during transaction: " + str(path))
+        return
+    if expected["type"] == "link":
+        if not path.is_symlink() or os.readlink(path) != expected["target"]:
+            raise Hold("Previously owned symlink changed during transaction: " + str(path))
+        return
+    raise Hold("Unsupported managed destination type")
+
+
+def write_file(path, payload, executable, home, expected=None):
     safe_parent(path, home)
     path.parent.mkdir(parents=True, exist_ok=True)
+    verify_destination(path, expected, home)
     with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".stand-owned-",
                                      delete=False) as out:
         temp = Path(out.name)
@@ -261,18 +291,35 @@ def write_file(path, payload, executable, home):
         out.flush()
         os.fsync(out.fileno())
     os.chmod(temp, 0o700 if executable else 0o600)
-    os.replace(temp, path)
+    try:
+        if (expected or {"type": "absent"})["type"] == "absent":
+            # No-replace link: a new foreign file or symlink cannot be clobbered
+            # even if it appears after preflight but before final publication.
+            os.link(temp, path, follow_symlinks=False)
+        else:
+            verify_destination(path, expected, home)
+            os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
 
 
-def write_link(path, target, home):
+def write_link(path, target, home, expected=None):
     safe_parent(path, home)
     path.parent.mkdir(parents=True, exist_ok=True)
+    verify_destination(path, expected, home)
+    if (expected or {"type": "absent"})["type"] == "absent":
+        os.symlink(target, path)  # O_EXCL-like: never replace a new foreign path
+        return
     with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".stand-link-",
                                      delete=False) as out:
         temp = Path(out.name)
     temp.unlink()
-    os.symlink(target, temp)
-    os.replace(temp, path)
+    try:
+        os.symlink(target, temp)
+        verify_destination(path, expected, home)
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
 
 
 def activate(home, source, rev, stage):
@@ -301,12 +348,20 @@ def activate(home, source, rev, stage):
             raise Hold("Staged release altered during copy")
         r["phase"] = "activating"
         write_journal(home, rev, r)
-        pending.rename(release_path(home, rev))
+        new_release = release_path(home, rev)
+        if new_release.exists() or new_release.is_symlink():
+            raise Hold("Foreign release appeared after preflight")
+        pending.rename(new_release)
         for key in NAMES:
-            src = release_path(home, rev) / "setup" / key
-            write_file(p[key], src.read_bytes(), next_state["public"][key]["executable"], home)
-        write_link(p["current"], str(release_path(home, rev)), home)
-        atomic_json(p["active"], home, next_state)
+            src = new_release / "setup" / key
+            expected = old["public"][key] if old else None
+            write_file(p[key], src.read_bytes(),
+                       next_state["public"][key]["executable"], home, expected)
+        write_link(p["current"], str(new_release), home,
+                   old["public"]["current"] if old else None)
+        if old and read_json(p["active"], home) != old:
+            raise Hold("Prior active journal changed before publication")
+        atomic_json(p["active"], home, next_state, no_replace=(old is None))
         r["phase"] = "active"
         write_journal(home, rev, r)
         return {"owner": APP, "sha": rev, "phase": "active", "repeat": False}
@@ -367,9 +422,11 @@ def rollback(home, rev):
                 path.unlink()
         else:
             src = release_path(home, before["sha"]) / "setup" / key
-            write_file(path, src.read_bytes(), previous["executable"], home)
+            write_file(path, src.read_bytes(), previous["executable"], home,
+                       public_receipt(home, key))
     if before:
-        write_link(p["current"], str(release_path(home, before["sha"])), home)
+        write_link(p["current"], str(release_path(home, before["sha"])), home,
+                   public_receipt(home, "current"))
         atomic_json(p["active"], home, before)
     else:
         if public_receipt(home, "current") == after["public"]["current"]:
