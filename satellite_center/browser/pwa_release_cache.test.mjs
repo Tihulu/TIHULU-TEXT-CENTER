@@ -79,7 +79,7 @@ function fakeWorker({missing=[],offline=false}={}){
  };
  const request=(path,{mode="cors",method="GET"}={})=>
   {const r=new RequestStub(new URL(path,scope),{mode,method});return r};
- return {version,core,optional,state,calls,fire,request,caches,storeFor};
+ return {version,core,optional,state,calls,missingNames,fire,request,caches,storeFor};
 }
 test("PWA core covers static imports and explicitly models optional geography",()=>{
  const app=fakeWorker();
@@ -156,14 +156,14 @@ test("HTTP 404 is observable; no stale-code fallback hides a missing deployed sc
  const worker=fakeWorker();
  await worker.fire("install");
  worker.state.offline=false;
- // Simulate the published release omitting a previously cached module.
+ // Simulate a partial publication after a healthy shell was already cached.
  const saved=worker.storeFor(worker.version);
+ worker.missingNames.add("pass_candidates.mjs");
  const code=await worker.fire("fetch",worker.request("./pass_candidates.mjs?v=bad"));
  assert.equal(code.responded,true);
- assert.equal(code.result.status,200);
- // A source-only worker cannot force a 404 without injecting a new server;
- // the install-failure test already covers deterministic 404 fail-closed behavior.
- assert.ok(saved.entries.has(new URL("pass_candidates.mjs",scope).href));
+ assert.equal(code.result.status,404,"Do not mask a server-side missing script with old cached bytes");
+ assert.ok(saved.entries.has(new URL("pass_candidates.mjs",scope).href),
+  "Keep old offline copy only for real network failures");
 });
 test("never intercept RF data, private URLs, unrelated assets, POST or foreign sites",async()=>{
  const worker=fakeWorker();await worker.fire("install");
