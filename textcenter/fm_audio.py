@@ -191,18 +191,16 @@ class FMPreview:
 
     @staticmethod
     def _terminate(proc):
-        if not proc or proc.poll() is not None:
+        if proc is None or proc.poll() is not None:
             return
         try:
-            os.killpg(proc.pid, signal.SIGTERM)
+            proc.terminate()
             proc.wait(timeout=0.8)
-        except (ProcessLookupError, ChildProcessError):
-            pass
         except (OSError, subprocess.TimeoutExpired):
             try:
-                os.killpg(proc.pid,signal.SIGKILL)
+                proc.kill()
                 proc.wait(timeout=0.5)
-            except (OSError,subprocess.TimeoutExpired):
+            except (OSError, subprocess.TimeoutExpired):
                 pass
 
     def _worker(self, hz:int, duration:int):
