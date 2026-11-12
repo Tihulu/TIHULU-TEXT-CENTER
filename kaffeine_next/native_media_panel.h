@@ -473,8 +473,10 @@ private:
             message_->setText(tr("Select up to six output languages."));
             return false;
         }
-        const QString cache=QStandardPaths::writableLocation(
-            QStandardPaths::AppLocalDataLocation);
+        QString cache=qEnvironmentVariable("TIHULU_MEDIA_CACHE");
+        if(cache.isEmpty())
+            cache=QStandardPaths::writableLocation(
+                QStandardPaths::CacheLocation);
         if(cache.isEmpty() || !QDir().mkpath(cache)) {
             message_->setText(tr("Cannot create a private subtitle cache."));
             return false;
