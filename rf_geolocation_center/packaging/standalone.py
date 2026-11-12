@@ -293,6 +293,17 @@ def _read_state(root: Path) -> dict | None:
         for x in state["previous"]
     ):
         raise PackagingError("Invalid existing rollback history")
+    bundles = state.get("bundles")
+    if not isinstance(bundles, dict) or len(bundles) > 100 or any(
+        not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9.+_-]{1,120}", key)
+        or not isinstance(value, str) or not SHA_RE.fullmatch(value)
+        for key, value in bundles.items()
+    ):
+        raise PackagingError("Invalid saved full bundle digest history")
+    if state["active"] not in bundles or any(x not in bundles for x in state["previous"]):
+        raise PackagingError("Missing full digest for active or rollback release")
+    if state.get("bundle_sha256") != bundles[state["active"]]:
+        raise PackagingError("Inconsistent active bundle digest")
     return state
 
 
@@ -402,25 +413,55 @@ def _launcher() -> str:
 
 def _verify_release(root: Path, release: str) -> dict:
     target = root / "releases" / release
-    if target.is_symlink() or not target.is_dir() or target.resolve().parent != (root / "releases").resolve():
-        raise PackagingError("Missing or unsafe rollback release directory")
+    for directory in (root, root / "releases", target, target / MODULE_DIR):
+        if directory.is_symlink() or not directory.is_dir():
+            raise PackagingError("Missing or unsafe rollback release directory")
+    if target.resolve().parent != (root / "releases").resolve():
+        raise PackagingError("Release path escapes RFGeo installation scope")
     manifest_file = target / "bundle-manifest.json"
-    if manifest_file.is_symlink() or not manifest_file.is_file():
-        raise PackagingError("Missing or unsafe installed manifest")
-    manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
-    if manifest.get("app_id") != APP_ID or manifest.get("schema") != SCHEMA:
+    rollback_file = target / "rollback-manifest.json"
+    for entry in (manifest_file, rollback_file):
+        if entry.is_symlink() or not entry.is_file() or entry.stat().st_size > 150_000:
+            raise PackagingError("Missing or unsafe installed/rollback manifest")
+    try:
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        rollback_record = json.loads(rollback_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise PackagingError("Invalid installed release manifest") from exc
+    if (not isinstance(manifest, dict) or manifest.get("app_id") != APP_ID
+            or manifest.get("schema") != SCHEMA or not REV_RE.fullmatch(
+                str(manifest.get("source_revision_declared", "")))):
         raise PackagingError("Foreign installed release")
-    for entry in manifest.get("files", []):
+    if (not isinstance(rollback_record, dict) or rollback_record.get("app_id") != APP_ID
+            or rollback_record.get("schema") != SCHEMA
+            or rollback_record.get("new_release") != release
+            or rollback_record.get("source_revision_declared") != manifest["source_revision_declared"]
+            or not SHA_RE.fullmatch(str(rollback_record.get("bundle_sha256", "")))):
+        raise PackagingError("Invalid rollback evidence manifest")
+    records = manifest.get("files")
+    if not isinstance(records, list) or not records or len(records) > MAX_FILES:
+        raise PackagingError("Missing or oversize installed file inventory")
+    seen: set[str] = set()
+    for entry in records:
+        if not isinstance(entry, dict):
+            raise PackagingError("Malformed installed file inventory")
         name = entry.get("path")
-        if not isinstance(name, str) or not _allowed_file(name):
-            raise PackagingError("Invalid installed manifest path")
-        dest = target / MODULE_DIR / name
-        if dest.is_symlink() or not dest.is_file() or dest.stat().st_size > MAX_FILE:
+        if not isinstance(name, str) or not _allowed_file(name) or name in seen:
+            raise PackagingError("Invalid or duplicate installed manifest path")
+        seen.add(name)
+        dest = target / MODULE_DIR
+        for component in PurePosixPath(name).parts:
+            dest = dest / component
+            if dest.is_symlink():  # Includes all directory ancestors, not just the file.
+                raise PackagingError("Symlinked installed release path: " + name)
+        if (not dest.is_file() or not dest.resolve().is_relative_to(target.resolve())
+                or dest.stat().st_size > MAX_FILE):
             raise PackagingError("Installed release changed or missing: " + name)
-        if _digest(dest.read_bytes()) != entry.get("sha256"):
+        if entry.get("bytes") != dest.stat().st_size or entry.get("sha256") != _digest(dest.read_bytes()):
             raise PackagingError("Installed release content changed: " + name)
+    if not REQUIRED.issubset(seen):
+        raise PackagingError("Required app assets missing in installed release")
     return manifest
-
 
 def install_bundle(archive: Path, *, apply: bool = False, home: Path | None = None,
                    system: str | None = None, machine: str | None = None) -> dict:
