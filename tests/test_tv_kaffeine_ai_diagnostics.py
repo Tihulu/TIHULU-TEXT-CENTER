@@ -20,8 +20,8 @@ class ReadOnlyAICheckTests(unittest.TestCase):
         profile={"speech":{"ready_npu":False,"gpu_engine":None}}
         with mock.patch("tv_center.ai_settings.AISettings",return_value=ai), \
              mock.patch("tv_center.hardware_market.detect_hardware",return_value=hardware), \
-             mock.patch("textcenter.compute.detect_devices",return_value=profile) as devices, \
-             mock.patch("textcenter.compute.choose_backend",
+             mock.patch("tv_center.media_backend.compute.detect_devices",return_value=profile) as devices, \
+             mock.patch("tv_center.media_backend.compute.choose_backend",
                         return_value={"selected":"gpu","ready":False,
                                       "reason":"CUDA speech runtime missing"}), \
              mock.patch("tv_center.whisper_engine.WhisperRuntime") as whisper, \
