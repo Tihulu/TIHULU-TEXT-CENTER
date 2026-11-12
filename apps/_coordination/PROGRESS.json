@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "six_initial_source_audits_received_17_regression_gates_open_coordination_metadata_ci_fixed",
+  "stage": "six_initial_audits_complete_followup_source_preservation_2_of_3_reports_committed_17_gates_open",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -153,10 +153,10 @@
         "pr": 84,
         "issue": 77,
         "requirement_ids_reviewed": 17,
-        "head": "1253f55604b1401927f3a1b7a661c7f9b1fa8386",
+        "head": "9db6fb96a249992214ec93e1888a88e3228427ac",
         "test_candidates_mapped": 15,
         "test_candidate_gaps": 2,
-        "notes": "Readsb ownership and 3-vs-4 RF-aircraft branch discrepancy"
+        "notes": "Initial 17/17 review retained; follow-up committed 18 receiver lifecycle and 11 RF model planned scenarios, source/PR comparisons only, no tests/hardware."
       },
       "03": {
         "pr": 85,
@@ -178,9 +178,9 @@
         "pr": 87,
         "issue": 80,
         "requirement_ids_reviewed": 8,
-        "head": "5a772fd399c2d743207adb69dc33bd9922fee068",
+        "head": "3dbcbf658029ad213d985a5eef8227a244d3c045",
         "test_source_files_read": 12,
-        "notes": "3 active backend blobs differ between retained main and archived branch snapshot"
+        "notes": "Initial 8/8 review retained; follow-up classified six tv_center imports across 20 Text modules and 13 proposed isolated regression checks, no tests/hardware."
       },
       "06": {
         "pr": 88,
@@ -194,13 +194,74 @@
     "report_status_source": "Direct fetched REPORT.md and EVIDENCE.json on all six separate workstream heads and diff comparison against frozen coordinator base, 2026-11-12",
     "initial_requirement_review_coverage": 97,
     "initial_requirement_review_denominator": 97,
-    "worker_branch_divergence": "All six worker branches diverged from coordinator by two docs-only coordinator commits; do not merge/rebase automatically"
+    "worker_branch_divergence": "Worker branches are independent; two have additional docs-only follow-up commits. No merges or rebases authorized. Original frozen base and each branch must be compared individually.",
+    "source_preservation_followups": {
+      "as_of_date": "2026-11-12",
+      "requested": 3,
+      "documentation_delivered": 2,
+      "pending": 1,
+      "all_new_changes_report_evidence_only": true,
+      "independent_worker_new_test_executions": 0,
+      "independent_worker_hardware_sessions": 0,
+      "01": {
+        "pr": 83,
+        "issue": 76,
+        "status": "PENDING_NO_NEW_HEAD",
+        "head": "10fd5ef9c51df2c330c8c5823ce789e31db519b2",
+        "requested_focus": "Media #65→#66→#67 20-commit import/history preservation",
+        "new_tests_executed": 0
+      },
+      "02": {
+        "pr": 84,
+        "issue": 77,
+        "status": "DOC_FOLLOWUP_COMMITTED_SOURCE_AUDIT_ONLY",
+        "head": "9db6fb96a249992214ec93e1888a88e3228427ac",
+        "baseline_head": "1253f55604b1401927f3a1b7a661c7f9b1fa8386",
+        "modified_paths": [
+          "apps/_coordination/workstreams/02/REPORT.md",
+          "apps/_coordination/workstreams/02/EVIDENCE.json"
+        ],
+        "new_commits": 2,
+        "receiver_lifecycle_proposed_cases": 18,
+        "rf_model_proposed_cases": 11,
+        "new_tests_executed": 0,
+        "hardware_sessions": 0,
+        "ci": {
+          "run_id": 43127826372,
+          "scope": "Text Center tests",
+          "conclusion": "success"
+        }
+      },
+      "05": {
+        "pr": 87,
+        "issue": 80,
+        "status": "DOC_FOLLOWUP_COMMITTED_SOURCE_AUDIT_ONLY",
+        "head": "3dbcbf658029ad213d985a5eef8227a244d3c045",
+        "baseline_head": "5a772fd399c2d743207adb69dc33bd9922fee068",
+        "modified_paths": [
+          "apps/_coordination/workstreams/05/REPORT.md",
+          "apps/_coordination/workstreams/05/EVIDENCE.json"
+        ],
+        "new_commits": 2,
+        "text_modules_examined": 20,
+        "snapshot_tv_center_imports_classified": 6,
+        "standalone_isolation_proposed_cases": 13,
+        "reverse_dependency_found": true,
+        "new_tests_executed": 0,
+        "hardware_sessions": 0,
+        "ci": {
+          "run_id": 43127825730,
+          "scope": "Text Center tests",
+          "conclusion": "success"
+        }
+      }
+    }
   },
   "time_remaining": {
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "All six initial source audits are complete and coordination metadata CI passed, but 17 functionality, history, hardware, platform, language, URL and release gates remain unverified with no measured workload. Hours/minutes remain unknown.",
+    "reason": "Two of three additional source-preservation worker reports have been committed, one pending; 17 functional, history, hardware, platform and release gates remain open. No measured acceptance or migration workload sufficient for HH:MM estimate.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -379,6 +440,11 @@
     "all_pending_acceptance_remains_unverified": true,
     "ci_test_repair_proposal_applied_at_sha": "c8efb3504d26449667eeab5dc21b259cdd0362ef",
     "ci_test_maintenance_verified_run": 43125496491,
-    "app_runtime_source_edited": false
+    "app_runtime_source_edited": false,
+    "worker_second_pass_received_count": 2,
+    "worker_second_pass_requested_count": 3,
+    "media_second_pass_pending": true,
+    "flight_second_pass_18_service_11_rf_cases": true,
+    "text_second_pass_6_imports_13_isolation_cases": true
   }
 }
