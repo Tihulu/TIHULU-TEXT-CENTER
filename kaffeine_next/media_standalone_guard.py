@@ -194,6 +194,11 @@ def preflight(home, source, rev, **optional):
         safe_parent(p[key], home)
     active = current_state(home)
     if active is None:
+        # Do not silently adopt another application's or a failed preview's
+        # user-owned config/data/transaction tree, even when it has no pointer.
+        for key in ("root", "state"):
+            if p[key].exists() or p[key].is_symlink():
+                raise Hold("Unowned standalone install/state directory: " + str(p[key]))
         for key in (*NAMES, "current"):
             if public_receipt(home, key)["type"] != "absent":
                 raise Hold("Existing unowned/legacy destination: " + str(p[key]))
@@ -205,9 +210,9 @@ def preflight(home, source, rev, **optional):
             raise Hold("Release path already occupied: " + str(dest))
     journal = p["state"] / "transactions" / rev / "journal.json"
     safe_parent(journal, home)
-    if journal.exists() or journal.is_symlink():
+    if journal.parent.exists() or journal.parent.is_symlink():
         if not already:
-            raise Hold("Incomplete prior transaction: run --recover or --rollback")
+            raise Hold("Foreign/incomplete transaction directory; run --recover or --rollback")
     return {
         "owner": APP, "source_sha": rev, "dry_run": True,
         "already_active": already, "new_release": str(dest),
@@ -235,7 +240,11 @@ def journal(home, rev):
 
 
 def write_journal(home, rev, record):
-    atomic_json(journal_path(home, rev), home, record)
+    # First durable receipt is no-clobber; all later writes update only this
+    # transaction's known journal. Never overwrite an unexpectedly new file.
+    atomic_json(journal_path(home, rev), home, record,
+                no_replace=(record["phase"] == "prepared" and
+                            not record.get("pending")))
 
 
 def proposed(home, rev, stage):
