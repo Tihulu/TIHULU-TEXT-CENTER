@@ -846,7 +846,8 @@ async function disconnect(){
  serialEpoch++;
  state.reading=false;
  const reader=state.serialReader;state.serialReader=null;
- if(reader){try{await reader.cancel()}catch{}}
+ if(reader){try{await Promise.race([reader.cancel(),new Promise(done=>setTimeout(done,1500))])}catch{}}
+
  if(state.serialPort){
    const port=state.serialPort;state.serialPort=null;
    try{await Promise.race([port.close(),new Promise(done=>setTimeout(done,1500))])}catch{}
@@ -857,10 +858,11 @@ async function disconnect(){
 }
 $("serial-connect")?.addEventListener("click",async()=>{
  if(lifecycle.isQuit())return;
+ let epoch=null;
  if(!("serial" in navigator)){msg("Web Serial unavailable. Use supported desktop Chromium or import a receiver log.");return}
  try{
    if(state.serialPort)return;
-   const epoch=++serialEpoch;
+   epoch=++serialEpoch;
    const port=await navigator.serial.requestPort();
    if(lifecycle.isQuit()||epoch!==serialEpoch)return;
    await port.open({baudRate:9600});
@@ -882,7 +884,7 @@ $("serial-connect")?.addEventListener("click",async()=>{
      }finally{try{reader.releaseLock()}catch{}if(state.serialReader===reader)state.serialReader=null}
    }
  }catch(e){msg("Serial receiver unavailable: "+e.message)}
- finally{if(state.reading&&!lifecycle.isQuit())await disconnect()}
+ finally{if(epoch===serialEpoch)await disconnect()}
 });
 $("serial-disconnect")?.addEventListener("click",()=>{disconnect();msg("Own NMEA serial port released")});
 $("hard-stop")?.addEventListener("click",()=>{
