@@ -63,7 +63,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
  function release({permanent=false}={}){
    if(permanent)quitting=true;
    if(releasePromise)return releasePromise;
-   if(quitting&&terminalFailure)return Promise.reject(terminalFailure);
+   if(terminalFailure)return Promise.reject(terminalFailure); // A previously failed close is not a successful release.
    stopping=true;sampling=false;sweepCancel=true;operationSerial++;
  // repeated Stop/Quit shares one device-close
    releasePromise=(async()=>{
@@ -100,13 +100,19 @@ export function initUsbSDR(report, {driverFactory} = {}){
      if(failures.length)throw Error("Incomplete app-owned USB release: "+failures.join("; ").slice(0,240));
      notify("NOT CONNECTED","Own RTL-SDR session stopped/released; unrelated applications untouched.");
    })().catch(error=>{
-     if(quitting)terminalFailure=error;
+     // Do not discard failed handle closure or a timed-out RF read on a later
+     // Stop/Quit. The hardware lease state is unknown until a full reload.
+     terminalFailure=error;
      throw error;
    }).finally(()=>{releasePromise=null});
    return releasePromise;
  }
  async function connect(preferredDevice=null){
    if(quitting||releasePromise)return;
+   if(terminalFailure){
+     notify("RELEASE WARNING","Previous owned USB close is unverified; reload the tab before reconnecting. "+terminalFailure.message);
+     return;
+   }
    if(busy||receiver){notify("BUSY",receiver?"Device already connected.":"A connection attempt is already running.");return}
    if(!navigator.usb||!window.isSecureContext){notify("UNAVAILABLE","WebUSB requires HTTPS and desktop Chrome/Brave/Edge; Firefox/Safari do not support it.");return}
    busy=true;stopping=false;stage="USB permission selection";
@@ -218,7 +224,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
    const operation=operationSerial,current=receiver;
    const active=()=>!quitting&&!stopping&&operation===operationSerial;
    const gainDb=20,sampleRate=1024000;
-   let samples=0,power=0,rfStage="initial checks";
+   let samples=0,power=0,rfStage="initial checks",captureFailure=null;
    try{
      if(configuredRate!==sampleRate)throw Error("Receiver sample rate not configured; release and reconnect");
      if(configuredGain!==gainDb){
@@ -254,24 +260,43 @@ export function initUsbSDR(report, {driverFactory} = {}){
        sourceIdentityVerified:false,decodedSignal:false};
      window.dispatchEvent(new CustomEvent("tihulu:rf-observation",{detail:record}));
      notify("RF IQ CAPTURED",frequencyMHz.toFixed(3)+" MHz · "+samples+" bytes of REAL RTL-SDR I/Q · "+
-       levelDbFS.toFixed(2)+" dBFS-like · fixed gain "+gainDb+" dB. Total receiver energy, not an identified station or distance.");
-   }catch(error){
+       levelDbFS.toFixed(2)+" dBFS-like · fixed gain "+gainDb+" dB. Total receiver energy, not an identified stat   }catch(error){
+     // Capture the hardware error but DO NOT await release while this operation
+     // owns pendingSample: release must wait for genuinely concurrent reads.
      if(active()){
        const detail=String(error?.message||error);
        const transfer=/setRegBuffer|transfer|control|stall|reg=/i.test(detail);
        const explanation=transfer?
-         "USB register/control-transfer failure, not a transmitter or radio-range result. "+ 
-         "This browser driver/device session is no longer trusted; release it, then use Recover SDR for ONE reinitialization attempt. "+ 
+         "USB register/control-transfer failure, not a transmitter or radio-range result. "+
+         "This browser driver/device session is no longer trusted; release it, then use Recover SDR for ONE reinitialization attempt. "+
          "Check other SDR owners, Linux USB driver, power and browser compatibility.":
          "Hardware sampling failed; no RF measurement was accepted.";
-       if(transfer)await release(); // clean up the exact device we own; no implicit reattempt.
-       notify("RF CAPTURE ERROR","Stage: "+rfStage+" · "+detail+" · "+explanation);
+       captureFailure={detail,transfer,explanation,stage:rfStage};
+     }
+   }finally{
+     // Own lease must settle BEFORE an internal release awaits pendingSample.
+     sampling=false;busy=false;endSample();
+   }
+   if(captureFailure&&active()){
+     const {detail,transfer,explanation,stage:failedStage}=captureFailure;
+     let closeError=null;
+     try{
+       if(transfer)await release(); // release now sees no self-owned pendingSample
+     }catch(error){closeError=String(error?.message||error)}
+     // A concurrent real Quit owns the final shutdown; never emit late RF events.
+     if(!quitting){
+       const releaseDetail=!transfer?"":closeError?
+         " · STOP_FAILED_PARTIAL: "+closeError:
+         " · Owned receiver release completed; reconnect requires an explicit user action.";
+       notify("RF CAPTURE ERROR","Stage: "+failedStage+" · "+detail+" · "+explanation+releaseDetail);
        window.dispatchEvent(new CustomEvent("tihulu:rf-capture-failed",{
-         detail:{stage:rfStage,message:detail,frequencyMHz,sourceId:String(sourceId||""),recoverable:transfer}
+         detail:{stage:failedStage,message:detail+releaseDetail,frequencyMHz,
+           sourceId:String(sourceId||""),recoverable:transfer&&!closeError,
+           releaseFailed:!!closeError}
        }));
      }
    }
-   finally{sampling=false;busy=false;endSample()}
+ }alse;endSample()}
  }
  async function fmSweep(startMHz=87.5,stopMHz=108,stepMHz=.1){
    if(quitting||releasePromise)return;
@@ -286,7 +311,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
    const active=()=>!quitting&&!stopping&&operation===operationSerial;
    const oldHz=configuredFrequencyHz,oldGain=configuredGain;
    const readings=[],total=Math.min(220,Math.floor((stopMHz-startMHz)/stepMHz+1.001));
-   let scanStage="FM initialization",hardwareControlFailed=false;
+   let scanStage="FM initialization",hardwareControlFailed=false,sweepFailure=null;
    try{
      if(configuredGain!==20){scanStage="set fixed tuner gain";await current.setGain(20);configuredGain=20}
      for(let i=0;i<total&&active()&&!sweepCancel;i++){
@@ -312,16 +337,11 @@ export function initUsbSDR(report, {driverFactory} = {}){
        detail:{readings,stopped:sweepCancel,hardware:"RTL2832U"}}
      ));
      if(active())notify(sweepCancel?"FM SWEEP STOPPED":"FM SWEEP COMPLETE",readings.length+
-       " REAL RTL-SDR frequency-level samples from "+startMHz.toFixed(3)+"–"+stopMHz.toFixed(3)+" MHz. No RDS station identification, GPS, distance or calibrated location.");
-   }catch(error){
+       " REAL RTL-SDR frequency-level samples from "+startMHz.toFixed(3)+"–"+stopMHz.toFixed(3)+" MHz. No RDS station identification, GPS, distance or calibr   }catch(error){
      if(active()){
        const message=String(error?.message||error);
        hardwareControlFailed=/setRegBuffer|control|transfer|reg=/i.test(message);
-       if(hardwareControlFailed)await release(); // no more register writes on a failed tuner session
-       const diagnostic="Step: "+scanStage+" · "+message+
-         " · no invented RF results."+ (hardwareControlFailed?" Receiver released; reconnect using Recover SDR after checking USB ownership, power and driver.":"");
-       notify("FM SWEEP ERROR",diagnostic);
-       window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message:diagnostic,stage:scanStage,completed:readings.length,hardwareControlFailed}}));
+       sweepFailure={message,stage:scanStage,completed:readings.length};
      }
    }finally{
      if(active()&&!hardwareControlFailed&&receiver===current){
@@ -332,7 +352,29 @@ export function initUsbSDR(report, {driverFactory} = {}){
          if(configuredGain!==oldGain){await current.setGain(oldGain);configuredGain=oldGain}
        }catch(e){notify("FM SWEEP RESTORE WARNING","Previous tuner setting could not be restored: "+String(e?.message||e))}
      }
+     // Settle the FM operation's own lease; an external Quit still has the
+     // original bounded wait while an actually unfinished I/Q read is pending.
      sampling=false;busy=false;endSample();
+   }
+   if(sweepFailure&&active()){
+     const {message,stage:failedStage,completed}=sweepFailure;
+     let closeError=null;
+     try{
+       if(hardwareControlFailed)await release(); // never self-wait on FM lease
+     }catch(error){closeError=String(error?.message||error)}
+     if(!quitting){
+       const releaseDetail=!hardwareControlFailed?"":closeError?
+         " STOP_FAILED_PARTIAL: "+closeError:
+         " Receiver released; reconnect using Recover SDR after checking USB ownership, power and driver.";
+       const diagnostic="Step: "+failedStage+" · "+message+" · no invented RF results."+releaseDetail;
+       notify("FM SWEEP ERROR",diagnostic);
+       window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{
+         detail:{message:diagnostic,stage:failedStage,completed,hardwareControlFailed,
+           releaseFailed:!!closeError}
+       }));
+     }
+   }
+ }Sample();
    }
  }
 
