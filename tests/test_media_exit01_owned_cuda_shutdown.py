@@ -275,7 +275,7 @@ class ShutdownEdgeCaseTests(unittest.TestCase):
                          ["terminate", ("wait", 3), "kill", ("wait", 2)])
         with mock.patch.object(cuda.subprocess, "Popen") as spawn:
             with self.assertRaisesRegex(RuntimeError, "shutting down"):
-                worker.transcribe_details(b"\\x00\\x00", "en", "/fake")
+                worker.transcribe_details(bytes(2), "en", "/fake")
             spawn.assert_not_called()
         child.fail_reap = False
         worker.close()
@@ -327,8 +327,10 @@ class ShutdownEdgeCaseTests(unittest.TestCase):
             if not allow_spawn.wait(2):
                 raise AssertionError("fake Popen was not released")
             return child
-        with mock.patch.object(cuda, "FasterWhisperCUDA") as market, \\
-                mock.patch.object(cuda.subprocess, "Popen", side_effect=fake_spawn) as spawn:
+        with (
+            mock.patch.object(cuda, "FasterWhisperCUDA") as market,
+            mock.patch.object(cuda.subprocess, "Popen", side_effect=fake_spawn) as spawn,
+        ):
             market.return_value.installed.return_value = True
             market.return_value.model_dir = Path("/fake-owned")
             market.return_value.python = Path("/mock-python")
@@ -336,7 +338,7 @@ class ShutdownEdgeCaseTests(unittest.TestCase):
             def infer():
                 try:
                     worker.transcribe_details(
-                        b"\\x00\\x00", "en", "/fake-owned")
+                        bytes(2), "en", "/fake-owned")
                     outcomes.append("unexpected result")
                 except RuntimeError as exc:
                     outcomes.append(str(exc))
@@ -473,10 +475,12 @@ class ShutdownEdgeCaseTests(unittest.TestCase):
         tap.worker = None
         tap._owned_socket_identity = (123, 456)
         tap.path = Path("/fake-private/caption.sock")
-        with mock.patch.object(Path, "lstat", return_value=SimpleNamespace(
+        with (
+            mock.patch.object(Path, "lstat", return_value=SimpleNamespace(
                 st_dev=123, st_ino=456, st_uid=os.getuid(),
-                st_mode=stat.S_IFSOCK)), \\
-                mock.patch.object(Path, "unlink") as unlink:
+                st_mode=stat.S_IFSOCK)),
+            mock.patch.object(Path, "unlink") as unlink,
+        ):
             tap.close()
         unlink.assert_called_once_with()
         self.assertIsNone(tap._owned_socket_identity)
