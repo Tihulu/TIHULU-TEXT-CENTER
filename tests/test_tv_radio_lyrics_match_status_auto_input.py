@@ -99,7 +99,7 @@ class AutoLyricsLiveMatchTests(unittest.TestCase):
         self.assertIn('speech_models_installed',APP)
         self.assertIn('for code in LANGUAGES if not english_only or code=="en"',APP)
         self.assertIn("FasterWhisperCUDA().installed()",APP)
-        self.assertIn("ModelLibrary().installed()",APP)
+        self.assertIn('ModelLibrary(selected.get("model_dir") or None).installed()',APP)
 
 
 if __name__=="__main__":
