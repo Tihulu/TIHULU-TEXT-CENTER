@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase3_three_test_only_prs_software_ci_success_flight_known_xfail_17_gates_open",
+  "stage": "phase4_parallel_assignment_prepared_workers_not_yet_resumed",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "All three isolated test-only PRs have successful hosted software CI on their respective source branches; Flight has a strict known P0 external-service ownership XFAIL, Media real FFmpeg test remains skipped. No physical hardware, release or full feature equivalence certified; 17 gates open and migration effort unknown.",
+    "reason": "Three independent Phase4 read-only handoffs are documented but worker conversations have not been autonomously launched; 17 broader gates remain open, zero hardware/release acceptance or migrations; duration unmeasured.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -538,5 +538,55 @@
       "estimated_remaining_hours": null,
       "estimated_remaining_minutes": null
     }
+  },
+  "phase4_parallel_review": {
+    "as_of_date": "2026-11-12",
+    "state": "ASSIGNMENTS_PREPARED_NOT_AUTONOMOUSLY_RUNNING",
+    "planning_document": "apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
+    "workstreams": [
+      {
+        "ws": "01",
+        "issue": 76,
+        "audit_pr": 83,
+        "test_only_pr": 90,
+        "assignment_comment": 6811690016,
+        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE",
+        "allowed_writes": [
+          "apps/_coordination/workstreams/01/REPORT.md",
+          "apps/_coordination/workstreams/01/EVIDENCE.json"
+        ]
+      },
+      {
+        "ws": "02",
+        "issue": 77,
+        "audit_pr": 84,
+        "test_only_pr": 14,
+        "test_repo": "Tihulu/tihulu-flight-radar",
+        "assignment_comment": 6811690635,
+        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE",
+        "allowed_writes": [
+          "apps/_coordination/workstreams/02/REPORT.md",
+          "apps/_coordination/workstreams/02/EVIDENCE.json"
+        ]
+      },
+      {
+        "ws": "05",
+        "issue": 80,
+        "audit_pr": 87,
+        "test_only_pr": 89,
+        "assignment_comment": 6811691493,
+        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE",
+        "allowed_writes": [
+          "apps/_coordination/workstreams/05/REPORT.md",
+          "apps/_coordination/workstreams/05/EVIDENCE.json"
+        ]
+      }
+    ],
+    "workers_expected": 3,
+    "workers_with_new_phase4_evidence": 0,
+    "coordinator_responsibility": "validate SHAs, exact changed paths, test/acceptance distinctions and sync Issue #75",
+    "permissions": "read-only/source-backed worker audit updates in assigned audit documents only; previously authorized isolated test-only PRs remain separate; no runtime source changes, hardware, workflow modifications, merges, migrations or releases.",
+    "existing_seventeen_gates_open": 17,
+    "no_automatic_chat_execution": true
   }
 }
