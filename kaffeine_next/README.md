@@ -145,7 +145,7 @@ remain untouched.
 
 Retry the same installer from any shell, including (base); no manual
 Conda deletion required. Build logs are saved under
-HOME/.local/share/tihulu-kaffeine/logs/configure.log and build.log.
+HOME/.local/share/tihulu-media-center/native/logs/configure.log and build.log.
 
 If undefined Qt_5_PRIVATE_API symbols remain after a clean build, inspect
 the distribution packages before modifying system libraries:
@@ -675,7 +675,7 @@ DAB-capable RTL-SDR/SoapySDR device. A DVB-T2 frontend is NOT
 automatically DAB-compatible. To install it:
 
 ```sh
-bash "$HOME/.local/share/tihulu-kaffeine/install_welle.sh"
+bash "$HOME/.local/share/tihulu-media-center/native/install_welle.sh"
 # Or opt in to both source builds during a new install:
 # bash install.sh --with-dab
 ```
@@ -895,7 +895,8 @@ To build the standalone player AND the optional loopback-only DAB
 receiver from this branch:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Tihulu/TIHULU-TEXT-CENTER/architecture/kaffeine-core-tv-2026-11-07/kaffeine_next/install.sh | bash -s -- --with-dab
+# No published standalone one-liner yet. After separate approval, use a pinned
+# Media checkout with TIHULU_MEDIA_SOURCE_SHA and: bash kaffeine_next/install.sh --with-dab
 tihulu-media-center --software-video
 ```
 
