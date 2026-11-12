@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase5_flight_draft_pr15_all_software_CI_success_17_acceptance_gates_open",
+  "stage": "phase5_flight_fix_ci_green_text_media_test_prs_expanded_all_17_acceptance_gates_open",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Flight safety correction PR #15 is open/draft, isolated unit tests and four platform preview CI jobs succeeded (Ubuntu 84 passed), Pi ARM64 preview succeeded. Real systemd/readsb/tar1090 mixed ownership, receiver hardware, installer and release acceptance remain unverified; 17 global gates OPEN, no merges/migrations. ETA unknown.",
+    "reason": "Phase4 6/6 source audits complete. Stage5 Flight Draft #15 84-test Ubuntu + cross-platform CI success without host acceptance. Text standalone PR89 5 additive cleanroom tests; Media PR90 9 additive guardrail tests including one expected failure; CI all Python matrix jobs passed. All 17 original release/feature/hardware/history gates OPEN, 0 migrations, no measured release effort or reliable ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -770,5 +770,64 @@
     "ubuntu_failed": 0,
     "source_diff_verified_only_four_paths": true,
     "remaining_release_gate_closed": false
+  },
+  "phase5_isolated_test_expansion": {
+    "date": "2026-11-12",
+    "type": "APPROVED_TEST_ONLY_ON_SEPARATE_DRAFT_BRANCHES",
+    "text": {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "pr": 89,
+      "base": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+      "head": "069d5658a75a7c5fb3eb6111cf331d124bd05b17",
+      "new_file": "tests/test_textcenter_cli_cleanroom.py",
+      "added_in_phase5": 3,
+      "cumulative_new_test_count": 5,
+      "ci_run": 43148141000,
+      "ci_conclusion": "success",
+      "python_versions": [
+        "3.11",
+        "3.12",
+        "3.13"
+      ],
+      "python_3_11_total_tests": 83,
+      "details": "Text-only Python -I CLI help, non-loopback rejection without sockets, immutable empty template, no media or subprocess; archived tv_center import negative oracles not yet executed"
+    },
+    "media": {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "pr": 90,
+      "source_base": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "head": "76396065dfa60a076ffded85c2d06c200cb089f9",
+      "new_file": "tests/test_recording_export_stage5_guardrails.py",
+      "added_in_phase5": 4,
+      "cumulative_new_test_count": 9,
+      "ci_run": 43148328631,
+      "ci_conclusion": "success",
+      "python_versions": [
+        "3.11",
+        "3.12",
+        "3.13"
+      ],
+      "python_3_11_total_tests": 681,
+      "preexisting_real_ffmpeg_skip": 1,
+      "known_expected_failure_count": 1,
+      "phase5_new_pass": 3,
+      "phase5_known_expected_fail": 1,
+      "open_defect": "P67-GAP-07 partial export sidecar stays after later mux/FFmpeg error; explicitly expected failure, no app source fix",
+      "details": "Synthetic exclusive-create race preserves a foreign file and rolls back own TXT; fake FFmpeg output race preserves foreign MKV and original input; audio-only MP4 burn rejected. No real mux/burn, Qt, audio timing or hardware verification."
+    },
+    "source_changes_this_phase": {
+      "text_app_source": 0,
+      "media_app_source": 0,
+      "original_media_pr67_modifications": 0
+    },
+    "new_pr_merges": 0,
+    "real_hardware_or_systemd_actions": 0,
+    "regression_gates_closed": 0,
+    "next_priorities": [
+      "archived Text->Media and reciprocal Media->Text import negative controls with immutable historical fixtures",
+      "Media real FFmpeg fixture correction and P67-GAP-07 source patch only after separately agreed scope",
+      "Satellite PR37 rate and gap synthetic acceptance on independent test branch; no Pages publish",
+      "Flight PR15 real hardware/service ownership acceptance remains separate"
+    ]
   }
 }
