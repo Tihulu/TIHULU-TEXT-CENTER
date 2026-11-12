@@ -214,6 +214,33 @@ class StandSatPackagingContracts(unittest.TestCase):
                 with self.assertRaisesRegex(p.HoldError, "Unexpected source bytes"):
                     p.checked_bytes(root, "satellite_center/bridge.py", sha)
 
+    def test_other_tihulu_python_modules_absent_passive_receiver_busy_refusal(self):
+        # This is passive process/sysfs mocking only; never queries host USB.
+        from satellite_center import __main__ as native
+        absent = {"textcenter": None, "textcenter.conflicts": None,
+                  "textcenter.receivers": None, "tv_center": None,
+                  "rf_geolocation_center": None, "tihulu_survival_kit": None}
+        with mock.patch.dict(sys.modules, absent), \
+             mock.patch.object(native.platform, "system", return_value="Linux"), \
+             mock.patch.object(native, "_linux_receiver_processes",
+                               return_value=[{"process": "readsb", "pid": 22501}]), \
+             mock.patch.object(native, "_linux_rtl_usb_count", return_value=1):
+            self.assertEqual(native.detect_busy(),
+                             [{"process": "readsb", "pid": 22501}])
+            self.assertTrue(native.tuner_present())
+
+    def test_webusb_profile_never_requires_local_companion_or_native_driver(self):
+        web = p.load_json(p.WEB_MANIFEST)
+        self.assertTrue(web["runtime"]["no_external_tihulu_daemon"])
+        self.assertTrue(web["runtime"]["no_native_sdr_commands"])
+        self.assertTrue(web["runtime"]["never_install_localhost_8791"])
+        self.assertTrue(web["runtime"]["chromium_webusb_opt_in"])
+        self.assertFalse(web["runtime"]["first_run_fully_offline_supported"])
+        self.assertTrue(web["receiver"]["only_page_owned_usb"])
+        self.assertEqual(web["recording"]["memory_raw_limit_bytes"], 128*1024*1024)
+        self.assertEqual(web["recording"]["planned_gap_seconds"], 6)
+        self.assertFalse(web["publication_gate"]["parity_waiver"])
+
     def test_snapshot_git_ref_mismatch_fails_before_any_copy(self):
         with tempfile.TemporaryDirectory(prefix="stand-sat-git-") as tmp:
             with mock.patch.object(p, "_git", side_effect=[
