@@ -6,14 +6,16 @@ import http.client
 import io
 import json
 from pathlib import Path
+import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 from unittest.mock import patch
 
 from textcenter.core import Store
-from textcenter.http_app import LocalServer
+from textcenter.http_app import Handler, LocalServer
 from textcenter.fm_audio import FMPreview
 from textcenter.fm_rds import FMRSDSupervisor
 from textcenter.fm_survey import FMSurveySupervisor
@@ -239,6 +241,50 @@ class ForeignServiceAndModuleTests(unittest.TestCase):
             t.quit()
             self.assertTrue(t._closed)
 
+    def test_cancel_offline_translation_keeps_original_recording_and_no_late_export(self):
+        # Unlike the existing live-translation test, this exercises a
+        # saved-file decoder + translation interrupted by module Stop.
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "committed-FM-audio.mp3"
+            original = b"owner committed media: never delete or truncate"
+            path.write_bytes(original)
+            source = type("Recording", (), {
+                "recording": lambda self, name: path if name == path.name else None
+            })()
+            transcripts = Captions()
+            entered, release = threading.Event(), threading.Event()
+
+            def blocked_translation(*_):
+                entered.set()
+                release.wait(timeout=5)
+                return "caption must not publish after Stop"
+
+            decoder = OwnedChild(stdout=io.BytesIO(b"\x00" * WINDOW_BYTES))
+            worker = RecordingTranscriber(
+                transcripts=transcripts, radio=source, tv=source,
+                lookup=lambda _: "/fixture/ffmpeg", detect=lambda: PROFILE,
+                transcriber=lambda *_: "recognized synthetic audio",
+                translator=blocked_translation,
+            )
+            with patch("textcenter.postprocess.subprocess.Popen", return_value=decoder), \
+                 patch("os.killpg", side_effect=AssertionError("foreign service touched")):
+                try:
+                    worker.start(medium="fm", filename=path.name, language="de",
+                                 target_language="en", backend="cpu")
+                    self.assertTrue(entered.wait(timeout=2))
+                    state = worker.stop(wait=True)
+                    self.assertEqual(state["status"], "stop_failed_partial", state)
+                    self.assertTrue(state["active"])
+                    self.assertEqual(transcripts.rows, [])
+                    self.assertEqual(path.read_bytes(), original)
+                finally:
+                    release.set()
+                    worker.stop(wait=True)
+            self.assertFalse(worker.status()["active"])
+            self.assertEqual(worker.status()["status"], "cancelled")
+            self.assertEqual(transcripts.rows, [])
+            self.assertEqual(path.read_bytes(), original)
+
     def test_stop_one_module_keeps_other_module_usable(self):
         with tempfile.TemporaryDirectory() as td:
             server = LocalServer(("127.0.0.1", 0), Store(Path(td) / "test.sqlite"))
@@ -267,6 +313,51 @@ class HTTPQuitRaceTests(unittest.TestCase):
             return res.status, json.loads(res.read())
         finally:
             conn.close()
+
+    def test_late_body_cannot_begin_translation_or_mutate_after_stopping(self):
+        # This negative case is distinct from the already-tested blocked
+        # translation: here dispatch is deferred until AFTER STOPPING.
+        with tempfile.TemporaryDirectory() as td:
+            server = LocalServer(("127.0.0.1", 0), Store(Path(td) / "test.sqlite"))
+            server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            server_thread.start()
+            entered, release = threading.Event(), threading.Event()
+            replies = []
+            original = Handler._post_guarded
+
+            def defer_payload(handler):
+                if handler.path == "/api/translation/text":
+                    entered.set()
+                    release.wait(timeout=3)
+                return original(handler)
+
+            with patch.object(Handler, "_post_guarded", defer_payload), \
+                 patch("textcenter.http_app.translate_offline",
+                       side_effect=AssertionError("late inference admitted")):
+                try:
+                    caller = threading.Thread(target=lambda: replies.append(
+                        self.send(server, "/api/translation/text", {
+                            "text": "fixture", "source": "de", "target": "en",
+                        })))
+                    caller.start()
+                    self.assertTrue(entered.wait(timeout=2))
+                    with server._lifecycle_lock:
+                        server.lifecycle = "STOPPING"
+                    release.set()
+                    caller.join(timeout=3)
+                    self.assertFalse(caller.is_alive())
+                    self.assertEqual(replies[0][0], 503, replies)
+                    self.assertEqual(server._inflight_long_requests, 0)
+                    self.assertEqual(self.send(server, "/api/feeds/add", {
+                        "title": "must not persist",
+                        "url": "https://example.org/news.xml",
+                    })[0], 503)
+                finally:
+                    release.set()
+                    server.shutdown()
+                    server.server_close()
+                    server_thread.join(timeout=3)
+            self.assertFalse(server_thread.is_alive())
 
     def test_full_quit_does_not_deadlock_behind_blocked_local_translation(self):
         with tempfile.TemporaryDirectory() as td:
@@ -357,6 +448,50 @@ class DecoderLeaseTimeoutTests(unittest.TestCase):
                 self.assertEqual(server.close_owned(), report)
             finally:
                 server.server_close()
+
+class TextOnlyQuitIsolationTests(unittest.TestCase):
+    def test_exit_lifecycle_runs_in_text_only_python_without_media_imports(self):
+        # PR #89 already proves import-only cleanroom. This additionally
+        # instantiates and closes the *new* EXIT-01 LocalServer lifecycle.
+        source = Path(__file__).resolve().parents[1] / "textcenter"
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            shutil.copytree(source, root / "textcenter")
+            script = """
+import builtins
+import sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0, sys.argv[1])
+original_import = builtins.__import__
+def forbid_media(name, *args, **kwargs):
+    if name == "tv_center" or name.startswith("tv_center.") or name.startswith("kaffeine_next"):
+        raise AssertionError("Text-only EXIT-01 attempted Media import: " + name)
+    return original_import(name, *args, **kwargs)
+with patch("builtins.__import__", side_effect=forbid_media):
+    from textcenter.core import Store
+    from textcenter.http_app import LocalServer
+    server = LocalServer(("127.0.0.1", 0), Store(Path(sys.argv[1]) / "text.sqlite"))
+    try:
+        first = server.close_owned()
+        second = server.close_owned()
+        assert first == second and first["lifecycle"] == "STOPPED", first
+        assert server.postprocess._closed
+        assert server.rds._closed and server.survey._closed
+        assert server.live_fm.closed and server.live_tv.closed
+    finally:
+        server.server_close()
+assert "tv_center" not in sys.modules
+print("EXIT01_TEXT_ONLY_QUIT_OK")
+"""
+            proc = subprocess.run(
+                [sys.executable, "-I", "-c", script, str(root)],
+                cwd=str(root), capture_output=True, text=True, timeout=20,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0,
+                             proc.stdout[-1000:] + proc.stderr[-3000:])
+            self.assertIn("EXIT01_TEXT_ONLY_QUIT_OK", proc.stdout)
 
 
 if __name__ == "__main__":
