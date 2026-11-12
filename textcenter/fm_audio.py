@@ -69,6 +69,7 @@ class FMPreview:
         self.max_duration = max_duration
         self._mutex = Lock()
         self._stop = Event()
+        self._closed = False
         self._thread: Thread | None = None
         self._lock_fd: int | None = None
         self._process: subprocess.Popen | None = None
@@ -108,6 +109,12 @@ class FMPreview:
         if duration > self.max_duration:
             raise ValueError("FM audio preview limited to 20 seconds")
         with self._mutex:
+            if self._closed:
+                raise AudioError("FM preview has quit")
+            if self._thread is not None and self._thread.is_alive():
+                raise AudioError("Previous FM preview worker still stopping")
+            if self._process is not None and self._process.poll() is None:
+                raise AudioError("Previous FM preview child still running")
             if self._state["active"]:
                 raise AudioError("A listening preview is already in progress")
             ready = self.availability()
@@ -169,22 +176,45 @@ class FMPreview:
             result=self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=3)
+        if wait and (thread is None or not thread.is_alive()):
+            self._terminate(self._process)
+        with self._mutex:
+            self._wav=None
+            self._state["clip_ready"]=False
+            unfinished=self._process is not None and self._process.poll() is None
+            if wait and ((thread and thread.is_alive()) or unfinished):
+                self._state.update(status="stop_failed_partial",
+                    error="FM preview worker/child did not stop in time")
+            elif wait:
+                self._process=None
+                if self._lock_fd is not None:
+                    self._unlock()
+                if self._state["status"]=="stop_failed_partial":
+                    self._state.update(status="stopped",error=None)
+            result=self._snapshot()
+        return result
+
+    def quit(self):
+        with self._mutex:
+            self._closed=True
+        result=self.stop(wait=True)
+        with self._mutex:
+            self._wav=None
+            self._state["clip_ready"]=False
         return result
 
     @staticmethod
     def _terminate(proc):
-        if not proc or proc.poll() is not None:
+        if proc is None or proc.poll() is not None:
             return
         try:
-            os.killpg(proc.pid, signal.SIGTERM)
+            proc.terminate()
             proc.wait(timeout=0.8)
-        except (ProcessLookupError, ChildProcessError):
-            pass
         except (OSError, subprocess.TimeoutExpired):
             try:
-                os.killpg(proc.pid,signal.SIGKILL)
+                proc.kill()
                 proc.wait(timeout=0.5)
-            except (OSError,subprocess.TimeoutExpired):
+            except (OSError, subprocess.TimeoutExpired):
                 pass
 
     def _worker(self, hz:int, duration:int):
@@ -193,6 +223,9 @@ class FMPreview:
         error=None
         samples=bytearray()
         try:
+            if self._stop.is_set():
+                status="cancelled"
+                return
             if self.conflicts():
                 raise AudioError("Receiver is now in use; preview refused")
             executable=self.lookup("rtl_fm")
@@ -238,7 +271,12 @@ class FMPreview:
             if process and process.stdout:
                 process.stdout.close()
             with self._mutex:
-                self._process=None
+                still_alive=process is not None and process.poll() is None
+                self._process=process if still_alive else None
+                if self._stop.is_set():
+                    status="cancelled"
+                if still_alive:
+                    status,error="stop_failed_partial","Owned FM preview child remained alive"
                 if status=="completed":
                     try:
                         self._wav=pcm_to_wav(bytes(samples[:MAX_BYTES]))
@@ -250,4 +288,5 @@ class FMPreview:
                 self._state["clip_ready"]=self._wav is not None and status=="completed"
                 self._state["error"]=error
                 self._state["ended_at"]=datetime.now(timezone.utc).isoformat(timespec="seconds")
-                self._unlock()
+                if not still_alive:
+                    self._unlock()

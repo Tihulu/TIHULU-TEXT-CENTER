@@ -1811,6 +1811,20 @@ function showAbout(){
   notes.forEach(([t,d])=>$("content").append(card(t,d,"DESIGN RULE")));
 }
 function bindNavigation(){
+  const quit=$("quit-app");
+  if(quit) quit.addEventListener("click",async()=>{
+    if(!window.confirm("Quit Text Center and stop its own live streams and ASR workers? Saved recordings and other apps will be preserved."))return;
+    quit.disabled=true;
+    try {
+      const result=await api("/api/quit","POST",{});
+      notice(result.lifecycle==="STOPPING" ?
+        "Quit requested. Text Center is closing its own workers and HTTP server. Reopen only after shutdown completes." :
+        "Shutdown state: "+result.lifecycle);
+    } catch(err){
+      notice("Quit request could not be confirmed: "+err.message);
+      quit.disabled=false;
+    }
+  });
   const recheck=$("receiver-recheck");
   if(recheck) recheck.addEventListener("click",async()=>{
     recheck.disabled=true;

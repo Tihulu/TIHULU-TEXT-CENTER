@@ -49,6 +49,7 @@ class LiveFM:
                  timeout:float=SESSION_TIMEOUT, transcripts:TranscriptStore|None=None):
         self.transcripts=transcripts
         self.speech=None
+        self.closed=False
         self.archive=Path(archive_dir)
         self.lock_dir=lock_dir or (self.archive.parent/".receiver-locks")
         self.inventory=inventory or receiver_inventory
@@ -115,6 +116,16 @@ class LiveFM:
         if subtitles and self.transcripts is None:
             raise LiveError("Transcript store unavailable")
         with self.mutex:
+            if self.closed:
+                raise LiveError("Live FM is stopping or has quit")
+            if any(t is not None and t.is_alive() for t in (self.worker,self.watchdog)):
+                raise LiveError("Previous FM worker still stopping")
+            if any(proc is not None and proc.poll() is None
+                   for proc in (self.receiver,self.encoder)):
+                raise LiveError("Previous FM decoder process still stopping")
+            if self.speech is not None and (
+                self.speech.status()["worker_alive"] or self.speech.status()["child_alive"]):
+                raise LiveError("Previous FM speech worker still stopping")
             if self.state["active"]:
                 raise LiveError("Live radio session already active")
             ready=self.availability()
@@ -170,16 +181,17 @@ class LiveFM:
 
     @staticmethod
     def _terminate(proc):
+        """Terminate only a held app-created child, not a system process group."""
         if proc is None or proc.poll() is not None:
             return
         try:
-            os.killpg(proc.pid,signal.SIGTERM)
+            proc.terminate()
             proc.wait(timeout=0.6)
-        except (OSError,subprocess.TimeoutExpired):
+        except (OSError, subprocess.TimeoutExpired):
             try:
-                os.killpg(proc.pid,signal.SIGKILL)
+                proc.kill()
                 proc.wait(timeout=0.4)
-            except (OSError,subprocess.TimeoutExpired):
+            except (OSError, subprocess.TimeoutExpired):
                 pass
 
     def _feed(self):
@@ -223,14 +235,29 @@ class LiveFM:
                     if channel:
                         try:channel.close()
                         except OSError:pass
-        self.receiver=self.encoder=None
+        receiver_alive=(self.receiver is not None and self.receiver.poll() is None)
+        encoder_alive=(self.encoder is not None and self.encoder.poll() is None)
+        if not receiver_alive:
+            self.receiver=None
+        if not encoder_alive:
+            self.encoder=None
         if self.record_file:
             try:self.record_file.close()
             except OSError:pass
-        self.record_file=None
-        if self.speech is not None:
-            self.speech.stop()
-        self._release_lock()
+            if self.record_file.closed:
+                self.record_file=None
+            else:
+                status,reason="stop_failed_partial","FM recording handle failed to close"
+        speech_result=self.speech.stop(wait=True) if self.speech is not None else None
+        if speech_result and (speech_result["worker_alive"] or speech_result["child_alive"]):
+            status="stop_failed_partial"
+            reason="Speech worker did not stop within the bounded timeout"
+        else:
+            self.speech=None
+        if receiver_alive or encoder_alive:
+            status,reason="stop_failed_partial","Owned FM decoder/encoder still running"
+        if not receiver_alive:
+            self._release_lock()
         self.state.update(active=False,status=status,error=reason,
             ended_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             listener_connected=False)
@@ -245,14 +272,36 @@ class LiveFM:
                 "enabled":False,"reason":"Speech transcription not requested or unavailable"}
             return snapshot
 
-    def stop(self,*,wait=False):
+    def stop(self,*,wait=True):
         with self.mutex:
-            if self.state["active"]:
+            unfinished_process=any(proc is not None and proc.poll() is None
+                for proc in (self.receiver,self.encoder))
+            if (self.state["active"] or self.receiver is not None or self.encoder is not None
+                    or self.record_file is not None or self.lock_fd is not None):
                 self._shutdown("stopped")
-            status=dict(self.state)
-        if wait and self.worker and self.worker.is_alive() and threading.current_thread()!=self.worker:
-            self.worker.join(timeout=2)
-        return status
+            elif self.speech is not None:
+                result=self.speech.stop(wait=True)
+                if result["worker_alive"] or result["child_alive"]:
+                    self.state.update(status="stop_failed_partial",
+                        error="Speech worker still running")
+                else:
+                    self.speech=None
+            threads=(self.worker,self.watchdog)
+        if wait:
+            for thread in threads:
+                if thread and thread.is_alive() and threading.current_thread()!=thread:
+                    thread.join(timeout=2)
+        with self.mutex:
+            if wait and any(t and t.is_alive() and threading.current_thread()!=t for t in threads):
+                self.state.update(status="stop_failed_partial",
+                    error="FM feed or watchdog did not stop in time")
+            return dict(self.state)
+
+    def quit(self):
+        """Permanently close this owned FM session; do not stop external SDR services."""
+        with self.mutex:
+            self.closed=True
+        return self.stop(wait=True)
 
     def stream(self,session:str):
         """Yield real MP3 data to a single browser listener; stop upon disconnect."""

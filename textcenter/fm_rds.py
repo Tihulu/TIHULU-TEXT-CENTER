@@ -132,6 +132,7 @@ class FMRSDSupervisor:
         self.idle_seconds = idle_seconds
         self._mutex = Lock()
         self._stop = Event()
+        self._closed = False
         self._thread: Thread | None = None
         self._rtlfm: subprocess.Popen | None = None
         self._redsea: subprocess.Popen | None = None
@@ -185,6 +186,12 @@ class FMRSDSupervisor:
         if type(rds2_images) is not bool:
             raise ValueError("RDS2 image option must be a Boolean")
         with self._mutex:
+            if self._closed:
+                raise CaptureError("FM RDS decoder has quit")
+            if self._thread is not None and self._thread.is_alive():
+                raise CaptureError("Previous RDS decoder worker still stopping")
+            if any(p is not None and p.poll() is None for p in (self._rtlfm,self._redsea)):
+                raise CaptureError("Previous RDS decoder child still running")
             if self._state["active"]:
                 raise CaptureError("An FM RDS capture is already running")
             ok = self.availability()
@@ -249,7 +256,27 @@ class FMRSDSupervisor:
             result = self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=4.0)
-        return result
+        if wait and (thread is None or not thread.is_alive()):
+            for proc in (self._redsea,self._rtlfm):
+                self._end_process(proc)
+        with self._mutex:
+            unfinished=any(p is not None and p.poll() is None
+                           for p in (self._redsea,self._rtlfm))
+            if wait and ((thread and thread.is_alive()) or unfinished):
+                self._state.update(status="stop_failed_partial",
+                    error="RDS worker/child did not stop in time")
+            elif wait:
+                self._redsea=self._rtlfm=None
+                if self._lock_fd is not None:
+                    self._unlock()
+                if self._state["status"]=="stop_failed_partial":
+                    self._state.update(status="stopped",error=None)
+            return self._snapshot()
+
+    def quit(self):
+        with self._mutex:
+            self._closed=True
+        return self.stop(wait=True)
 
     def _unlock(self) -> None:
         fd = self._lock_fd
@@ -315,23 +342,13 @@ class FMRSDSupervisor:
         if process is None or process.poll() is not None:
             return
         try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            return
-        except OSError:
             process.terminate()
-        try:
             process.wait(timeout=1.2)
-        except subprocess.TimeoutExpired:
+        except (OSError, subprocess.TimeoutExpired):
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            except OSError:
                 process.kill()
-            try:
                 process.wait(timeout=0.7)
-            except subprocess.TimeoutExpired:
+            except (OSError, subprocess.TimeoutExpired):
                 pass
 
     def _worker(self, hz: int, seconds: int, rds2_images: bool = False) -> None:
@@ -344,6 +361,9 @@ class FMRSDSupervisor:
         buffers: dict[int, bytearray] = {}
         stderr_tail: deque[str] = deque(maxlen=5)
         try:
+            if self._stop.is_set():
+                state="cancelled"
+                return
             rtl_bin = self.lookup("rtl_fm")
             red_bin = self.lookup("redsea")
             if not rtl_bin or not red_bin:
@@ -446,9 +466,14 @@ class FMRSDSupervisor:
                     if pipe:
                         pipe.close()
             with self._mutex:
-                self._redsea = None
-                self._rtlfm = None
-                self._unlock()
+                redsea_alive=redsea is not None and redsea.poll() is None
+                rtl_alive=rtl is not None and rtl.poll() is None
+                self._redsea=redsea if redsea_alive else None
+                self._rtlfm=rtl if rtl_alive else None
+                if redsea_alive or rtl_alive:
+                    state,reason="stop_failed_partial","Owned RDS decoder remained alive"
+                else:
+                    self._unlock()
                 self._state["status"] = state
                 self._state["active"] = False
                 self._state["ended_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")

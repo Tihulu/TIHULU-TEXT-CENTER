@@ -156,6 +156,7 @@ class FMSurveySupervisor:
         self.max_seconds = max_seconds
         self._mutex = Lock()
         self._stop = Event()
+        self._closed = False
         self._thread: Thread | None = None
         self._process: subprocess.Popen | None = None
         self._lock_fd: int | None = None
@@ -211,6 +212,12 @@ class FMSurveySupervisor:
     def start(self, band: str = "fm") -> dict:
         profile=survey_band(band)
         with self._mutex:
+            if self._closed:
+                raise SurveyError("RF survey has quit")
+            if self._thread is not None and self._thread.is_alive():
+                raise SurveyError("Previous RF survey worker still stopping")
+            if self._process is not None and self._process.poll() is None:
+                raise SurveyError("Previous RF survey child still running")
             if self._state["active"]:
                 raise SurveyError("A spectrum survey is already running")
             avail=self.availability(band)
@@ -259,22 +266,38 @@ class FMSurveySupervisor:
             snapshot=self._snapshot()
         if wait and thread and thread.is_alive():
             thread.join(timeout=4)
-        return snapshot
+        if wait and (thread is None or not thread.is_alive()):
+            self._terminate(self._process)
+        with self._mutex:
+            unfinished=self._process is not None and self._process.poll() is None
+            if wait and ((thread and thread.is_alive()) or unfinished):
+                self._state.update(status="stop_failed_partial",
+                    error="RF survey worker/child did not stop in time")
+            elif wait:
+                self._process=None
+                if self._lock_fd is not None:
+                    self._unlock()
+                if self._state["status"]=="stop_failed_partial":
+                    self._state.update(status="stopped",error=None)
+            return self._snapshot()
+
+    def quit(self):
+        with self._mutex:
+            self._closed=True
+        return self.stop(wait=True)
 
     @staticmethod
     def _terminate(process: subprocess.Popen | None) -> None:
         if process is None or process.poll() is not None:
             return
         try:
-            os.killpg(process.pid,signal.SIGTERM)
+            process.terminate()
             process.wait(timeout=1)
-        except (ProcessLookupError,ChildProcessError):
-            pass
-        except (OSError,subprocess.TimeoutExpired):
+        except (OSError, subprocess.TimeoutExpired):
             try:
-                os.killpg(process.pid,signal.SIGKILL)
+                process.kill()
                 process.wait(timeout=0.5)
-            except (OSError,subprocess.TimeoutExpired):
+            except (OSError, subprocess.TimeoutExpired):
                 pass
 
     def _worker(self) -> None:
@@ -283,6 +306,9 @@ class FMSurveySupervisor:
         error=None
         data={}
         try:
+            if self._stop.is_set():
+                status="cancelled"
+                return
             binary=self.lookup("rtl_power")
             if not binary:
                 raise SurveyError("rtl_power no longer installed")
@@ -331,8 +357,12 @@ class FMSurveySupervisor:
         finally:
             self._terminate(process)
             with self._mutex:
-                self._process=None
-                self._unlock()
+                still_alive=process is not None and process.poll() is None
+                self._process=process if still_alive else None
+                if still_alive:
+                    status,error="stop_failed_partial","Owned RF survey child remained alive"
+                else:
+                    self._unlock()
                 self._state.update(data)
                 self._state["status"]=status
                 self._state["active"]=False

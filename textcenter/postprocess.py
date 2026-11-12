@@ -13,7 +13,7 @@ from pathlib import Path
 import shutil
 import signal
 import subprocess
-from threading import Event,Lock,Thread
+from threading import Event,Lock,Thread,current_thread
 import time
 import uuid
 
@@ -49,8 +49,10 @@ class RecordingTranscriber:
         self.max_seconds=min(MAX_OFFLINE_SECONDS,max_seconds)
         self._lock=Lock()
         self._stop=Event()
+        self._closed=False
         self._thread=None
         self._process=None
+        self._asr_process=None
         self._state={"active":False,"status":"idle","session":None,
                      "source":None,"filename":None,"segments":0,
                      "seconds_processed":0.0,"error":None,
@@ -73,6 +75,9 @@ class RecordingTranscriber:
 
     def start(self,*,medium:str,filename:str,language:str,
               target_language:str|None=None,backend:str="auto"):
+        with self._lock:
+            if self._closed:
+                raise PostProcessError("Recording transcriber has quit")
         lang=validate_language(language)
         target=validate_language(target_language) if target_language else None
         if medium not in ("fm","dvb_tv"):
@@ -92,6 +97,14 @@ class RecordingTranscriber:
         if not selection["ready"]:
             raise PostProcessError(selection.get("reason") or "ASR model not ready")
         with self._lock:
+            if self._closed:
+                raise PostProcessError("Transcription worker is stopping or has quit")
+            if self._thread is not None and self._thread.is_alive():
+                raise PostProcessError("Previous recording worker still stopping")
+            if self._asr_process is not None and self._asr_process.poll() is None:
+                raise PostProcessError("Previous Whisper child still running")
+            if self._process is not None and self._process.poll() is None:
+                raise PostProcessError("Previous FFmpeg child still running")
             if self._state["active"]:
                 raise PostProcessError("A saved-recording transcription is already running")
             session=uuid.uuid4().hex
@@ -109,17 +122,32 @@ class RecordingTranscriber:
             self._thread.start()
             return self._snapshot()
 
+    def _register_asr_process(self,proc):
+        with self._lock:
+            if proc is None:
+                if self._asr_process is not None and self._asr_process.poll() is None:
+                    return  # incomplete termination must remain visible
+                self._asr_process=None
+            else:
+                self._asr_process=proc
+                if self._stop.is_set() and proc.poll() is None:
+                    proc.terminate()
+
     def _worker(self,session,medium,file,ffmpeg,language,target,backend,profile):
         process=None
         status="completed"
         error=None
         elapsed=0.0
         try:
+            if self._stop.is_set():
+                return
             process=subprocess.Popen(decode_audio_command(ffmpeg,file),
                 stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,start_new_session=True,close_fds=True)
             with self._lock:
                 self._process=process
+                if self._stop.is_set() and process.poll() is None:
+                    process.terminate()
             assert process.stdout
             while not self._stop.is_set() and elapsed<self.max_seconds:
                 pcm=process.stdout.read(WINDOW_BYTES)
@@ -130,13 +158,23 @@ class RecordingTranscriber:
                 duration=len(pcm)/(SAMPLE_RATE*2)
                 if duration<0.4:
                     break
-                text=self.transcriber(pcm,language,backend,profile)
+                if self.transcriber is transcribe_pcm:
+                    text=self.transcriber(pcm,language,backend,profile,
+                        cancel_event=self._stop,on_process=self._register_asr_process)
+                else:
+                    text=self.transcriber(pcm,language,backend,profile)
+                if self._stop.is_set():
+                    status="cancelled"
+                    break
                 if isinstance(text,str) and text.strip():
                     translated=None
                     if target:
                         try: translated=self.translator(text,language,target)
                         except (TranslatorUnavailable,ValueError,RuntimeError,ImportError) as exc:
                             with self._lock:self._state["error"]="Translation unavailable: "+str(exc)[:170]
+                    if self._stop.is_set():
+                        status="cancelled"
+                        break
                     self.transcripts.add(
                         session=session,medium=medium,
                         source_id="saved_recording:"+file.name,
@@ -155,26 +193,60 @@ class RecordingTranscriber:
         except (OSError,ValueError,SpeechError,PostProcessError,RuntimeError) as exc:
             status,error="error",str(exc)[:250]
         finally:
+            if self._stop.is_set():
+                status="cancelled"
             if process and process.poll() is None:
                 try:
-                    os.killpg(process.pid,signal.SIGTERM)
+                    process.terminate()
                     process.wait(timeout=1)
                 except (OSError,subprocess.TimeoutExpired):
-                    try:os.killpg(process.pid,signal.SIGKILL)
-                    except OSError:pass
+                    try:
+                        process.kill()
+                        process.wait(timeout=0.5)
+                    except (OSError,subprocess.TimeoutExpired):
+                        pass
             if process and process.stdout:
                 process.stdout.close()
             with self._lock:
-                self._process=None
+                process_alive=(process is not None and process.poll() is None)
+                if not process_alive:
+                    self._process=None
+                if process_alive or (self._asr_process is not None and
+                                     self._asr_process.poll() is None):
+                    status="stop_failed_partial"
+                    error="Owned ffmpeg/Whisper subprocess could not be reaped"
                 self._state["active"]=False
                 self._state["status"]=status
                 if error:self._state["error"]=error
 
     def stop(self,wait=False):
+        """Cancel owned ffmpeg decoder, bounded-join worker, preserve saved recordings."""
         with self._lock:
             self._stop.set()
             thread=self._thread
-            result=self._snapshot()
-        if wait and thread and thread.is_alive():
+            proc=self._process
+            asr=self._asr_process
+            if self._state["active"]:
+                self._state["status"]="stopping"
+        for owned in (proc, asr):
+            if owned is not None and owned.poll() is None:
+                try:
+                    owned.terminate()  # held child handles, never other apps
+                except (OSError,ProcessLookupError):
+                    pass
+        if wait and thread and thread.is_alive() and current_thread()!=thread:
             thread.join(timeout=2)
-        return result
+        with self._lock:
+            alive=(thread is not None and thread.is_alive() and
+                   current_thread()!=thread)
+            children=tuple(proc for proc in (self._process,self._asr_process)
+                           if proc is not None and proc.poll() is None)
+            if wait and (alive or children):
+                self._state.update(status="stop_failed_partial",
+                    error="Owned transcription worker or child did not exit in time")
+            return self._snapshot()
+
+    def quit(self):
+        with self._lock:
+            self._closed=True
+        return self.stop(wait=True)

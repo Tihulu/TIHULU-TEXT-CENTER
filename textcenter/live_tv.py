@@ -114,6 +114,7 @@ class LiveTV:
         self.thread=None
         self.watchdog=None
         self.speech=None
+        self.closed=False
         self.audio_read=None
         self.listener=False
         self.record_file=None
@@ -144,6 +145,14 @@ class LiveTV:
         if not upstream_authorized:
             raise LiveTVError("User must confirm dedicated upstream TV tuner lease")
         with self.mutex:
+            if self.closed:raise LiveTVError("TV relay is stopping or has quit")
+            if any(t is not None and t.is_alive() for t in (self.thread,self.watchdog)):
+                raise LiveTVError("Previous TV worker still stopping")
+            if self.process is not None and self.process.poll() is None:
+                raise LiveTVError("Previous TV transcoder still stopping")
+            if self.speech is not None and (
+                self.speech.status()["worker_alive"] or self.speech.status()["child_alive"]):
+                raise LiveTVError("Previous TV speech worker still stopping")
             if self.state["active"]:raise LiveTVError("TV session already active")
             available=self.availability()
             if not available["ready"]:raise LiveTVError(available["reason"])
@@ -227,26 +236,41 @@ class LiveTV:
         self.stop_flag.set()
         if self.process is not None and self.process.poll() is None:
             try:
-                os.killpg(self.process.pid,signal.SIGTERM)
+                self.process.terminate()
                 self.process.wait(timeout=0.8)
             except (OSError,subprocess.TimeoutExpired):
                 try:
-                    os.killpg(self.process.pid,signal.SIGKILL)
+                    self.process.kill()
                     self.process.wait(timeout=0.3)
-                except (OSError,subprocess.TimeoutExpired):pass
+                except (OSError,subprocess.TimeoutExpired):
+                    pass
+        process_alive=(self.process is not None and self.process.poll() is None)
         if self.process and self.process.stdout:
             try:self.process.stdout.close()
             except OSError:pass
-        self.process=None
+        if not process_alive:
+            self.process=None
+        else:
+            status,error="stop_failed_partial","Owned TV transcoder still running"
         if self.audio_read is not None:
-            try:os.close(self.audio_read)
-            except OSError:pass
-            self.audio_read=None
-        if self.speech:self.speech.stop()
+            try:
+                os.close(self.audio_read)
+            except OSError:
+                status,error="stop_failed_partial","Owned TV PCM descriptor failed to close"
+            else:
+                self.audio_read=None
+        speech_result=self.speech.stop(wait=True) if self.speech else None
+        if speech_result and (speech_result["worker_alive"] or speech_result["child_alive"]):
+            status,error="stop_failed_partial","TV speech worker did not stop in time"
+        else:
+            self.speech=None
         if self.record_file:
             try:self.record_file.close()
             except OSError:pass
-            self.record_file=None
+            if self.record_file.closed:
+                self.record_file=None
+            else:
+                status,error="stop_failed_partial","Owned TV recording handle failed to close"
         self.state.update(active=False,status=status,error=error,listener_connected=False)
         self.listener=False
 
@@ -258,10 +282,35 @@ class LiveTV:
                 "enabled":False,"reason":"No user-requested TV transcription"}
             return result
 
-    def stop(self):
+    def stop(self, *, wait=True):
         with self.mutex:
-            if self.state["active"]:self._shutdown()
+            unfinished_process=(self.process is not None and self.process.poll() is None)
+            if (self.state["active"] or self.process is not None or
+                    self.audio_read is not None or self.record_file is not None):
+                self._shutdown()
+            elif self.speech is not None:
+                result=self.speech.stop(wait=True)
+                if result["worker_alive"] or result["child_alive"]:
+                    self.state.update(status="stop_failed_partial",
+                        error="TV speech worker still running")
+                else:
+                    self.speech=None
+            threads=(self.thread,self.watchdog)
+        if wait:
+            for thread in threads:
+                if thread and thread.is_alive() and threading.current_thread()!=thread:
+                    thread.join(timeout=2)
+        with self.mutex:
+            if wait and any(t and t.is_alive() and threading.current_thread()!=t for t in threads):
+                self.state.update(status="stop_failed_partial",
+                    error="TV audio or watchdog worker did not stop in time")
             return self.status()
+
+    def quit(self):
+        """Stop only this app's ffmpeg relay and speech workers, not the upstream tuner."""
+        with self.mutex:
+            self.closed=True
+        return self.stop(wait=True)
 
     def stream(self,session):
         with self.mutex:
