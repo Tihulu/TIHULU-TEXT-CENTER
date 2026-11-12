@@ -11,6 +11,7 @@ import base64
 import json
 import os
 from pathlib import Path
+from .paths import media_paths
 import select
 import shutil
 import subprocess
@@ -18,7 +19,7 @@ import sys
 import threading
 
 MODEL_ID = "pyannote/speaker-diarization-community-1"
-ROOT = Path.home()/".local/share/tihulu-tv-center/speaker-diarization"
+ROOT = media_paths().data/"speaker-diarization"
 MARKER = ".tihulu-owned-speaker-runtime"
 READY = ".tihulu-speaker-model-downloaded"
 
