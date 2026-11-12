@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "six_initial_audits_complete_three_of_three_source_preservation_followups_documented_17_gates_open",
+  "stage": "phase3_three_reviewable_isolated_test_prs_created_software_results_pinned_no_merges",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "All three requested preservation documentation follow-ups are source-audited, but 17 wider feature, hardware, history, packaging, platform and release gates remain open. Test hardware availability, authorized integration design and effort are not measured; honest ETA remains unknown.",
+    "reason": "Initial and detailed source audits documented; three test-only Draft PRs have been created. Text and Media synthetic CI pass; Flight cross-platform build still in progress at checkpoint while mocked unit steps passed. 17 wider feature/hardware/release gates remain open and future fix/migration effort unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -464,6 +464,73 @@
     "flight_second_pass_18_service_11_rf_cases": true,
     "text_second_pass_6_imports_13_isolation_cases": true,
     "media_pr67_exact_20_commit_preservation_documented": true,
-    "media_pr67_10_acceptance_gaps_not_closed": true
+    "media_pr67_10_acceptance_gaps_not_closed": true,
+    "phase3_test_only_prs_created": true,
+    "phase3_app_source_changes": 0,
+    "phase3_real_device_sessions": 0,
+    "phase3_flightradar_known_external_service_stop_xfail_unfixed": true
+  },
+  "isolated_regression_stage3": {
+    "date": "2026-11-12",
+    "type": "test_only_no_source_changes",
+    "proposal": "apps/_coordination/PHASE_3_ISOLATED_TEST_ENTRY_PLAN.md",
+    "evidence": "apps/_coordination/PHASE_3_ISOLATED_TEST_EXECUTION_EVIDENCE.md",
+    "draft_prs_created": 3,
+    "all_draft_unmerged": true,
+    "text": {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "pr": 89,
+      "base": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde",
+      "head": "e1a1382e415e053a2ee939a15751413559ede1df",
+      "added_test_files": [
+        "tests/test_textcenter_cleanroom_import.py"
+      ],
+      "new_test_cases": 2,
+      "new_tests_verified": "2/2 passed in Python 3.11 log; full CI 3.11/3.12/3.13 success",
+      "ci_run": 43133732602,
+      "ci_conclusion": "success",
+      "limit": "canonical current Text main only, no archived negative controls, physical tuner or Media package interoperability test"
+    },
+    "media": {
+      "repo": "Tihulu/TIHULU-TEXT-CENTER",
+      "pr": 90,
+      "base": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
+      "head": "15d704f2624264d9bc346248d89373188d82d597",
+      "added_test_files": [
+        "tests/test_recording_export_stage3_isolated.py"
+      ],
+      "new_test_cases": 5,
+      "new_tests_verified": "5/5 passed in Python 3.11 log; full CI 3.11/3.12/3.13 success; pre-existing real FFmpeg test skipped",
+      "ci_run": 43133737755,
+      "ci_conclusion": "success",
+      "limit": "synthetic media, mocks only; original #67 source preserved; no real mux/burn/native Qt"
+    },
+    "flight": {
+      "repo": "Tihulu/tihulu-flight-radar",
+      "pr": 14,
+      "base": "059b391280635d9aa4d2ac73c7318af9e135ebf5",
+      "head": "b6a7510466efd5978b1724b5ce88830c1ecf9d71",
+      "added_test_files": [
+        "tests/test_stage3_isolated_receiver_ownership.py"
+      ],
+      "new_test_cases": 8,
+      "known_strict_xfail": 1,
+      "ci_cross_platform_run": 43133741667,
+      "ci_cross_platform_status_at_checkpoint": "in_progress; unit test steps passed Debian 12, Linux 24.04, Windows 2025, macOS Apple Silicon",
+      "ci_pi_run": 43133741622,
+      "ci_pi_conclusion": "success",
+      "limit": "real external readsb stop risk remains and is XFAIL, no service calls or hardware acceptance"
+    },
+    "evidence_requirements": {
+      "all_changed_paths_only_new_tests": true,
+      "live_hardware_tests_executed": 0,
+      "runtime_app_source_edited": false,
+      "original_pr_merged": false,
+      "feature_equivalence_certified": 0,
+      "regression_gates_closed": 0,
+      "original_open_gates": 17,
+      "estimated_remaining_hours": null,
+      "estimated_remaining_minutes": null
+    }
   }
 }
