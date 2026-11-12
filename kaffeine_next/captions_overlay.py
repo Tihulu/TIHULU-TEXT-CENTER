@@ -475,8 +475,14 @@ class CaptionTap:
                         f"{health['missed_seconds']:.1f} s of captions could not "
                         "be retained. Select CUDA GPU/smaller model or fewer translations.")
 
+    def _stopping(self):
+        # Historical source-level unit tests construct CaptionTap without
+        # __init__ to inject synthetic timing state; no worker exists there.
+        stop = getattr(self, "stop", None)
+        return stop is not None and stop.is_set()
+
     def _decode(self, capture, options, captured_start, captured_end):
-        if self.stop.is_set():
+        if self._stopping():
             return
         decode_clock=time.perf_counter()
         try:
@@ -516,7 +522,7 @@ class CaptionTap:
             previous = (self.previous_original
                         if self.previous_revision == options.get("revision", 0)
                         else "")
-            if self.stop.is_set():
+            if self._stopping():
                 return  # Quit must reject new ASR/translation dispatch.
             result = decode_segment(capture, mode=selected, page=options["page"],
                 source=source, target=primary,
@@ -552,7 +558,7 @@ class CaptionTap:
                     probe_due),
                 auto_teletext_recovery=bool(
                     recovery_probe and ai.values["asr_enabled"]))
-            if self.stop.is_set():
+            if self._stopping():
                 return  # Do not publish a result completed during Quit.
             probe=result.pop("teletext_probe",None)
             shadow=result.pop("teletext_shadow",None)
@@ -845,7 +851,7 @@ class CaptionTap:
                 result=decorate_result(result,enabled=True)
             # Recheck before publishing. Decoder/translator can take
             # seconds; no result from a previous tune may be displayed.
-            if self.stop.is_set() or options.get("program_epoch") != self.program_epoch:
+            if self._stopping() or options.get("program_epoch") != self.program_epoch:
                 return
             try:
                 # Captions, unlike status notices, are irreplaceable ASR
