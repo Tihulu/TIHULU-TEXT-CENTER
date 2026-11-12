@@ -260,7 +260,8 @@ export function initUsbSDR(report, {driverFactory} = {}){
        sourceIdentityVerified:false,decodedSignal:false};
      window.dispatchEvent(new CustomEvent("tihulu:rf-observation",{detail:record}));
      notify("RF IQ CAPTURED",frequencyMHz.toFixed(3)+" MHz · "+samples+" bytes of REAL RTL-SDR I/Q · "+
-       levelDbFS.toFixed(2)+" dBFS-like · fixed gain "+gainDb+" dB. Total receiver energy, not an identified stat   }catch(error){
+       levelDbFS.toFixed(2)+" dBFS-like · fixed gain "+gainDb+" dB. Total receiver energy, not an identified station or distance.");
+   }catch(error){
      // Capture the hardware error but DO NOT await release while this operation
      // owns pendingSample: release must wait for genuinely concurrent reads.
      if(active()){
@@ -296,8 +297,6 @@ export function initUsbSDR(report, {driverFactory} = {}){
        }));
      }
    }
- }alse;endSample()}
- }
  async function fmSweep(startMHz=87.5,stopMHz=108,stepMHz=.1){
    if(quitting||releasePromise)return;
    if(!receiver){notify("FM SCAN UNAVAILABLE","Connect the real RTL-SDR first. No synthetic spectrum readings.");window.dispatchEvent(new CustomEvent("tihulu:rf-fm-sweep-failed",{detail:{message:"RTL-SDR not connected"}}));return}
@@ -337,7 +336,8 @@ export function initUsbSDR(report, {driverFactory} = {}){
        detail:{readings,stopped:sweepCancel,hardware:"RTL2832U"}}
      ));
      if(active())notify(sweepCancel?"FM SWEEP STOPPED":"FM SWEEP COMPLETE",readings.length+
-       " REAL RTL-SDR frequency-level samples from "+startMHz.toFixed(3)+"–"+stopMHz.toFixed(3)+" MHz. No RDS station identification, GPS, distance or calibr   }catch(error){
+       " REAL RTL-SDR frequency-level samples from "+startMHz.toFixed(3)+"–"+stopMHz.toFixed(3)+" MHz. No RDS station identification, GPS, distance or calibrated location.");
+   }catch(error){
      if(active()){
        const message=String(error?.message||error);
        hardwareControlFailed=/setRegBuffer|control|transfer|reg=/i.test(message);
@@ -374,9 +374,6 @@ export function initUsbSDR(report, {driverFactory} = {}){
        }));
      }
    }
- }Sample();
-   }
- }
 
  async function recover(){
    if(quitting||releasePromise)return;
