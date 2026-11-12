@@ -13,13 +13,13 @@
 | Strict checker `scripts/verify_satellite_pages_bundle.py` | Git blob `4beac5d1eb0e0bc1638cf85dca3532bf68578035` at candidate source |
 | Proposed service worker `satellite-sw.js` | Git blob `ed5a0b78475beb2a4c723c657f5599fef7d54dd8` at candidate source |
 
-**Machine-readable 50-file manifest:** [`PAGES_ATOMIC_ASSET_MANIFEST_2026-11-12.json`](./PAGES_ATOMIC_ASSET_MANIFEST_2026-11-12.json). Each of the 50 rows has the **full repository path, total copy order 01–50, stage, source Git blob SHA-1, pinned published blob SHA-1 or explicit ABSENT, and 31-file strict-parity membership**. It records original #95 hashes for all nine differing shared files plus its older SW. These are measured Git object hashes, **not fabricated SHA-256 values**. A future authorized staging step must additionally compute reproducible byte-level SHA-256, file sizes and signed artifact hashes from the actual stage and compare them with the archived release manifest.
+**Machine-readable 50-file manifest:** [`PAGES_ATOMIC_ASSET_MANIFEST_2026-11-12.json`](./PAGES_ATOMIC_ASSET_MANIFEST_2026-11-12.json). Each of the 50 rows has the **full repository path, total copy order 01–50, stage, source Git blob SHA-1, pinned published blob SHA-1 or explicit ABSENT, and 31-file strict-parity membership**. It records original #95 hashes for **all 50** assets: ten directly retrieved and the other 40 verified byte-identical across #95→#101 by the exact commit comparison (which changed only the two HTML files and SW among publication assets). These are measured Git object hashes, **not fabricated SHA-256 values**. A future authorized staging step must additionally compute reproducible byte-level SHA-256, file sizes and signed artifact hashes from the actual stage and compare them with the archived release manifest.
 
 **Branch safety:** `gh-pages` was checked identical to the pinned baseline; any move of either source Draft head or `gh-pages` **invalidates this release candidate**. The GitHub Pages URL must be verified against actual repository Pages settings/custom domain; expected project-scoped origin is `https://tihulu.github.io/TIHULU-TEXT-CENTER/satellite_center/browser/`, not independently measured as live and healthy here.
 
 ## 1. Exact differences: nine of 31 parity-checked shared files
 
-All paths below are exact repository paths. The old eight-file list was against #37. **`reception.html` becomes the ninth against current #95/#101.** The #101 PWA changes only ``index.html`, `reception.html`, `satellite-sw.js` relative to #95 among these ten inspected browser runtime paths. The other seven differing shared file blobs are identical on #95 and #101. Hashes are Git blob SHA-1 (40 hex digits).
+All paths below are exact repository paths. The old eight-file list was against #37. **`reception.html` becomes the ninth against current #95/#101.** The #101 PWA changes only `index.html`, `reception.html`, `satellite-sw.js` relative to #95 among these ten inspected browser runtime paths. The other seven differing shared file blobs are identical on #95 and #101. Hashes are Git blob SHA-1 (40 hex digits).
 
 | Path | #95 blob | #101 target blob | published `gh-pages` baseline blob |
 | --- | --- | --- | --- |
@@ -218,7 +218,8 @@ If a separately authorized publication fails, stop further release changes, comm
 set -euo pipefail
 BASE=854b1109c04c5f8e9a22d1ee3bb999a16d9d4b7d
 MANIFEST=/absolute/path/to/PAGES_ATOMIC_ASSET_MANIFEST_2026-11-12.json
-RELEASE=<exact-published-gh-pages-commit-sha>
+RELEASE=REPLACE_WITH_VERIFIED_40_HEX_PUBLICATION_COMMIT
+[[ "$RELEASE" =~ ^[a-f0-9]{40}$ ]] || { echo "STOP: replace RELEASE with exact published SHA" >&2; exit 1; }
 git fetch origin gh-pages
 test "$(git rev-parse origin/gh-pages)" = "$RELEASE"
 git cat-file -e "$BASE^{commit}"
