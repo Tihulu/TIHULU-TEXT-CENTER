@@ -102,6 +102,24 @@ class ModelLibrary:
 
     def _copy_verified(self, source, key):
         desc = self.catalog[key]
+        # A previously Media-owned receipt can outlive a file manually removed
+        # by the user. It must be authenticated before any replacement;
+        # arbitrary or symlinked receipt metadata cannot be overwritten.
+        receipt_path = self._receipt(key)
+        stale_receipt = False
+        if receipt_path.exists() or receipt_path.is_symlink():
+            if receipt_path.is_symlink() or not receipt_path.is_file():
+                raise ModelError("Untrusted model receipt already exists")
+            if receipt_path.stat().st_size > 2048:
+                raise ModelError("Untrusted oversized model receipt")
+            try:
+                old_receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise ModelError("Untrusted model receipt") from exc
+            if (old_receipt.get("owner") != "tihulu-media-center"
+                or old_receipt.get("filename") != self._path(key).name):
+                raise ModelError("Existing model receipt belongs to another owner")
+            stale_receipt = True
         digest = hashlib.sha256()
         with tempfile.NamedTemporaryFile(dir=self.root, prefix=".tihulu-model-",
                                          delete=False) as out:
@@ -138,9 +156,19 @@ class ModelLibrary:
             "ino": identity.st_ino,
         }
         try:
-            with self._receipt(key).open("x", encoding="utf-8") as out:
-                os.chmod(self._receipt(key), 0o600)
-                json.dump(receipt, out, sort_keys=True)
+            if stale_receipt:
+                with tempfile.NamedTemporaryFile("w", encoding="utf-8",
+                    dir=self.root, prefix=".tihulu-receipt-", delete=False) as out:
+                    new_receipt = Path(out.name)
+                    json.dump(receipt, out, sort_keys=True)
+                os.chmod(new_receipt, 0o600)
+                # Only a previously validated Media-owned stale receipt is
+                # updated; never replace an unknown model or owner marker.
+                os.replace(new_receipt, receipt_path)
+            else:
+                with receipt_path.open("x", encoding="utf-8") as out:
+                    os.chmod(receipt_path, 0o600)
+                    json.dump(receipt, out, sort_keys=True)
         except (OSError, ValueError) as exc:
             # Fail closed. Model remains installed but not removable unless
             # a proper ownership receipt is independently present.
