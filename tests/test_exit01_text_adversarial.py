@@ -20,7 +20,7 @@ from textcenter.fm_survey import FMSurveySupervisor
 from textcenter.live_fm import LiveFM, LiveError
 from textcenter.live_tv import LiveTV, LiveTVError
 from textcenter.postprocess import RecordingTranscriber, PostProcessError
-from textcenter.speech import SpeechPipeline, WINDOW_BYTES
+from textcenter.speech import SpeechPipeline, SpeechError, WINDOW_BYTES, transcribe_pcm
 
 
 PROFILE = {
@@ -89,6 +89,15 @@ class SpeechRaceTests(unittest.TestCase):
             transcriber=transcriber, translator=translator,
         )
         return worker, store
+
+    def test_already_cancelled_cpu_inference_refuses_to_launch_child(self):
+        cancelled = threading.Event()
+        cancelled.set()
+        with patch("textcenter.speech.subprocess.Popen",
+                   side_effect=AssertionError("CPU child launched after STOPPING")):
+            with self.assertRaisesRegex(SpeechError, "cancelled"):
+                transcribe_pcm(b"\\x00" * 1024, "de", "cpu", PROFILE,
+                               cancel_event=cancelled)
 
     def test_feed_large_block_never_duplicates_unbounded_audio_in_RAM(self):
         worker, _ = self.make_speech(transcriber=lambda *_: "")
