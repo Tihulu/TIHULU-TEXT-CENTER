@@ -136,11 +136,11 @@ class SafeSidecarRollbackTests(unittest.TestCase):
             foreign = root / "take.original.srt"
             first = root / "take.original.txt"
             writer = export._write_new
-            def competing_writer(path, data):
+            def competing_writer(path, data, **kwargs):
                 if Path(path) == foreign:
                     foreign.write_bytes(b"racing external sidecar")
                     # Real os.O_EXCL still protects it, not a fake error.
-                return writer(path, data)
+                return writer(path, data, **kwargs)
             with patch.object(export, "_write_new", side_effect=competing_writer):
                 with self.assertRaises(FileExistsError):
                     export.export_tracks(
@@ -239,6 +239,48 @@ class SafeSidecarRollbackTests(unittest.TestCase):
             self.assertEqual(foreign.read_bytes(), b"foreign MKV")
             self.assertTrue((root / "export.original.txt").exists(),
                             "Unremoved owned file must be reported, not concealed")
+
+    def test_owned_sidecar_descriptors_close_on_success_and_failure(self):
+        """Protect against retained descriptor/VRAM-like resource leaks."""
+        with tempfile.TemporaryDirectory(prefix="tihulu-media-fd-lifetime-") as work:
+            root = Path(work)
+            media, subtitle = self._inputs(root)
+            pins = []
+            real_writer = export._write_new
+            def capture_pin(path, data, **kwargs):
+                owned = real_writer(path, data, **kwargs)
+                if owned.pin_fd is not None:
+                    pins.append(owned.pin_fd)
+                return owned
+            with patch.object(export, "_write_new", side_effect=capture_pin), \
+                 patch.object(export, "_run_ffmpeg", side_effect=RuntimeError(
+                     "forced late failure")):
+                with self.assertRaisesRegex(RuntimeError, "forced late failure"):
+                    self._run(root, media, subtitle)
+            self.assertEqual(len(pins), 2)
+            for fd in pins:
+                with self.assertRaises(OSError):
+                    os.fstat(fd)
+            self.assertFalse((root / "export.original.srt").exists())
+            self.assertFalse((root / "export.original.txt").exists())
+
+        with tempfile.TemporaryDirectory(prefix="tihulu-media-fd-success-") as work:
+            tracks = {"original": [export.Cue(0.1, 1.2, "[Music] Original speech")]}
+            pins = []
+            def capture_pin(path, data, **kwargs):
+                owned = real_writer(path, data, **kwargs)
+                if owned.pin_fd is not None:
+                    pins.append(owned.pin_fd)
+                return owned
+            with patch.object(export, "_write_new", side_effect=capture_pin):
+                created = export.export_tracks(
+                    tracks, work, "kept", formats=("srt", "txt"))
+            self.assertEqual(len(created), 2)
+            self.assertEqual(len(pins), 2)
+            for fd in pins:
+                with self.assertRaises(OSError):
+                    os.fstat(fd)
+            self.assertTrue((Path(work) / "kept.original.srt").is_file())
 
     def test_media_only_failure_does_not_generate_persistent_sidecars(self):
         with tempfile.TemporaryDirectory(prefix="tihulu-media-no-formats-") as work:
