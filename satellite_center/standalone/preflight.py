@@ -72,9 +72,33 @@ def checked_bytes(root: Path, path: str, expected_sha: str) -> int:
         raise HoldError(f"Unverified Git SHA for {path}")
     source = ensure_regular_in_root(root, path)
     data = source.read_bytes()
-    if blob_sha(data) != expected_sha:
-        raise HoldError(f"Unexpected source bytes: {path}")
-    return len(data)
+    if blob_sha(data) == expected_sha:
+        return len(data)
+
+    # Windows Git checkouts can materialize CRLF despite the pinned *Git*
+    # blob containing LF. Accept ONLY Git's exact canonical blob after proving
+    # that this path is clean and index-tracked at the expected SHA. Never
+    # normalize arbitrary bytes ourselves or relax actual artifact hashing.
+    try:
+        top = Path(_git(root, "rev-parse", "--show-toplevel").decode().strip()).resolve()
+        if top != root.resolve():
+            raise HoldError("Not a top-level pinned checkout")
+        if _git(root, "status", "--porcelain", "--", path).strip():
+            raise HoldError("Modified working-tree source")
+        entry = _git(root, "ls-files", "--stage", "--", path).decode("utf-8")
+        if len(entry.splitlines()) != 1:
+            raise HoldError("Untracked or ambiguously indexed source")
+        indexed = entry.split("\t", 1)[0].split()
+        if len(indexed) != 3 or indexed[1] != expected_sha:
+            raise HoldError("Index blob SHA differs")
+        canonical = _git(root, "hash-object", f"--path={path}", str(source)).decode().strip()
+        if canonical != expected_sha:
+            raise HoldError("Canonical Git blob SHA differs")
+        # The staged package MUST use git show <PINNED_SHA>:<PATH>, never a
+        # platform-transcoded worktree file; this is canonical blob length.
+        return int(_git(root, "cat-file", "-s", expected_sha).decode().strip())
+    except (HoldError, OSError, UnicodeError, ValueError) as exc:
+        raise HoldError(f"Unexpected source bytes: {path}") from exc
 
 
 def load_json(path: Path) -> dict:
