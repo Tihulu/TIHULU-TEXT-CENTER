@@ -131,3 +131,22 @@ test("L-13: Hard Stop retains static GUI handlers; only true Quit releases them"
  await app.quit();
  assert.equal(uiControls,1);
 });
+
+test("WebUSB refused owned close reports a persistent partial failure without external kill",async()=>{
+ const env=fakeBrowser();
+ try{
+  let closeAttempts=0,foreignKills=0;
+  const driverFactory=async()=>({RTL2832U_Provider:class{
+   async get(){return {
+    async setSampleRate(){},async setCenterFrequency(){},async setGain(){},
+    async resetBuffer(){},async close(){closeAttempts++;throw Error("mock USB busy")}
+   }}
+  }});
+  const usb=initUsbSDR(()=>{},{driverFactory});
+  await usb.connect(env.selected);
+  await assert.rejects(usb.quit(),/Incomplete app-owned USB release/);
+  await assert.rejects(usb.quit(),/Incomplete app-owned USB release/);
+  assert.equal(closeAttempts,1);
+  assert.equal(foreignKills,0);
+ }finally{env.restore()}
+});
