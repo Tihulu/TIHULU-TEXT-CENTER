@@ -32,5 +32,5 @@ test("RTL-SDR hardware register failure never yields a false range or a fictiona
  assert.match(sdr,/if\(transfer\)await release\(\)/);
  assert.match(sdr,/scanStage="tune "/);
  assert.match(sdr,/hardwareControlFailed/);
- assert.match(sdr,/if\(!stopping&&!hardwareControlFailed&&receiver\)/);
+ assert.match(sdr,/if\(active\(\)\&\&!hardwareControlFailed\&\&receiver===current\)/);
 });
