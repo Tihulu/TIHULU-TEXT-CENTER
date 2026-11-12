@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from .paths import media_paths
 from .ts import ServiceFilter
 import fcntl
 import json
@@ -81,9 +82,14 @@ def read_channels(files: list[Path]) -> list[Channel]:
 def discover_channels() -> list[Channel]:
     home = Path.home()
     files = sorted(home.glob("tv-*-channels.conf"))
-    extra = home / ".config/tihulu-tv-center/channels.conf"
+    extra = media_paths().config / "channels.conf"
     if extra.is_file():
         files.append(extra)
+    # Read legacy channels only after an explicit user opt-in; never migrate.
+    if os.environ.get("TIHULU_MEDIA_READ_LEGACY_CHANNELS") == "1":
+        previous = home / ".config/tihulu-tv-center/channels.conf"
+        if previous.is_file() and not previous.is_symlink():
+            files.append(previous)
     return read_channels(files)
 
 def format_frequency(channel: Channel) -> str:
@@ -321,7 +327,9 @@ class TVCapture:
             check = subprocess.run(["fuser", "-s", frontend], timeout=3, check=False)
             if check.returncode == 0:
                 raise ReceiverBusy("Frontend already opened by another TV application")
-        lock = Path(os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir())) / f"tihulu-tv-adapter{self.adapter}-{os.getuid()}.lock"
+        runtime = media_paths().runtime
+        runtime.mkdir(mode=0o700, parents=True, exist_ok=True)
+        lock = runtime / f"tihulu-media-tv-adapter{self.adapter}-{os.getuid()}.lock"
         fd = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
