@@ -195,6 +195,9 @@ class _OwnedSidecar:
     path: Path
     device: int
     inode: int
+    # Keeps the original inode allocated until rollback is complete, so
+    # delete-and-recreate cannot recycle the inode under a foreign output.
+    pin_fd: int | None = None
 
 
 def _remove_owned_sidecar(owned: _OwnedSidecar) -> None:
@@ -214,31 +217,59 @@ def _remove_owned_sidecar(owned: _OwnedSidecar) -> None:
         owned.path.unlink(missing_ok=True)
 
 
+def _release_owned_sidecars(created: list[_OwnedSidecar]) -> None:
+    """Close held identities after commit or rollback (also on errors)."""
+    while created:
+        owned = created.pop()
+        if owned.pin_fd is not None:
+            os.close(owned.pin_fd)
+
+
 def _rollback_owned_sidecars(created: list[_OwnedSidecar]) -> None:
-    """Rollback in reverse creation order, never remove unowned paths."""
+    """Rollback in reverse order while original inodes remain pinned."""
     failures = []
-    for owned in reversed(created):
-        try:
-            _remove_owned_sidecar(owned)
-        except OSError as exc:
-            failures.append(f"{owned.path.name}: {exc}")
+    try:
+        for owned in reversed(created):
+            try:
+                _remove_owned_sidecar(owned)
+            except OSError as exc:
+                failures.append(f"{owned.path.name}: {exc}")
+    finally:
+        _release_owned_sidecars(created)
     if failures:
         raise RuntimeError(
             "Subtitle export failed; some invocation-owned sidecars could "
             "not be removed: " + "; ".join(failures[:3]))
 
 
-def _write_new(path: Path, content: str) -> _OwnedSidecar:
-    """Exclusive creation with identity-scoped cleanup on write failure."""
+def _write_new(path: Path, content: str, *,
+               retain_fd: bool = False) -> _OwnedSidecar:
+    """Create exclusively; hold a duplicate descriptor through the transaction.
+
+    The pinned inode cannot be reused by a competing creator between
+    unlink/recreate and our ownership comparison. Temporary SRT tracks
+    do not keep a pin after their single successful write.
+    """
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    identity = os.fstat(fd)
-    owned = _OwnedSidecar(path, identity.st_dev, identity.st_ino)
+    try:
+        identity = os.fstat(fd)
+        pin_fd = os.dup(fd)
+    except BaseException:
+        os.close(fd)
+        raise
+    owned = _OwnedSidecar(path, identity.st_dev, identity.st_ino, pin_fd)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
             file.write(content)
     except BaseException:
-        _remove_owned_sidecar(owned)
+        try:
+            _remove_owned_sidecar(owned)
+        finally:
+            os.close(pin_fd)
         raise
+    if not retain_fd:
+        os.close(pin_fd)
+        return _OwnedSidecar(path, identity.st_dev, identity.st_ino)
     return owned
 
 
@@ -274,15 +305,18 @@ def export_tracks(tracks: dict[str, list[Cue]], directory: str | Path,
     created: list[_OwnedSidecar] = []
     try:
         for path, data in jobs:
-            created.append(_write_new(path, data))
+            created.append(_write_new(path, data, retain_fd=True))
     except BaseException:
         # Track identity from each successful O_EXCL, never from a later
         # pathname stat: another process could replace the file meanwhile.
         _rollback_owned_sidecars(created)
         raise
+    paths = [record.path for record in created]
     if _owned is not None:
         _owned.extend(created)
-    return [record.path for record in created]
+    else:
+        _release_owned_sidecars(created)
+    return paths
 
 
 def _run_ffmpeg(args: list[str]) -> None:
@@ -370,6 +404,7 @@ def run_export(*, sources: dict[str, str], destination: str, name: str,
         verified_lyrics=verified_lyrics, _owned=created_sidecars) if formats else []
     stem = _safe_name(name)
     if not (mux or burn):
+        _release_owned_sidecars(created_sidecars)
         return outputs
     # Muxing uses temporary SRT tracks so users may request only an MKV
     # without extra sidecar output, and actual language tracks stay separate.
@@ -399,6 +434,8 @@ def run_export(*, sources: dict[str, str], destination: str, name: str,
     except BaseException:
         _rollback_owned_sidecars(created_sidecars)
         raise
+    finally:
+        _release_owned_sidecars(created_sidecars)
     return outputs
 
 
