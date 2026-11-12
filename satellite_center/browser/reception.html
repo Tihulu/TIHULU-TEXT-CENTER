@@ -257,5 +257,5 @@
 </section>
 <footer>This is the web/PWA edition. The independent Linux Qt desktop uses native operating-system RF capture tools and is not an embedded browser. This tab does not automatically open USB, upload RF samples or fabricate satellite pictures; real reception and decoder success require actual evidence.</footer>
 </main>
-<script type="module">import {applyShell} from "./web_shell.mjs";import {registerSatellitePwa} from "./web_pwa.mjs";applyShell(document,window);void registerSatellitePwa(navigator,location,message=>{document.getElementById("web-shell-status").textContent=message});</script><script type="module" src="./reception.mjs?v=20261112-webusb-ui-parity-v1"></script>
+<script type="module">import {applyShell} from "./web_shell.mjs";import {registerSatellitePwa} from "./web_pwa.mjs";applyShell(document,window);if(location.port!=="8791"&&!window.nativeWebBridgeReady){void registerSatellitePwa(navigator,location,message=>{document.getElementById("web-shell-status").textContent=message});}else{document.getElementById("web-shell-status").textContent="Native companion: no browser PWA worker registered; RF stays app-owned.";}</script><script type="module" src="./reception.mjs?v=20261112-webusb-ui-parity-v1"></script>
 </body></html>
