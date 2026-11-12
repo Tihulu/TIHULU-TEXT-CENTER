@@ -138,7 +138,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
    if(busy||sampling){notify("BUSY","USB receiver is already initializing, sampling or performing another operation.");return}
    sampling=true;busy=true;stopping=false;beginSample();
    const operation=operationSerial,current=receiver;
-   const active=()=>!quitting&&active()&&operation===operationSerial;
+   const active=()=>!quitting&&!stopping&&operation===operationSerial;
    const start=Date.now();let bytes=0,powerSum=0,powerN=0;
    try{
      // Sample rate was set ONCE during connect. Writing demodulator register 0x9f
@@ -188,7 +188,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
    }
    busy=true;sampling=true;stopping=false;beginSample();
    const operation=operationSerial,current=receiver;
-   const active=()=>!quitting&&active()&&operation===operationSerial;
+   const active=()=>!quitting&&!stopping&&operation===operationSerial;
    const gainDb=20,sampleRate=1024000;
    let samples=0,power=0,rfStage="initial checks";
    try{
@@ -255,7 +255,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
    if(configuredRate!==1024000){notify("FM SCAN BLOCKED","Sample rate not initialized; release and reconnect first.");return}
    busy=true;sampling=true;stopping=false;sweepCancel=false;beginSample();
    const operation=operationSerial,current=receiver;
-   const active=()=>!quitting&&active()&&operation===operationSerial;
+   const active=()=>!quitting&&!stopping&&operation===operationSerial;
    const oldHz=configuredFrequencyHz,oldGain=configuredGain;
    const readings=[],total=Math.min(220,Math.floor((stopMHz-startMHz)/stepMHz+1.001));
    let scanStage="FM initialization",hardwareControlFailed=false;
