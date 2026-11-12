@@ -142,9 +142,12 @@ class LocalServer(ThreadingHTTPServer):
                     if worker and worker.is_alive():
                         errors.append(label + ": " + attr + " still active")
                 speech = getattr(component, "speech", None)
-                if speech is not None and speech.status()["worker_alive"]:
-                    errors.append(label + ": ASR worker still active")
-                for attr in ("process", "receiver", "encoder", "_process", "_rtlfm", "_redsea"):
+                if speech is not None:
+                    speech_state=speech.status()
+                    if speech_state["worker_alive"] or speech_state["child_alive"]:
+                        errors.append(label + ": ASR worker or owned child still active")
+                for attr in ("process", "receiver", "encoder", "_process",
+                             "_asr_process", "_rtlfm", "_redsea"):
                     proc = getattr(component, attr, None)
                     if proc is not None and proc.poll() is None:
                         errors.append(label + ": owned process still active")
@@ -489,6 +492,8 @@ class Handler(BaseHTTPRequestHandler):
         # before STOPPING; no later task can be admitted afterwards.
         with self.server._lifecycle_lock:
             if self.server.lifecycle != "RUNNING":
+                if urlsplit(self.path).path == "/api/quit":
+                    return self._post_guarded()  # authenticated idempotent Quit
                 return self._json(503, {"error": "Text Center is stopping; no new tasks accepted"})
             return self._post_guarded()
 
