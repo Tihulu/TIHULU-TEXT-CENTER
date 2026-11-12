@@ -10,18 +10,11 @@ from pathlib import Path
 import sys
 
 from .ai_settings import AISettings
-from .paths import discover_legacy, media_paths
+from .paths import discover_legacy, media_paths, validate_storage_directory
 
 
 def _validate_user_folder(raw: str) -> str:
-    path = Path(raw).expanduser()
-    if not path.is_absolute() or path == Path(path.anchor):
-        raise ValueError("Choose an absolute, non-root user storage directory")
-    if path.is_symlink():
-        raise ValueError("Refusing a symlinked destination directory")
-    if path.exists() and not path.is_dir():
-        raise ValueError("Chosen location is not a directory")
-    return str(path)
+    return str(validate_storage_directory(raw))
 
 
 def main(argv=None):
