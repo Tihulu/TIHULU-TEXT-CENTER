@@ -246,7 +246,7 @@ class LiveTV:
             except OSError:pass
             self.audio_read=None
         speech_result=self.speech.stop(wait=True) if self.speech else None
-        if speech_result and speech_result["worker_alive"]:
+        if speech_result and (speech_result["worker_alive"] or speech_result["child_alive"]):
             status,error="stop_failed_partial","TV speech worker did not stop in time"
         else:
             self.speech=None
@@ -271,7 +271,7 @@ class LiveTV:
                 self._shutdown()
             elif self.speech is not None:
                 result=self.speech.stop(wait=True)
-                if result["worker_alive"]:
+                if result["worker_alive"] or result["child_alive"]:
                     self.state.update(status="stop_failed_partial",
                         error="TV speech worker still running")
                 else:
