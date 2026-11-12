@@ -1,6 +1,15 @@
 # TIHULU — Coordinator CI Contract Drift (2026-11-12)
 
-**Status:** OPEN, documentation-only diagnosis. Do **not** relabel GitHub Actions as successful, change verified progress from six to zero, merge worker branches, alter CI workflows, or modify application/test code in this audit-only step.
+**Status:** RESOLVED at verified coordinator test SHA; historical diagnosis retained. Do **not** relabel GitHub Actions as successful, change verified progress from six to zero, merge worker branches, alter CI workflows, or modify application/test code in this audit-only step.
+
+## Resolution — approved narrow test update, verified 2026-11-12
+
+- User continuation authorized the previously proposed **two coordination-test-only** corrections; no app source, installer, workflows, live service, logo, other worker branches, main branch or release was modified.
+- Only `tests/test_master_zero_regression_coordination.py` (commit `bc9cfdb16710c27c5b84cefdc1da51970294f6cd`) and `tests/test_six_parallel_workstream_gates.py` (commit `c8efb3504d26449667eeab5dc21b259cdd0362ef`) were edited in [Draft PR #82](https://github.com/Tihulu/TIHULU-TEXT-CENTER/pull/82). The former now validates the evidence-indexed staged worker count and immutable PR/Issue links; the latter keeps bootstrap index counts distinct from live progress.
+- [GitHub Actions run 43125496491](https://github.com/Tihulu/TIHULU-TEXT-CENTER/actions/runs/43125496491) at exact tested head `c8efb3504d26449667eeab5dc21b259cdd0362ef` completed **SUCCESS** in Python **3.11, 3.12 and 3.13**. Inspected Python 3.12 job `130876392867` log: **696 tests, 0 failures (OK)**.
+- Initial static coordination failure is therefore **resolved at the pinned SHA**. The original failing run numbers below are retained for traceability. Any **later** coordinator documentation commit creates a new head that must be checked independently; do not assume a previous SHA's green run automatically certifies it.
+- **Not resolved by this change:** 17 feature/regression acceptance gates, physical NooElec/Hauppauge testing, original Satellite PR #37 source-vs-Pages parity, EN(default)/TR/DE runtime UI, historical review completeness, native installers/rollback, three destination repo source imports or release approval. ETA remains unknown.
+- Worker handoff bootstrap snapshot `WORKSTREAM_HANDOFF_INDEX.json` deliberately remains `0/6` initial-state metadata; the evidence-backed `PROGRESS.json` remains `6/6` source-audited with zero full implementation acceptance.
 
 ## Verified failing run
 
