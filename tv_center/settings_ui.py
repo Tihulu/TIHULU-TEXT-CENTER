@@ -14,7 +14,7 @@ def open_ai_settings(parent, ai, after_save=None):
 
     from .model_market import (CATALOG, ModelLibrary, ModelError,
         argos_available_pairs, argos_installed_pairs, argos_install, argos_remove)
-    from textcenter.compute import detect_devices, choose_backend
+    from tv_center.media_backend.compute import detect_devices, choose_backend
     from .runtime import AIRuntime, RuntimeErrorAI
     from .whisper_engine import WhisperRuntime, WhisperRuntimeError
     from .cuda_faster_whisper import FasterWhisperCUDA
@@ -1177,7 +1177,7 @@ def open_ai_settings(parent, ai, after_save=None):
                     raise RuntimeError(ready["reason"])
                 # Owner-started model load and *real* inference on silence.
                 # No microphone / TV / network is opened.
-                from textcenter.speech import transcribe_pcm
+                from tv_center.media_backend.speech import transcribe_pcm
                 settings=self.ai.values
                 sample={"speech":{
                     "ready_npu":True,
