@@ -6,24 +6,24 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Satellite Images &amp; Data | TIHULU Satellite Center</title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./browser.css?v=20261107-web-preflight-v2">
+<link rel="stylesheet" href="./browser.css?v=20261112-webusb-ui-parity-v1"><link rel="manifest" href="./manifest.webmanifest"><meta name="theme-color" content="#091a30">
 <link rel="stylesheet" href="./reception.css?v=20261107-web-preflight-v2">
 </head>
 <body>
 <header><div class="wrap">
-<p class="eyebrow">TIHULU SATELLITE CENTER · WEB / PWA · 0.3.0 PREVIEW6</p>
-<h1>Satellite Images &amp; Data</h1>
+<p class="eyebrow">TIHULU SATELLITE CENTER · CHROMIUM WEBUSB EDITION</p>
+<h1 data-shell-text="images">Satellite Images &amp; Data</h1>
 <p>Browser/PWA edition: inspect local RF, audio, images and reports, decode supported formats, and separate online imagery from measured radio signals. Direct WebUSB needs compatible Chromium; the native Qt desktop application is a separate program. No transmit capability.</p>
-<nav class="reception-nav" aria-label="Satellite Center sections">
-<a href="./index.html">Receiver &amp; pass planner</a>
-<a href="./reception.html" aria-current="page">Images &amp; Data</a>
-<a href="./index.html#satellite-tracking-maps">Earth / sky</a>
-<a href="./index.html#iq-analysis">Full CU8 analysis</a>
+<div class="shell-header-actions"><label class="shell-language" for="ui-language"><span data-shell-text="language">Interface language</span><select id="ui-language" aria-label="Interface language"><option value="en">English</option><option value="tr">Türkçe</option><option value="de">Deutsch</option></select></label></div><nav class="reception-nav shell-main-nav" aria-label="Satellite Center sections">
+<a href="./index.html" data-shell-section="receiver" data-shell-text="receiver">Receiver &amp; Planner</a>
+<a href="./reception.html" data-shell-section="images" data-shell-text="images" aria-current="page">Satellite Images &amp; Data</a>
+<a href="./index.html#satellite-tracking-maps" data-shell-section="earth" data-shell-text="earth">Earth / Sky</a>
+<a href="./index.html#iq-analysis" data-shell-section="analysis" data-shell-text="analysis">Signal Analysis</a>
 </nav></div></header>
-<main class="wrap reception-main">
+<main class="wrap reception-main"><p id="web-shell-status" class="status" role="status" aria-live="polite">Web shell loading. No receiver has been opened.</p>
 <section id="auto-mission-center" aria-labelledby="auto-mission-title">
 <div class="receiver-readiness" role="status" aria-live="polite"><span id="auto-runtime">Checking platform…</span><span id="auto-receiver">No receiver activated</span><span id="auto-decoders">Decoder availability depends on this device</span></div>
-<h2 id="auto-mission-title">Automatic satellite reception — three buttons</h2>
+<h2 id="auto-mission-title" data-shell-text="stepTitle">Auto-Capture &amp; Decode · three steps</h2>
 <p class="hint"><strong>ARISS Series 35 / Space Memories · 9–16 November 2026:</strong> 437.550 MHz FM (±10 kHz Doppler), Robot36, nominal 36 s/image + 120 s silent. Exact start/end times are still TBD. ARISS web text has a Robot 35/36 discrepancy; <a href="https://www.ariss.org/upcoming-sstv-events.html" rel="noopener noreferrer" target="_blank">verify before receiving</a>. Choose <strong>ISS SSTV ONLY</strong> and <strong>Full pass</strong> with local companion for automatic WAV-to-PNG extraction of multiple genuine synchronization candidates. This is not live ISS video or confirmation of origin.</p>
 <p class="hint">Select supported public downlinks, then arm the nearest non-overlapping passes. It never activates a transmitter, claims the SDR in the background or pretends every predicted pass contains data. Native companion schedules persist while its service runs; browser-only WebUSB requires an open visible tab.</p>
 <div class="reception-controls">
@@ -85,9 +85,9 @@
 <p class="hint">Offline city names are bundled; worldwide search uses Open-Meteo only after your request. Station coordinates remain editable. Changing station does not silently change already armed capture jobs.</p>
 </div>
 <div class="reception-actions">
-<button type="button" id="auto-mission-arm">1 · Auto Schedule &amp; Capture</button>
-<button type="button" id="auto-mission-analyze" class="secondary">2 · Preview Auto-Decoded PNGs / Analyze WAV</button>
-<button type="button" id="auto-mission-extract" class="secondary" disabled>3 · Extract Results</button>
+<button type="button" id="auto-mission-arm" data-shell-text="step1">1 · Auto Schedule &amp; Capture</button>
+<button type="button" id="auto-mission-analyze" class="secondary" data-shell-text="step2">2 · Preview Auto-Decoded PNGs / Analyze WAV</button>
+<button type="button" id="auto-mission-extract" class="secondary" data-shell-text="step3" disabled>3 · Extract Results</button>
 <button type="button" id="auto-mission-cancel" class="secondary" disabled>Stop analysis</button>
 <button type="button" id="auto-mission-stop" class="secondary">Cancel Auto Missions</button>
 </div>
@@ -257,5 +257,5 @@
 </section>
 <footer>This is the web/PWA edition. The independent Linux Qt desktop uses native operating-system RF capture tools and is not an embedded browser. This tab does not automatically open USB, upload RF samples or fabricate satellite pictures; real reception and decoder success require actual evidence.</footer>
 </main>
-<script type="module" src="./reception.mjs?v=20261107-chained-capture-v1"></script>
+<script type="module">import {applyShell} from "./web_shell.mjs";import {registerSatellitePwa} from "./web_pwa.mjs";applyShell(document,window);if(location.port!=="8791"&&!window.nativeWebBridgeReady){void registerSatellitePwa(navigator,location,message=>{document.getElementById("web-shell-status").textContent=message});}else{document.getElementById("web-shell-status").textContent="Native companion: no browser PWA worker registered; RF stays app-owned.";}</script><script type="module" src="./reception.mjs?v=20261112-webusb-ui-parity-v1"></script>
 </body></html>

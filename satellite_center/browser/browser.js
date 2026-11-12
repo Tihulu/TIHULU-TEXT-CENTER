@@ -16,6 +16,7 @@ import {planChainedCapture,secondsFromEntry,humanCountdown,scheduledOverlap} fro
 import {candidateFromPass,readPlanningCandidates,savePlanningCandidate,removePlanningCandidate} from './pass_candidates.mjs';
 import {captureBudget,formatCaptureBudget,STREAM_IQ_BYTES} from './capture_duration.mjs?v=20261106-stream-v1';
 import {createStreamingFmWavEncoder,createPcmWavHeader,wavOutputPlan} from './fm_wav_record.mjs?v=20261106-web-fm-wav-v1';
+import {createOwnedWebUsbGate,captureProgress} from './webusb_lifecycle.mjs';
 // TIHULU Satellite Center — no-local-install receive-only browser mode.
 // The RTL-SDR device is opened only after a direct user gesture.
 // CelesTrak / CDN downloads are for client-side orbital prediction + JS only;
@@ -41,6 +42,9 @@ const TLE_SOURCES = Object.freeze({
   iridium: 'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-NEXT&FORMAT=TLE'
 });
 let driver = null, device = null, capturePromise = null, stopRequested = false;
+const receiverGate=createOwnedWebUsbGate();
+let usbConnecting=false,pendingUsbSelection=null,ownedUsbSelection=null;
+let schedulerCancellationEpoch=0;
 let usbTestRunning = false;
 let lastCaptured = null, rtlLibraryError = null;
 let orbitalLibrary = null, tleEntries = [], passes = [], jobs = [], sessionCounter = 0;
@@ -349,19 +353,23 @@ function refreshControls() {
     }
     return;
   }
-  $('start').disabled = !device || !!capturePromise || usbTestRunning;
-  $('stop').disabled = !capturePromise;
-  $('disconnect').disabled = (!device && !capturePromise) || usbTestRunning;
-  $('connect').disabled = !driver || !!device || !!capturePromise || usbTestRunning;
-  $('usb-live-test').disabled = !driver || !!capturePromise || usbTestRunning;
+  $('start').disabled = !device || !!capturePromise || usbTestRunning || usbConnecting || receiverGate.closed;
+  $('stop').disabled = !capturePromise && !usbConnecting;
+  $('disconnect').disabled = (!device && !capturePromise && !usbConnecting) || usbTestRunning;
+  $('connect').disabled = !driver || !!device || !!capturePromise || usbTestRunning || usbConnecting || receiverGate.closed;
+  $('usb-live-test').disabled = !driver || !!capturePromise || usbTestRunning || usbConnecting || receiverGate.closed;
 }
 async function closeDevice() {
-  const previous = device;
-  device = null;
+  // Only the specific handle granted by this tab is eligible for release.
+  const previous=device;
+  const raw=ownedUsbSelection||pendingUsbSelection;
+  device=null;ownedUsbSelection=null;pendingUsbSelection=null;
   refreshControls();
-  if (previous) {
-    try { await previous.close(); }
-    catch (e) { log('USB close warning: ' + e.message); }
+  if(previous){
+    try{await previous.close();}catch(e){log('Owned USB close warning: '+e.message);}
+  }
+  if(raw?.opened){
+    try{await raw.close();}catch(e){log('Owned USB handle release warning: '+e.message);}
   }
 }
 async function connectDevice({silent=false}={}) {
@@ -371,9 +379,15 @@ async function connectDevice({silent=false}={}) {
     if(silent)throw Error(msg);
     return false;
   }
-  if (device) return true;
-  if (capturePromise) {if(silent)throw Error("Another capture is active");return false;}
-  let selectedWebUsbDevice = null;
+  if(device)return true;
+  if(capturePromise||usbConnecting){
+    if(silent)throw Error("Another WebUSB operation is active");
+    return false;
+  }
+  const ticket=receiverGate.begin();
+  usbConnecting=true;
+  refreshControls();
+  let selectedWebUsbDevice=null;
   try {
     // The pinned driver calls requestDevice on this WebUSB adapter.
     // Track *only* the device granted by this click, so a failed post-open
@@ -391,12 +405,17 @@ async function connectDevice({silent=false}={}) {
         }else{
           chosen=await navigator.usb.requestDevice(options);
         }
+        receiverGate.assert(ticket);
         selectedWebUsbDevice=chosen;
+        pendingUsbSelection=chosen;
         return chosen;
       }
     };
     const provider = new driver({webusb});
-    device = await provider.get();
+    device=await provider.get();
+    receiverGate.assert(ticket); // Stop during provider.get may not revive USB
+    ownedUsbSelection=selectedWebUsbDevice;
+    pendingUsbSelection=null;
     if (document.hidden) {
       await closeDevice();
       throw Error('Browser tab became hidden during USB permission; reopen this tab and retry.');
@@ -405,7 +424,9 @@ async function connectDevice({silent=false}={}) {
     await device.setCenterFrequency(Number($('preset').value));
     await device.setGain(null);
     await device.resetBuffer();
+    receiverGate.assert(ticket); // also reject Stop during tune or buffer reset
     const paired = await navigator.usb.getDevices();
+    receiverGate.assert(ticket);
     const rtl = paired.filter(x => x.vendorId === 0x0bda && x.productId === 0x2838);
     status('device-status', 'USB device opened using WebUSB. RTL2832U permission grants: ' + rtl.length +
       '. No RF data measured yet; antenna and signal unverified.');
@@ -434,7 +455,11 @@ async function connectDevice({silent=false}={}) {
     await closeDevice();
     if(silent)throw e;
     return false;
-  } finally { refreshControls(); }
+  } finally {
+    usbConnecting=false;
+    if(pendingUsbSelection===selectedWebUsbDevice)pendingUsbSelection=null;
+    refreshControls();
+  }
 }
 async function testRealUsbReceiver(){
   if(usbTestRunning||capturePromise){
@@ -500,6 +525,15 @@ function rmsLevel(bytes) {
     samples++;
   }
   return samples ? Math.round(100 * 10 * Math.log10(Math.max(energy/samples, 1e-12))) / 100 : null;
+}
+function updateCaptureProgress({startedAt,seconds,observedBytes=0,rate,phase="Receiving WebUSB"}){
+ const bar=$('web-capture-progress'),label=$('web-capture-progress-label');
+ if(!bar||!label)return;
+ const data=captureProgress({startedAt,now:Date.now(),seconds,observedBytes,rate});
+ bar.value=data.percentage;
+ label.textContent=phase+" · "+data.percentage+"% estimated time · "+
+  (data.observedBytes/1048576).toFixed(2)+" MiB actual USB bytes · "+
+  data.elapsedSeconds.toFixed(1)+"/"+seconds+" s";
 }
 function renderSignal() {
   const canvas = $('level-chart'), ctx = canvas.getContext('2d');
@@ -584,6 +618,7 @@ async function startCapture(job=null,prepared=null) {
     }
     const measurements=[],startedAt=Date.now();
     const deadline=startedAt+limit*1000;
+    updateCaptureProgress({startedAt,seconds:limit,rate,phase:"Tuning WebUSB"});
     try {
       if(job){
         job.state='running';
@@ -601,6 +636,7 @@ async function startCapture(job=null,prepared=null) {
         (rate/1e6)+' MS/s. Sample levels are uncalibrated. No satellite is identified.');
       while(!stopRequested && Date.now()<deadline){
         const raw=await device.readSamples(65536);
+        if(stopRequested||receiverGate.closed)break; // no post-Stop bytes consumed
         // @jtarrio/webrtlsdr v3 returns SampleBlock {frequency,data,...}.
         // The previous ArrayBuffer-only code discarded every valid RF block.
         const data=sampleBytes(raw);
@@ -636,6 +672,7 @@ async function startCapture(job=null,prepared=null) {
         status('sample-state','Measured USB bytes: '+(bytesReceived/1048576).toFixed(2)+
           ' MiB · relative sample level '+measured+
           ' dBFS-like · '+(freq/1e6).toFixed(3)+' MHz');
+        updateCaptureProgress({startedAt,seconds:limit,observedBytes:bytesReceived,rate});
       }
       if(!bytesReceived)throw Error('Zero actual USB sample bytes received; no successful scan.');
       const report=captureLevelSummary(measurements,bytesReceived,Date.now()-startedAt);
@@ -694,6 +731,8 @@ async function startCapture(job=null,prepared=null) {
           ' dBFS-like; variation '+report.levelVariationDb+' dB.'+
           '\nThis is NOT a decoded satellite message/image or proof of which spacecraft transmitted.');
       }
+      updateCaptureProgress({startedAt,seconds:limit,observedBytes:bytesReceived,rate,
+       phase:stopRequested?"Stopped · partial bytes preserved":"Capture ended · measured bytes"});
       log('Session '+session+' captured '+bytesReceived+' real raw USB bytes; receiver released.');
     }catch(e){
       if(stopRequested&&fmWav?.pcmBytes>0&&!wavWritten){
@@ -737,12 +776,17 @@ async function startCapture(job=null,prepared=null) {
   try{await capturePromise;}
   finally{capturePromise=null;refreshControls();renderJobs();}
 }
-async function stopCapture() {
+async function stopCapture({cancelPending=true}={}) {
+  receiverGate.cancel();
+  schedulerCancellationEpoch+=1;
   stopRequested=true;
-  for(const job of jobs){
-    if(job.state==='armed'&&String(job.chainId||'').startsWith('manual:')){
-      job.state='cancelled';
-      job.message='Remaining manual RF chain cancelled by Stop & release.';
+  if(cancelPending){
+    for(const job of jobs){
+      if(['armed','starting'].includes(job.state)){
+        job.state='cancelled';
+        job.message='Stop & release cancelled this pending WebUSB capture; no late restart.';
+        releaseScheduledStream(job);
+      }
     }
   }
   // Closing our own USB handle helps interrupt a stuck readSamples() transfer.
@@ -761,6 +805,7 @@ $('stop').addEventListener('click',()=>{void stopCapture();});
 $('start').addEventListener('click',()=>{
  void (async()=>{
    let prepared=null;
+   const manualEpoch=receiverGate.epoch;
    try{
      const totalSeconds=secondsFromEntry($('duration').value,$('duration-unit').value);
      const rate=Number($('rate').value),raw=$('record').checked,wav=$('wav-record').checked;
@@ -797,6 +842,8 @@ $('start').addEventListener('click',()=>{
      }else{
        prepared=await selectRecordingFiles(totalSeconds,rate,raw,wav,
          {at:new Date(),freq:frequency});
+       if(manualEpoch!==receiverGate.epoch||receiverGate.closed)
+         throw Error("Capture preflight cancelled by Stop or Disconnect");
        await startCapture(null,prepared);
      }
    }catch(error){
@@ -808,8 +855,9 @@ $('start').addEventListener('click',()=>{
 });
 
 navigator.usb?.addEventListener('disconnect',e=>{
-  stopRequested=true;
-  if(device)log('USB disconnection detected; receiving session is stopping.');
+  if(e?.device!==ownedUsbSelection&&e?.device!==pendingUsbSelection)return;
+  log('Tab-owned RTL-SDR disconnected; cancelling its capture and pending jobs.');
+  void stopCapture();
 });
 for (const [city,coords] of Object.entries(LOCATIONS)) void coords;
 $('city').addEventListener('change',()=>{
@@ -1874,8 +1922,11 @@ async function scheduledTick(){
      job.message='At scheduled minute. Attempting to reopen previously permitted USB receiver (no new permission prompt).';
      log('Scheduled capture starting: '+job.name+' at '+new Date().toLocaleTimeString());
      renderJobs();
+     const tickEpoch=schedulerCancellationEpoch;
      try{
        if(!device)await connectDevice({silent:true});
+       if(tickEpoch!==schedulerCancellationEpoch||job.state==='cancelled')
+         throw Error('Scheduled WebUSB start cancelled before capture admission');
        if(!device)throw Error('WebUSB did not open the selected RTL-SDR.');
        if(document.hidden)throw Error('Browser became hidden; scheduled RF operation cancelled.');
        const remaining=Math.floor((job.until-Date.now())/1000);
@@ -1892,6 +1943,10 @@ async function scheduledTick(){
        preparedLongStreams.delete(job.id);
        await startCapture(job,prepared);
      }catch(e){
+       if(job.state==='cancelled'){
+         await closeDevice();
+         continue;
+       }
        job.state='blocked';job.message='Could not start real USB reception: '+e.message+
          '. Check readsb/Gqrx conflicts, OS drivers, RTL-SDR permission and page visibility.';
        status('scheduled-report',job.name+' — BLOCKED. '+e.message+
@@ -1915,9 +1970,16 @@ setInterval(()=>{
 // Closing a page destroys the WebUSB session; no service worker keeps hardware open.
 // Promise resolution is not guaranteed during pagehide, but browser ownership ends.
 window.addEventListener('pagehide',()=>{
+  receiverGate.close();
+  schedulerCancellationEpoch+=1;
   stopRequested=true;
+  for(const job of jobs){
+    if(['armed','starting'].includes(job.state)){
+      job.state='cancelled';job.message='Page closed; no background RF task.';
+    }
+  }
   if(wakeLock){void wakeLock.release().catch(()=>{});wakeLock=null;}
-  if(device)void device.close().catch(()=>{});
+  void closeDevice(); // best effort only; a crash cannot guarantee cleanup
   for(const [id,prepared] of preparedLongStreams){
     preparedLongStreams.delete(id);
     void abortLongCapture(prepared);
@@ -1955,6 +2017,7 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
   if(button.disabled)return;
   button.disabled=true;
   $('auto-mode').value=mode;
+  const missionEpoch=schedulerCancellationEpoch;
   try {
     if(!hardwareSupported||!driver)throw Error('Direct WebUSB requires a supported Chromium browser and ready RTL2832U driver. Use the native companion for Firefox/Safari or unattended capture.');
     if(usbTestRunning||capturePromise)throw Error('Receiver is already sampling; stop your owned capture before arming new passes.');
@@ -1970,6 +2033,8 @@ async function runAutoMission({mode=$('auto-mode').value,goal=$('auto-coverage')
     if(!tleEntries.length)await refreshOrbitalCatalog();
     if(!tleEntries.length)throw Error('Could not load TLEs. Import a TLE text file, then retry.');
     if(!passes.length)await calculateOrbitalPasses();
+    if(missionEpoch!==schedulerCancellationEpoch||receiverGate.closed)
+      throw Error("Automatic mission cancelled during asynchronous preflight");
     const totalSeconds=secondsFromEntry($('auto-browser-seconds').value,$('auto-browser-unit').value);
     if(totalSeconds<8)throw Error('Automatic RF recording must be at least 8 seconds.');
     const durationSeconds=Math.min(60,totalSeconds);
@@ -2023,7 +2088,7 @@ $('auto-stop').addEventListener('click',async()=>{
     }
   }
   const ownedAutoCapture=jobs.some(j=>j.missionId&&['starting','running'].includes(j.state));
-  if(ownedAutoCapture)await stopCapture();
+  if(ownedAutoCapture)await stopCapture({cancelPending:false});
   renderJobs();
   $('auto-plan-status').textContent='Cancelled '+cancelled+
     ' auto-armed pass(es). '+(ownedAutoCapture?'Stopped app-owned active auto capture. ':'')+
