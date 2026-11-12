@@ -184,47 +184,51 @@ class _PersistentCUDAWorker:
         # running 90-second inference while holding that lock.
         self.lock = threading.Lock()
         self._state_lock = threading.Lock()
+        # Serialize terminate/reap so concurrent timeout and Qt Quit both
+        # wait for the SAME owned child to be reaped (never an external PID).
+        self._reap_lock = threading.Lock()
         self._closing = threading.Event()
         self.process = None
         self.path = None
 
     def _stop(self):
-        """Terminate and reap ONLY this worker's Popen child, with deadlines."""
-        with self._state_lock:
-            p = self.process
-            self.process = None
-            self.path = None
-        if p is None:
-            return
-        try:
-            if p.poll() is None:
-                try:
-                    p.terminate()
-                except ProcessLookupError:
-                    pass  # It exited between poll and terminate.
-                try:
-                    p.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    if p.poll() is None:
+        with self._reap_lock:
+            """Terminate and reap ONLY this worker's Popen child, with deadlines."""
+            with self._state_lock:
+                p = self.process
+                self.process = None
+                self.path = None
+            if p is None:
+                return
+            try:
+                if p.poll() is None:
+                    try:
+                        p.terminate()
+                    except ProcessLookupError:
+                        pass  # It exited between poll and terminate.
+                    try:
+                        p.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        if p.poll() is None:
+                            try:
+                                p.kill()
+                            except ProcessLookupError:
+                                pass
                         try:
-                            p.kill()
-                        except ProcessLookupError:
+                            p.wait(timeout=2)  # Reap even after forced kill.
+                        except subprocess.TimeoutExpired as exc:
+                            raise RuntimeError(
+                                "App-owned CUDA worker did not exit after kill"
+                            ) from exc
+                else:
+                    p.wait(timeout=0.25)  # Reap a child that already exited.
+            finally:
+                for stream in (p.stdin, p.stdout):
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except (OSError, ValueError):
                             pass
-                    try:
-                        p.wait(timeout=2)  # Reap even after forced kill.
-                    except subprocess.TimeoutExpired as exc:
-                        raise RuntimeError(
-                            "App-owned CUDA worker did not exit after kill"
-                        ) from exc
-            else:
-                p.wait(timeout=0.25)  # Reap a child that already exited.
-        finally:
-            for stream in (p.stdin, p.stdout):
-                if stream is not None:
-                    try:
-                        stream.close()
-                    except (OSError, ValueError):
-                        pass
 
     def close(self):
         """Permanently reject inference, interrupt and reap the owned child."""
