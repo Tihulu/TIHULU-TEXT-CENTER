@@ -176,6 +176,43 @@ class StandTextInstallerTests(unittest.TestCase):
         with self.assertRaises(installer.InstallerError):
             installer.read_bundle(self.root / "extra.zip", self.pin)
 
+    def test_preflight_optional_python_packages_and_model_paths_are_not_runnable_claims(self):
+        # Pure metadata and environment inspection: no model import/inference.
+        with patch.object(installer.importlib.util, "find_spec", return_value=None) as probe, \
+             patch.dict(os.environ, {"TIHULU_WHISPER_MODEL":
+                                      str(self.root / "external-ssd" / "not-installed.bin")}):
+            status = installer.support(platform_name="Linux", version=(3, 11),
+                                       lookup=lambda _: None)
+        self.assertTrue(status["core_launch_candidate"])
+        self.assertFalse(status["installed_platform_verified"])
+        self.assertTrue(all(not v for v in
+                            status["optional_python_packages_present_not_runnable"].values()))
+        self.assertTrue(status["model_environment_paths_set_not_verified"]
+                        ["TIHULU_WHISPER_MODEL"])
+        self.assertTrue(all(not v for v in
+                            status["optional_tools_present_not_live_verified"].values()))
+        self.assertFalse(status["native_dvb_tuning"])
+        self.assertFalse(status["journaline_decoder"])
+        self.assertEqual(probe.call_count, 7)
+
+    def test_launcher_refuses_modified_release_before_import(self):
+        if sys.platform == "win32":
+            self.skipTest("Canonical Unix fcntl is not available on Windows")
+        installer.write_package(self.source, self.bundle, self.pin)
+        prefix = self.root / "launcher-tamper" / "runtime"
+        result = installer.deploy(self.bundle, prefix, pin=self.pin, apply=True)
+        source = (prefix / "releases" / result["bundle_sha256"] /
+                  "textcenter" / "__main__.py")
+        source.write_bytes(source.read_bytes() + b"\n# altered after install\n")
+        proc = subprocess.run(
+            [sys.executable, str(prefix / "bin" / "tihulu-text-center"), "--help"],
+            cwd=str(self.root), capture_output=True, text=True, timeout=15,
+            check=False,
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("Text-only release integrity check failed", proc.stderr)
+        self.assertNotIn("usage:", proc.stdout)
+
     def test_temp_installed_launcher_can_import_text_without_other_app(self):
         if sys.platform == "win32":
             self.skipTest("Canonical fcntl dependency blocks Windows Text native imports")
