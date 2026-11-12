@@ -21,7 +21,7 @@ class LauncherWithoutAntennaTests(unittest.TestCase):
         self.assertNotIn("Focus or close that window first.", INSTALL)
 
     def test_no_auto_tuning_or_hardware_claim_at_launch(self):
-        launcher = INSTALL.split("cat > \"$HOME/.local/bin/tihulu-kaffeine\" <<'LAUNCH'")[1].split(
+        launcher = INSTALL.split("cat > \"$temp/tihulu-kaffeine\" <<'LAUNCH'")[1].split(
             "\nLAUNCH",1)[0]
         self.assertIn('TIHULU_AUTOPLAY_LAST_CHANNEL:-0',launcher)
         self.assertIn('set -- --lastchannel',launcher)
@@ -34,7 +34,10 @@ class LauncherWithoutAntennaTests(unittest.TestCase):
     def test_diagnostic_flag_is_still_available_without_receiver(self):
         self.assertIn("--diagnose-tuner)",INSTALL)
         self.assertIn("dvb_diagnostics.sh",INSTALL)
-        self.assertIn('ln -sfn tihulu-kaffeine',INSTALL)
+        self.assertIn('"$GUARD" activate',INSTALL)
+        self.assertNotIn('ln -sfn tihulu-kaffeine',INSTALL)
+        self.assertIn('atomic_link(p["alias"], new["alias"])',
+                      (ROOT / "kaffeine_next/media_install_guard.py").read_text())
 
 
 if __name__=="__main__":
