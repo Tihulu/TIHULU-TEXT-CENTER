@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase6_exit01_four_of_five_draft_PRs_QA_matrix_15_cases_zero_hardware_acceptance",
+  "stage": "phase6_exit01_four_of_five_PRs_native_CI_mostly_green_satellite_pages_parity_red_no_hardware_acceptance",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Five distinct app source branches active, four new Draft PRs #91 Media/#92 Satellite/#93 Text/#16 Flight, fifth RFGeo in branch-only state. Media, Text and Flight synthetic CI green; Satellite new CI running and 8-file Pages parity issue known. Separate 15-case QA matrix authored, 0/15 actual resource acceptance, 17 old gates + EXIT01 P0 open; no merges or hardware tests; release ETA unknown.",
+    "reason": "Five source branches, four Draft PRs; media, flight, text software CI green, satellite Linux/Windows/macOS+Debian runtime green but Pages parity red. Geo new PR and its CI unverified. Fifteen QA cases all OPEN for physical and independent resource proof; original 17 gates plus EXIT01 P0 remain open, no merges or measured ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -932,12 +932,13 @@
         "new_branch": "fix/exit01-satellite-lease-release-2026-11-12",
         "handoff_issue": 78,
         "comment_id": 6813720095,
-        "status": "DRAFT_PR_OPEN_LATEST_CI_IN_PROGRESS_PAGES_PARITY_KNOWN_BLOCKER",
+        "status": "DRAFT_PR_OPEN_ALL_NATIVE_PORTABLE_RUNTIME_JOBS_GREEN_PAGES_PARITY_RED",
         "new_pr": 92,
         "head_sha": "5ba72b575abd89ce716b5b51033a3df11167267d",
         "base_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
-        "ci": "Latest Text test success 43152107009; portable 43152107002 and Debian 43152106975 in progress. Prior portable CI failed Pages/source parity across 8 assets.",
-        "changed_files": 4
+        "ci": "At exact PR head 5ba72b575abd89ce716b5b51033a3df11167267d: Text 43152107009 SUCCESS; Debian 43152106975 SUCCESS; portable CI 43152107002 FAILED only on pre-existing pages-source-parity. Portable Linux x64, Ubuntu ARM64, Windows and macOS runtime jobs all SUCCESS. Eight source/gh-pages files differ.",
+        "changed_files": 4,
+        "source_feature_acceptance": "NOT_ACCEPTED_NO_REAL_DEVICES"
       },
       {
         "id": "A4",
@@ -990,7 +991,7 @@
       }
     ],
     "new_draft_prs_created": 4,
-    "new_ci_executed": "A1 four source CI workflows green, A2 4 OS and Pi green, A3 latest partial CI and prior Pages parity red, A5 Python matrix green, A4 no verified PR CI",
+    "new_ci_executed": "A1 four source workflows success; A2 4 OS+Pi success; A3 all portable runtime jobs+native Debian+Text success but 8-file Pages parity fail; A5 Python 3.11/3.12/3.13 success; A4 PR/CI not yet verified",
     "source_code_modified_by_coordinator": false,
     "preexisting_original_gates_open": 17,
     "additional_exit01_gate_open": true,
