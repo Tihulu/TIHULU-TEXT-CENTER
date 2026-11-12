@@ -66,6 +66,22 @@ class MediaOwnedPathsAcceptance(unittest.TestCase):
         self.assertNotIn(secret, json.dumps(found))
         self.assertFalse(media_paths().ai_settings.exists())
 
+    def test_symlinked_legacy_parent_is_never_traversed(self):
+        foreign = self.home / "foreign-configuration"
+        foreign.mkdir()
+        (foreign / "ai-settings.json").write_text(
+            "confidential; must not be read", encoding="utf-8")
+        (self.home / ".config").mkdir()
+        (self.home / ".config/tihulu-tv-center").symlink_to(
+            foreign, target_is_directory=True)
+        results = discover_legacy()
+        blocked = [x for x in results if x["path"].endswith("ai-settings.json")]
+        self.assertEqual(len(blocked), 1)
+        self.assertEqual(blocked[0]["type"], "symlink-parent")
+        self.assertIn("skip", blocked[0]["action"])
+        self.assertNotIn("confidential", json.dumps(results))
+        self.assertFalse(media_paths().ai_settings.exists())
+
     def test_explicit_configurable_model_cache_recording_roots_preserve_legacy(self):
         old = self.home / ".config/tihulu-tv-center/ai-settings.json"
         old.parent.mkdir(parents=True)
