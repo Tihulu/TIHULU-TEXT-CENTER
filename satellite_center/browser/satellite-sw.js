@@ -15,6 +15,7 @@ const CRITICAL=[
  "./browser.js","./reception.mjs","./manifest.webmanifest",
  "./web_shell.mjs","./web_pwa.mjs","./webusb_lifecycle.mjs",
  "./usb_diagnostics.mjs","./usb_live_probe.mjs","./pass_sort.mjs",
+ "./satellite_maps.mjs",
  "./pass_window.mjs","./pass_candidates.mjs","./orbit_clock.mjs",
  "./iq_analysis_ui.mjs","./iq_analysis.mjs","./iq_intelligence.mjs",
  "./satellite_images_ui.mjs","./satellite_imagery.mjs",
