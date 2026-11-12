@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 
 from .ai_settings import AISettings
-from .paths import discover_legacy, media_paths, validate_storage_directory
+from .paths import discover_legacy, media_paths, validate_storage_directory, APP_ID
 
 
 def _validate_user_folder(raw: str) -> str:
@@ -39,7 +39,7 @@ def main(argv=None):
         config.update(patch, persist=True)
     paths = media_paths()
     answer = {
-        "app": "tihulu-media-center",
+        "app": APP_ID,
         "settings": str(config.path),
         "models": str(paths.model_root(config.values["model_dir"])),
         "cache": str(paths.cache_root(config.values["cache_dir"])),

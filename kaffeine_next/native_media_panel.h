@@ -53,7 +53,7 @@ public:
 		file_->setMinimumWidth(120);
 		h->addWidget(file_,1);
 		v->addLayout(h);
-        QSettings openSettings(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
+        QSettings openSettings(QLatin1String("TIHULUStandalone"),QLatin1String("StandaloneMediaPlayer"));
         preprocessOnOpen_=new QCheckBox(tr(
             "Entire local file · transcribe/translate first, then play"),this);
         preprocessOnOpen_->setChecked(openSettings.value(
@@ -64,7 +64,7 @@ public:
             "Live TV/radio and URLs remain untouched."));
         v->addWidget(preprocessOnOpen_);
         connect(preprocessOnOpen_,&QCheckBox::toggled,this,[](bool enabled){
-            QSettings prefs(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),QLatin1String("StandaloneMediaPlayer"));
             prefs.setValue(QLatin1String("transcribeBeforeOpen"),enabled);
         });
         profile_=new QLabel(tr(
@@ -137,7 +137,7 @@ public:
 		caching_->setRange(0,20000);
 		caching_->setSingleStep(500);
 		caching_->setSuffix(tr(" ms"));
-		QSettings mediaSettings(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
+		QSettings mediaSettings(QLatin1String("TIHULUStandalone"),QLatin1String("StandaloneMediaPlayer"));
 		caching_->setValue(qBound(0,
 			mediaSettings.value(QLatin1String("fileCacheMs"),1500).toInt(),20000));
 		caching_->setToolTip(tr("libVLC file read-ahead; this is not the "
@@ -303,8 +303,8 @@ private:
         // Video follows the APPLIED television caption choices; audio-only
         // files use Radio's existing persisted language/translation settings.
         // Both use the one common AISettings/model installation at runtime.
-        QSettings defaults(QLatin1String("TIHULU"),
-            isAudio_?QLatin1String("KaffeineRadio"):
+        QSettings defaults(QLatin1String("TIHULUStandalone"),
+            isAudio_?QLatin1String("KaffeineStandaloneRadio"):
                      QLatin1String("KaffeineTVFileCaptionDefaults"));
         const QString source=defaults.value(isAudio_?
             QLatin1String("radioSpeechLanguage"):QLatin1String("spokenSource"),
@@ -402,7 +402,7 @@ private:
         if(mux->isChecked())arguments<<QLatin1String("--mux");
         if(burn->isChecked())arguments<<QLatin1String("--burn-video");
         if(stamps->isChecked())arguments<<QLatin1String("--timestamps");
-        formatExportProcess_.start(QLatin1String("tihulu-media-cli"),arguments);
+        formatExportProcess_.start(QLatin1String("tihulu-media-standalone-cli"),arguments);
         if(!formatExportProcess_.waitForStarted(800)) {
             message_->setText(tr("Cannot start offline export tool."));return;
         }
@@ -483,7 +483,7 @@ private:
         }
         // Never overwrite an existing user-created .srt in the media folder,
         // including when the video is read-only or on a removable disk.
-        srtPath_=cache+QLatin1String("/tihulu-file-")+
+        srtPath_=cache+QLatin1String("/tihulu-standalone-file-")+
             QString::number(QCoreApplication::applicationPid())+
             QLatin1Char('-')+QString::number(
                 QDateTime::currentMSecsSinceEpoch())+
@@ -501,14 +501,14 @@ private:
         if(lyrics_->isChecked() && !beforeOpen) args<<QLatin1String("--lyrics");
         if(lyrics_->isChecked() && !beforeOpen && lyricsOnline_->isChecked())
             args<<QLatin1String("--fetch-lyrics");
-        QSettings mediaSettings(QLatin1String("TIHULU"),QLatin1String("MediaPlayer"));
+        QSettings mediaSettings(QLatin1String("TIHULUStandalone"),QLatin1String("StandaloneMediaPlayer"));
         mediaSettings.setValue(QLatin1String("fileCacheMs"),caching_->value());
         mediaSettings.sync();
         beforeOpenMode_=beforeOpen;
         cancelledByUser_=false;
         pausedForAi_=beforeOpen || wait_->isChecked();
         if(pausedForAi_) player_->stop();
-        process_.start(QLatin1String("tihulu-media-cli"),args);
+        process_.start(QLatin1String("tihulu-media-standalone-cli"),args);
         if(!process_.waitForStarted(800)) {
             if(pausedForAi_ && !beforeOpen)
                 player_->play(QUrl::fromLocalFile(path_));

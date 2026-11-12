@@ -84,7 +84,10 @@ def validate_socket(path: str) -> Path:
     p = Path(path)
     if not location.is_dir() or not p.is_absolute() or p.parent != location:
         raise ValueError("Captions socket must be in the current user's XDG_RUNTIME_DIR")
-    if not re.fullmatch(r"tihulu-dvb-[0-9]{1,10}\.sock", p.name):
+    socket_name = (r"tihulu-standalone-dvb-[0-9]{1,10}\.sock"
+                   if os.environ.get("TIHULU_MEDIA_STANDALONE") == "1"
+                   else r"tihulu-dvb-[0-9]{1,10}\.sock")
+    if not re.fullmatch(socket_name, p.name):
         raise ValueError("Expected a private Kaffeine DVB socket from this session")
     return p
 
@@ -970,7 +973,9 @@ def main(argv=None):
     # Hiding the only QWidget must NOT quit the Qt event loop: audio capture,
     # auto-sync and video-overlay publishing continue independently of UI.
     app.setQuitOnLastWindowClosed(False)
-    window_state = QSettings("TIHULU", "CaptionWindowGeometry")
+    standalone = os.environ.get("TIHULU_MEDIA_STANDALONE") == "1"
+    settings_org = "TIHULUStandalone" if standalone else "TIHULU"
+    window_state = QSettings(settings_org, "StandaloneCaptionWindowGeometry" if standalone else "CaptionWindowGeometry")
 
     class CaptionSettingsWindow(QWidget):
         terminating = False
@@ -1572,7 +1577,7 @@ def main(argv=None):
     timing_layout.addRow("Voice status", speaker_health)
     # Cluster IDs are provisional; names are user-authored, never guessed
     # as adult/child/gender based on pitch or voice embeddings.
-    voice_label_store = QSettings("TIHULU", "KaffeineSpeakerLabelNames")
+    voice_label_store = QSettings(settings_org, "StandaloneKaffeineSpeakerLabelNames" if standalone else "KaffeineSpeakerLabelNames")
     speaker_alias_inputs = []
     label_fields = QWidget()
     label_fields_layout = QGridLayout(label_fields)
@@ -1691,7 +1696,7 @@ def main(argv=None):
         "apply without enabling the experimental Qt overlay.")
     native_note.setWordWrap(True)
     quick_layout.addRow(native_note)
-    appearance_store = QSettings("TIHULU", "KaffeineCaptionAppearance")
+    appearance_store = QSettings(settings_org, "StandaloneKaffeineCaptionAppearance" if standalone else "KaffeineCaptionAppearance")
 
     def update_appearance_preview(*_):
         fg = QColor(active_colors["text"])
@@ -1904,7 +1909,10 @@ def main(argv=None):
     def launch_market():
         import subprocess
         subprocess.Popen(["tihulu-media-cli", "ai-market"], close_fds=True)
-    market.clicked.connect(launch_market)
+    def launch_standalone_market():
+        import subprocess
+        subprocess.Popen(["tihulu-media-standalone-cli", "ai-market"], close_fds=True)
+    market.clicked.connect(launch_standalone_market if standalone else launch_market)
     tools_layout.addWidget(market)
     benchmark_button = QPushButton(
         "Test installed AI models on a local audio sample…")
@@ -2251,7 +2259,7 @@ def main(argv=None):
             # channel-specific audio clock. The native Playback tab reads this
             # preset when it opens a local video. Audio-only files instead
             # read the independently saved KaffeineRadio language choices.
-            file_video_defaults = QSettings("TIHULU", "KaffeineTVFileCaptionDefaults")
+            file_video_defaults = QSettings(settings_org, "StandaloneKaffeineTVFileCaptionDefaults" if standalone else "KaffeineTVFileCaptionDefaults")
             file_video_defaults.setValue("spokenSource",
                                          "auto" if applied.spoken_auto else applied.source)
             file_video_defaults.setValue("outputLanguages",

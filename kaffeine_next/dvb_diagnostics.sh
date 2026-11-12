@@ -11,8 +11,8 @@ shopt -s nullglob
 # and pre-migration Kaffeine storage without modifying or leaking device IDs.
 printf 'Saved television Source names (read-only):\n'
 found_config=0
-for config in "$HOME/.local/share/tihulu-media-center/config.dvb" \
-              "$HOME/.local/share/kaffeine/config.dvb"; do
+for config in "$HOME/.local/share/tihulu-media-standalone/config.dvb" \
+              "$HOME/.local/share/tihulu-media-standalone/native/config.dvb"; do
   if [[ ! -f "$config" || ! -r "$config" ]]; then continue; fi
   found_config=1
   printf '  Database: %s\n' "$config"

@@ -485,7 +485,7 @@ QAbstractButton *StartTab::addShortcut''')
     appmain = "src/main.cpp"
     change(appmain, '''		QStringLiteral("kaffeine"),
 		i18n("Kaffeine"),''',
-           '''		QStringLiteral("tihulu-media-center"),
+           '''		QStringLiteral("tihulu-media-standalone"),
 		i18n("TIHULU Media Center"),''')
     change(appmain, '''		i18n("A media player by KDE with digital TV support."),''',
            '''		i18n("TIHULU · TV, DAB+ radio, media and offline AI; built on KDE Kaffeine."),''')
@@ -493,8 +493,8 @@ QAbstractButton *StartTab::addShortcut''')
 	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);''',
            '''{
 	// Isolate SQL and KSharedConfig BEFORE opening the database.
-	setApplicationName("tihulu-media-center");
-	setOrganizationName("TIHULU");
+	setApplicationName("tihulu-media-standalone");
+	setOrganizationName("TIHULUStandalone");
 	setOrganizationDomain("tihulu.local");
 	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);''')
     change(appmain, '#include <QPointer>\n',
@@ -502,8 +502,8 @@ QAbstractButton *StartTab::addShortcut''')
     change(appmain, '''	app.setApplicationName("kaffeine");
 	app.setOrganizationDomain("kde.org");
 	app.setWindowIcon(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")));''',
-           '''	app.setApplicationName("tihulu-media-center");
-	app.setOrganizationName("TIHULU");
+           '''	app.setApplicationName("tihulu-media-standalone");
+	app.setOrganizationName("TIHULUStandalone");
 	app.setOrganizationDomain("tihulu.local");
 	// A previously installed portrait PNG must not silently override the
 	// standalone PLAY-button application icon after an update. Explicit
@@ -511,14 +511,14 @@ QAbstractButton *StartTab::addShortcut''')
 	const QString iconsRoot=QStandardPaths::writableLocation(
 		QStandardPaths::GenericDataLocation)+QLatin1String("/icons/hicolor/");
 	const QString playerSvg=iconsRoot+
-		QLatin1String("scalable/apps/tihulu-media-center.svg");
+		QLatin1String("scalable/apps/tihulu-media-standalone.svg");
 	const QString legacyPng=iconsRoot+
-		QLatin1String("64x64/apps/tihulu-media-center.png");
+		QLatin1String("64x64/apps/tihulu-media-standalone.png");
 	const bool preferLegacy=qgetenv("TIHULU_USE_LEGACY_LOGO")=="1" &&
 		QFileInfo::exists(legacyPng);
 	const QIcon chosen=preferLegacy ? QIcon(legacyPng) :
 		QFileInfo::exists(playerSvg) ? QIcon(playerSvg) :
-		QIcon::fromTheme(QLatin1String("tihulu-media-center"),QIcon(":kaffeine"));
+		QIcon::fromTheme(QLatin1String("tihulu-media-standalone"),QIcon(":kaffeine"));
 	app.setWindowIcon(chosen);''')
     change(main, '''	menu = new QMenu(i18n("Kaffeine"), this);''',
            '''	menu = new QMenu(i18n("TIHULU Media Center"), this);''')
@@ -531,12 +531,12 @@ QAbstractButton *StartTab::addShortcut''')
 				: caption + QStringLiteral(" — TIHULU Media Center"));
 		});''')
     change(main, '''\ttabBar->addTab(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")), i18n("Playback"));''',
-           '''\ttabBar->addTab(QIcon::fromTheme(QLatin1String("tihulu-media-center"), QIcon(":kaffeine")), i18n("Playback"));''')
+           '''\ttabBar->addTab(QIcon::fromTheme(QLatin1String("tihulu-media-standalone"), QIcon(":kaffeine")), i18n("Playback"));''')
     change(main, '''\ttrayIcon->setIcon(QIcon::fromTheme(QLatin1String("kaffeine"), QIcon(":kaffeine")));''',
-           '''\ttrayIcon->setIcon(QIcon::fromTheme(QLatin1String("tihulu-media-center"), QIcon(":kaffeine")));''')
+           '''\ttrayIcon->setIcon(QIcon::fromTheme(QLatin1String("tihulu-media-standalone"), QIcon(":kaffeine")));''')
     change(main, '''\tQDBusConnection::sessionBus().registerService(QLatin1String("org.mpris.kaffeine"));''',
            '''\tQDBusConnection::sessionBus().registerService(
-\t\tQLatin1String("org.mpris.MediaPlayer2.tihulu_media_center"));''')
+\t\tQLatin1String("org.mpris.MediaPlayer2.tihulu_media_standalone"));''')
     cmake = "src/CMakeLists.txt"
     change(cmake, 'target_link_libraries(kaffeine Qt5::Sql Qt5::X11Extras',
            'target_link_libraries(kaffeine Qt5::Network Qt5::Sql Qt5::X11Extras')
@@ -587,7 +587,7 @@ QAbstractButton *StartTab::addShortcut''')
 		dialog->show();
 		diagnostics->start(QLatin1String("/bin/bash"),
 			QStringList() << QDir::homePath() +
-				QLatin1String("/.local/share/tihulu-media-center/native/dvb_diagnostics.sh"));
+				QLatin1String("/.local/share/tihulu-media-standalone/native/dvb_diagnostics.sh"));
 	});
 	QAction *webTvAction = dvbMenu->addAction(i18n("Web TV / Internet channels..."));
 	connect(webTvAction, &QAction::triggered, this, [this]() {
@@ -600,7 +600,7 @@ QAbstractButton *StartTab::addShortcut''')
 	menuBar->addMenu(aiMenu);
 	QAction *marketAction = aiMenu->addAction(i18n("Whisper + Translator Market"));
 	connect(marketAction, &QAction::triggered, this, [this]() {
-		if (!QProcess::startDetached(QLatin1String("tihulu-media-cli"),
+		if (!QProcess::startDetached(QLatin1String("tihulu-media-standalone-cli"),
 			QStringList() << QLatin1String("ai-market")))
 			QMessageBox::warning(this, i18n("Whisper Market"),
 				i18n("Install the TIHULU offline AI companion first."));
@@ -623,10 +623,10 @@ QAbstractButton *StartTab::addShortcut''')
 				i18n("XDG_RUNTIME_DIR is missing; cannot start private capture."));
 			return;
 		}
-		const QString name = runtime + QLatin1String("/tihulu-dvb-")
+		const QString name = runtime + QLatin1String("/tihulu-standalone-dvb-")
 			+ QString::number(QCoreApplication::applicationPid())
 			+ QLatin1String(".sock");
-		if (!QProcess::startDetached(QLatin1String("tihulu-media-cli"),
+		if (!QProcess::startDetached(QLatin1String("tihulu-media-standalone-cli"),
 			QStringList() << QLatin1String("kaffeine-captions")
 				<< QLatin1String("--socket") << name))
 			QMessageBox::warning(this, i18n("Live captions"),
@@ -682,7 +682,7 @@ QAbstractButton *StartTab::addShortcut''')
 		if(folder.isEmpty()) return;
 		hubProcess->setProperty("pinShown",false);
 		hubProcess->setProperty("partial",QByteArray());
-		hubProcess->start(QLatin1String("tihulu-media-cli"),
+		hubProcess->start(QLatin1String("tihulu-media-standalone-cli"),
 			{QLatin1String("remote-hub"),QLatin1String("--media-root"),folder,
 			 QLatin1String("--bind"),QLatin1String("127.0.0.1"),
 			 QLatin1String("--native-pid"),
@@ -690,7 +690,7 @@ QAbstractButton *StartTab::addShortcut''')
 		if(!hubProcess->waitForStarted(1500)) {
 			QMessageBox::warning(this,i18n("Remote hub"),
 				i18n("Cannot start Python companion; run "
-				"'tihulu-media-cli remote-hub --help' in terminal."));
+				"'tihulu-media-standalone-cli remote-hub --help' in terminal."));
 			return;
 		}
 		hubStop->setEnabled(true);
@@ -742,7 +742,7 @@ QAbstractButton *StartTab::addShortcut''')
     change(live, '\tfileName = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation) + QLatin1String("/dvbpipe.m2t");',
            '\tconst QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);\n'
            '\tif (!runtime.isEmpty())\n'
-           '\t\ttihuluCaptionSocketPath = runtime + QLatin1String("/tihulu-dvb-")\n'
+           '\t\ttihuluCaptionSocketPath = runtime + QLatin1String("/tihulu-standalone-dvb-")\n'
            '\t\t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".sock");\n'
            '\tfileName = runtime + QLatin1String("/dvbpipe.m2t");')
     change(live, 'DvbLiveViewInternal::~DvbLiveViewInternal()\n{\n',
@@ -795,7 +795,7 @@ static void tihuluNotifyNativeCaptionTune(quint64 epoch, int sid, int tsid)
 \tconst QString runtime = QStandardPaths::writableLocation(
 \t\tQStandardPaths::RuntimeLocation);
 \tif (runtime.isEmpty()) return;
-\tQSaveFile file(runtime + QLatin1String("/tihulu-tv-tune-") +
+\tQSaveFile file(runtime + QLatin1String("/tihulu-standalone-tv-tune-") +
 \t\tQString::number(QCoreApplication::applicationPid()) +
 \t\tQLatin1String(".txt"));
 \tif (file.open(QIODevice::WriteOnly)) {
@@ -930,7 +930,7 @@ void DvbLiveView::replay()
 \t\t\t\t"matches, but the tuner could not be acquired after a short retry. "
 \t\t\t\t"Check whether another TV program, a scan, or a driver operation "
 \t\t\t\t"is holding the frontend.\\n\\n"
-\t\t\t\t"Run tihulu-media-center --diagnose-tuner. "
+\t\t\t\t"Run tihulu-media-standalone --diagnose-tuner. "
 \t\t\t\t"No tuner reset or channel settings were performed."));
 \t\t}
 
@@ -965,9 +965,9 @@ void DvbLiveView::replay()
     change(live, '#include <QCoreApplication>\n',
            '#include <QCoreApplication>\n#include <QDateTime>\n')
     change(live, '''\tfileName = runtime + QLatin1String("/dvbpipe.m2t");''',
-           '''\ttihuluDelayFile = runtime + QLatin1String("/tihulu-playback-delay-")
+           '''\ttihuluDelayFile = runtime + QLatin1String("/tihulu-standalone-playback-delay-")
 \t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".txt");
-\ttihuluEffectiveDelayFile = runtime + QLatin1String("/tihulu-playback-effective-")
+\ttihuluEffectiveDelayFile = runtime + QLatin1String("/tihulu-standalone-playback-effective-")
 \t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".txt");
 \tfileName = runtime + QLatin1String("/dvbpipe.m2t");''')
     change(live, '''\tretryCounter = 0;
@@ -1171,8 +1171,8 @@ void DvbLiveView::replay()
 \tconst QByteArray localStreamUrl(typeOfDevice);
 \tif (localStreamUrl.startsWith("http://127.0.0.1:") &&
 \t    localStreamUrl.contains("/mp3/")) {
-\t\tQSettings radioSettings(QLatin1String("TIHULU"),
-\t\t\tQLatin1String("KaffeineRadio"));
+\t\tQSettings radioSettings(QLatin1String("TIHULUStandalone"),
+\t\t\tQLatin1String("KaffeineStandaloneRadio"));
 \t\tconst int cacheMs=qBound(0,
 \t\t\tradioSettings.value(QLatin1String("playbackBufferMs"),0).toInt(),
 \t\t\t60000);
@@ -1187,8 +1187,8 @@ void DvbLiveView::replay()
 \t} else if (localStreamUrl.startsWith("file://")) {
 \t\t// Local file AI may run BEFORE playback by user request.
 \t\t// This is only I/O read-ahead, not a fabricated subtitle offset.
-\t\tQSettings mediaSettings(QLatin1String("TIHULU"),
-\t\t\tQLatin1String("MediaPlayer"));
+\t\tQSettings mediaSettings(QLatin1String("TIHULUStandalone"),
+\t\t\tQLatin1String("StandaloneMediaPlayer"));
 \t\tconst int cacheMs=qBound(0,
 \t\t\tmediaSettings.value(QLatin1String("fileCacheMs"),1500).toInt(),
 \t\t\t20000);
@@ -1598,7 +1598,7 @@ void OsdWidget::showObject(OsdObject *osdObject_, int duration)
 \ttihuluCaptionWidget->resize(1, 1);
 \tconst QString runtime = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
 \tif (!runtime.isEmpty()) {
-\t\tconst QString captionPath = runtime + QLatin1String("/tihulu-caption-")
+\t\tconst QString captionPath = runtime + QLatin1String("/tihulu-standalone-caption-")
 \t\t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".json");
 \t\tQTimer *captionPoll = new QTimer(this);
 \t\t// Resist transient missing/partially written caption IPC files.

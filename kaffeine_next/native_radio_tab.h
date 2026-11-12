@@ -460,8 +460,8 @@ public:
 		receiverActions->addWidget(stop_,0,2);
         releaseOnStop_=new QCheckBox(
             tr("Release SDR when radio stops (default)"),page);
-        QSettings radioResourceSettings(QLatin1String("TIHULU"),
-                                        QLatin1String("KaffeineRadio"));
+        QSettings radioResourceSettings(QLatin1String("TIHULUStandalone"),
+                                        QLatin1String("KaffeineStandaloneRadio"));
         releaseOnStop_->setChecked(radioResourceSettings.value(
             QLatin1String("releaseSdrOnStop"),true).toBool());
         releaseOnStop_->setToolTip(tr("ON (recommended): stopping radio, "
@@ -596,8 +596,8 @@ public:
             "reopens the audio stream once."));
         radioQuickRow_->addWidget(quickAi_);
         quickTranslate_=new QCheckBox(tr("Radio translate · OFF"),page);
-        QSettings radioTranslatePrefs(QLatin1String("TIHULU"),
-                                      QLatin1String("KaffeineRadio"));
+        QSettings radioTranslatePrefs(QLatin1String("TIHULUStandalone"),
+                                      QLatin1String("KaffeineStandaloneRadio"));
         quickTranslate_->setChecked(radioTranslatePrefs.value(
             QLatin1String("radioTranslationOptIn"),false).toBool());
         quickTranslate_->setText(quickTranslate_->isChecked()?
@@ -673,8 +673,8 @@ public:
         karaokeSyncHistorySeconds_=new QSpinBox(page);
         karaokeSyncHistorySeconds_->setRange(3,30);
         karaokeSyncHistorySeconds_->setSuffix(tr(" s"));
-        QSettings karaokeHistoryPrefs(QLatin1String("TIHULU"),
-                                      QLatin1String("KaffeineRadio"));
+        QSettings karaokeHistoryPrefs(QLatin1String("TIHULUStandalone"),
+                                      QLatin1String("KaffeineStandaloneRadio"));
         karaokeSyncHistorySeconds_->setValue(qBound(3,
             karaokeHistoryPrefs.value(QLatin1String("karaokeSyncHistorySeconds"),
                                      10).toInt(),30));
@@ -686,8 +686,8 @@ public:
         connect(karaokeSyncHistorySeconds_,
             QOverload<int>::of(&QSpinBox::valueChanged),this,
             [this](int seconds){
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 prefs.setValue(QLatin1String("karaokeSyncHistorySeconds"),seconds);
                 pruneRecentKaraokeEvidence(QDateTime::currentMSecsSinceEpoch());
                 writeRadioLanguageControls(); // next radio audio hop, no retune
@@ -705,8 +705,8 @@ public:
             "and a character-per-second reading budget, then shortens holds "
             "when live speech is queued. Live is fastest; Relaxed is slowest. "
             "Radio audio and the SDR are never delayed."));
-        QSettings captionPreferences(QLatin1String("TIHULU"),
-                                     QLatin1String("KaffeineRadio"));
+        QSettings captionPreferences(QLatin1String("TIHULUStandalone"),
+                                     QLatin1String("KaffeineStandaloneRadio"));
         const int readingPreference=qBound(0,captionPreferences.value(
             QLatin1String("radioReadingPreset"),3).toInt(),3);
         radioReadingPreset_->setCurrentIndex(readingPreference);
@@ -722,8 +722,8 @@ public:
         dabLayout->addLayout(captionComfortRow);
         connect(radioReadingPreset_,QOverload<int>::of(
             &QComboBox::currentIndexChanged),this,[this](int){
-            QSettings prefs(QLatin1String("TIHULU"),
-                            QLatin1String("KaffeineRadio"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),
+                            QLatin1String("KaffeineStandaloneRadio"));
             prefs.setValue(QLatin1String("radioReadingPreset"),
                            radioReadingPreset_->currentData().toInt());
             // Live/fast halves caption polling jitter. Other modes keep
@@ -743,8 +743,8 @@ public:
         });
         connect(radioCaptionFontSize_,QOverload<int>::of(
             &QSpinBox::valueChanged),this,[this](int size){
-            QSettings prefs(QLatin1String("TIHULU"),
-                            QLatin1String("KaffeineRadio"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),
+                            QLatin1String("KaffeineStandaloneRadio"));
             prefs.setValue(QLatin1String("radioCaptionFontPt"),size);
             updateRadioCaptionTypography();
         });
@@ -1248,8 +1248,8 @@ public:
         spokenModelStatus_=new QLabel(tr(
             "Checking locally installed Whisper model…"),lab);
         spokenModelStatus_->setWordWrap(true);
-        QSettings initialRadioLanguages(QLatin1String("TIHULU"),
-                                       QLatin1String("KaffeineRadio"));
+        QSettings initialRadioLanguages(QLatin1String("TIHULUStandalone"),
+                                       QLatin1String("KaffeineStandaloneRadio"));
         const int savedSpeechIndex=speechLanguage_->findData(
             initialRadioLanguages.value(
                 QLatin1String("radioSpeechLanguage"),"auto").toString());
@@ -1269,7 +1269,7 @@ public:
         music_->setChecked(initialRadioLanguages.value(
             QLatin1String("radioMusicTranscription"),false).toBool());
         connect(music_,&QCheckBox::toggled,this,[](bool enabled){
-            QSettings prefs(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
             prefs.setValue(QLatin1String("radioMusicTranscription"),enabled);
         });
         music_->setToolTip(tr("Show original sung words and selected translations "
@@ -1341,7 +1341,7 @@ public:
             "Open the same Whisper / translator manager used by TV. "
             "Refresh this radio catalog after applying another model."));
         connect(openModelMarket,&QPushButton::clicked,this,[this](){
-            if(!QProcess::startDetached(QLatin1String("tihulu-media-cli"),
+            if(!QProcess::startDetached(QLatin1String("tihulu-media-standalone-cli"),
                 {QLatin1String("ai-market")}))
                 translationStatus_->setText(tr(
                     "Could not open Model Market; use the TIHULU AI menu."));
@@ -1379,8 +1379,8 @@ public:
                             selected.insert(item->data(Qt::UserRole).toString());
                     }
                 } else {
-                    QSettings preferences(QLatin1String("TIHULU"),
-                                         QLatin1String("KaffeineRadio"));
+                    QSettings preferences(QLatin1String("TIHULUStandalone"),
+                                         QLatin1String("KaffeineStandaloneRadio"));
                     const QStringList saved=preferences.value(
                         QLatin1String("radioOutputs"),
                         QStringList{QLatin1String("en"),QLatin1String("de"),
@@ -1495,8 +1495,8 @@ public:
                         "Select at most six output languages."));
                     return;
                 }
-                QSettings preferences(QLatin1String("TIHULU"),
-                                     QLatin1String("KaffeineRadio"));
+                QSettings preferences(QLatin1String("TIHULUStandalone"),
+                                     QLatin1String("KaffeineStandaloneRadio"));
                 preferences.setValue(QLatin1String("radioOutputs"),selected);
                 refreshRadioLanguageSummary();
                 if(writeRadioLanguageControls() &&
@@ -1508,8 +1508,8 @@ public:
             });
         connect(speechLanguage_,QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,[this](int){
-                QSettings settings(QLatin1String("TIHULU"),
-                                   QLatin1String("KaffeineRadio"));
+                QSettings settings(QLatin1String("TIHULUStandalone"),
+                                   QLatin1String("KaffeineStandaloneRadio"));
                 settings.setValue(QLatin1String("radioSpeechLanguage"),
                     speechLanguage_->currentData().toString());
                 refreshRadioLanguageSummary();
@@ -1528,7 +1528,7 @@ public:
 		bufferMs_->setRange(0,60000);
 		bufferMs_->setSingleStep(500);
 		bufferMs_->setSuffix(tr(" ms"));
-		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		QSettings radioSettings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 		bufferMs_->setValue(qBound(0,
             radioSettings.value(QLatin1String("radioBufferDesiredMs"),
                 radioSettings.value(QLatin1String("playbackBufferMs"),12000)).toInt(),
@@ -1683,7 +1683,7 @@ public:
             this,[updateOffsetReadout](int){ updateOffsetReadout(); });
 		connect(radioOffsetMs_,QOverload<int>::of(&QSpinBox::valueChanged),
 			this,[this](int newOffset){
-				QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+				QSettings saved(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 				saved.setValue(QLatin1String("captionOffsetMs"),newOffset);
 				const int adjustment=newOffset-lastCaptionOffsetMs_;
 				lastCaptionOffsetMs_=newOffset;
@@ -1723,7 +1723,7 @@ public:
                 const QSignalBlocker block(autoSync_);
                 autoSync_->setChecked(false);
             }
-            QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            QSettings saved(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
             saved.setValue(QLatin1String("radioBufferEnabled"),enabled);
             saved.setValue(QLatin1String("radioAutoBufferEnabled"),autoSync_->isChecked());
             if(active() && !playingKey_.isEmpty()) applyRadioBuffer();
@@ -1734,7 +1734,7 @@ public:
             refreshRadioBufferProgress();
         });
         connect(autoSync_,&QCheckBox::toggled,this,[this](bool enabled){
-            QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            QSettings saved(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
             // TV-style separation: checking ASR processing time is
             // diagnostic ONLY, never enable Extra Buffer or change its
             // chosen value. Radio sound and captions continue uninterrupted.
@@ -1795,8 +1795,8 @@ public:
         karaokePreviewSpeed_->setRange(50,200);
         karaokePreviewSpeed_->setSingleStep(5);
         karaokePreviewSpeed_->setSuffix(tr("%"));
-        QSettings karaokeSpeedPreferences(QLatin1String("TIHULU"),
-                                          QLatin1String("KaffeineRadio"));
+        QSettings karaokeSpeedPreferences(QLatin1String("TIHULUStandalone"),
+                                          QLatin1String("KaffeineStandaloneRadio"));
         karaokePreviewSpeed_->setValue(qBound(50,
             karaokeSpeedPreferences.value(
                 QLatin1String("karaokePreviewSpeedPercent"),100).toInt(),200));
@@ -1824,8 +1824,8 @@ public:
                         (now-anchor)*(previewPreviousSpeedPercent_-percent)/100.);
                 }
                 previewPreviousSpeedPercent_=percent;
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 prefs.setValue(QLatin1String("karaokePreviewSpeedPercent"),
                                percent);
                 previewLastIndex_=-1;
@@ -1857,8 +1857,8 @@ public:
                 tr("%1%2 s").arg(ms>=0?QLatin1String("+"):QString())
                 .arg(QString::number(ms/1000.,'f',2)));
         });
-        QSettings matchPrefs(QLatin1String("TIHULU"),
-                             QLatin1String("KaffeineRadio"));
+        QSettings matchPrefs(QLatin1String("TIHULUStandalone"),
+                             QLatin1String("KaffeineStandaloneRadio"));
         lyricMatchThreshold_=new QSpinBox(page);
         lyricMatchThreshold_->setRange(0,100);
         lyricMatchThreshold_->setSuffix(tr(" %"));
@@ -1893,16 +1893,16 @@ public:
         mainModelRow->addWidget(lyricMatchMode_);
         connect(lyricMatchMode_,QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,[this](int){
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 prefs.setValue(QLatin1String("lyricMatchMode"),
                                lyricMatchMode_->currentData().toString());
                 writeRadioLanguageControls(); // live worker, no caption restart
             });
         connect(lyricMatchThreshold_,QOverload<int>::of(&QSpinBox::valueChanged),
             this,[this](int percent){
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 prefs.setValue(QLatin1String("lyricMatchThresholdPercent"),percent);
                 writeRadioLanguageControls();
             });
@@ -1910,8 +1910,8 @@ public:
         // Restore previously granted *metadata-only* online consent.
         // No network work starts on this UI creation. Station DLS debounce
         // triggers a lookup only for owners who enabled this previously.
-        QSettings lyricConsentPrefs(QLatin1String("TIHULU"),
-                                   QLatin1String("KaffeineRadio"));
+        QSettings lyricConsentPrefs(QLatin1String("TIHULUStandalone"),
+                                   QLatin1String("KaffeineStandaloneRadio"));
         autoLyrics_->setChecked(lyricConsentPrefs.value(
             QLatin1String("lyricsOnlineOptIn"),false).toBool());
 		autoLyrics_->setToolTip(tr("OFF by default. When enabled, the current radio DLS "
@@ -1977,8 +1977,8 @@ public:
         karaokeEnabled_=new QCheckBox(tr("Karaoke · blue screen"),page);
         karaokeTranslationsEnabled_=new QCheckBox(
             tr("Lyrics translations · yellow"),page);
-        QSettings lyricDisplaySettings(QLatin1String("TIHULU"),
-                                       QLatin1String("KaffeineRadio"));
+        QSettings lyricDisplaySettings(QLatin1String("TIHULUStandalone"),
+                                       QLatin1String("KaffeineStandaloneRadio"));
         karaokeEnabled_->setChecked(lyricDisplaySettings.value(
             QLatin1String("karaokeDisplayEnabled"),true).toBool());
         karaokeTranslationsEnabled_->setChecked(lyricDisplaySettings.value(
@@ -2029,8 +2029,8 @@ public:
             "weights; otherwise Whisper word timestamps are used. "
             "Lyrics Found preview and Timed LRC flow do not fabricate word sync."));
         const auto loadModeAligner=[this](){
-            QSettings prefs(QLatin1String("TIHULU"),
-                            QLatin1String("KaffeineRadio"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),
+                            QLatin1String("KaffeineStandaloneRadio"));
             const QString mode=karaokePolicy_->currentData().toString();
             const QString engine=prefs.value(
                 QLatin1String("karaokeAligner_")+mode,
@@ -2046,8 +2046,8 @@ public:
         loadModeAligner();
         connect(karaokeAligner_,QOverload<int>::of(
             &QComboBox::currentIndexChanged),this,[this](int){
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 const QString mode=karaokePolicy_->currentData().toString();
                 prefs.setValue(QLatin1String("karaokeAligner_")+mode,
                                karaokeAligner_->currentData().toString());
@@ -2087,8 +2087,8 @@ public:
         updatePreviewControls();
         connect(karaokePolicy_,QOverload<int>::of(&QComboBox::currentIndexChanged),
             this,[this,updatePreviewControls,loadModeAligner](int){
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 prefs.setValue(QLatin1String("karaokeMatchPolicy"),
                                karaokePolicy_->currentData().toString());
                 previewIndexShift_=0;
@@ -2131,8 +2131,8 @@ public:
             "labels or downloads; speech still transcribes normally."));
         radioPlaybackRow_->insertWidget(5,soundLabels_);
         connect(soundLabels_,&QCheckBox::toggled,this,[this](bool enabled){
-            QSettings prefs(QLatin1String("TIHULU"),
-                            QLatin1String("KaffeineRadio"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),
+                            QLatin1String("KaffeineStandaloneRadio"));
             prefs.setValue(QLatin1String("radioSoundLabelsEnabled"),enabled);
             writeRadioLanguageControls(); // next ASR window; no radio restart
             if(enabled && radioCaptionBanner_) radioCaptionBanner_->setText(tr(
@@ -2140,8 +2140,8 @@ public:
                 "Whisper. No audio-classifier model is downloaded."));
         });
         connect(karaokeEnabled_,&QCheckBox::toggled,this,[this](bool enabled){
-            QSettings prefs(QLatin1String("TIHULU"),
-                            QLatin1String("KaffeineRadio"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),
+                            QLatin1String("KaffeineStandaloneRadio"));
             prefs.setValue(QLatin1String("karaokeDisplayEnabled"),enabled);
             writeRadioLanguageControls(); // live vocal mode only when user opted in
             if(karaokePanel_) karaokePanel_->setVisible(enabled &&
@@ -2151,8 +2151,8 @@ public:
         });
         connect(karaokeTranslationsEnabled_,&QCheckBox::toggled,
             this,[this](bool enabled){
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 prefs.setValue(QLatin1String("karaokeTranslationsEnabled"),
                                enabled);
                 if(karaokeTranslation_)
@@ -2365,8 +2365,8 @@ public:
             updateReceiverOwnership();
         });
         connect(releaseOnStop_,&QCheckBox::toggled,this,[this](bool enabled){
-            QSettings settings(QLatin1String("TIHULU"),
-                               QLatin1String("KaffeineRadio"));
+            QSettings settings(QLatin1String("TIHULUStandalone"),
+                               QLatin1String("KaffeineStandaloneRadio"));
             settings.setValue(QLatin1String("releaseSdrOnStop"),enabled);
             updateReceiverOwnership();
         });
@@ -2408,7 +2408,7 @@ public:
 		connect(webSearchButton_, &QPushButton::clicked, this, [this](){ searchInternetRadio(); });
 		connect(webCountry_,QOverload<int>::of(&QComboBox::activated),
 			this,[this](int){
-				QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+				QSettings saved(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 				saved.setValue(QLatin1String("webCountry"),webCountry_->currentData());
 				searchInternetRadio();
 			});
@@ -2474,7 +2474,7 @@ public:
 			});
 		connect(webFavoritesOnly_, &QCheckBox::toggled, this,
 			[this](){ filterInternetStations(); });
-		QSettings webSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		QSettings webSettings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 		for (const QString &url : webSettings.value(QLatin1String("internetFavorites")).toStringList())
 			internetFavorites_.insert(url);
 		connect(stations_, &QTreeWidget::itemDoubleClicked, this,
@@ -2514,8 +2514,8 @@ public:
         // person into third-party lyric lookups or switch a cloud provider on.
         auto rememberAuto=[this](QCheckBox *check,const char *name){
             connect(check,&QCheckBox::clicked,this,[name](bool on){
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 prefs.setValue(QLatin1String(name),on);
             });
         };
@@ -2525,13 +2525,13 @@ public:
         rememberAuto(karaokeEnabled_,"radioAiAutoKaraoke");
         rememberAuto(karaokeTranslationsEnabled_,"radioAiAutoKaraokeTranslations");
         connect(autoLyrics_,&QCheckBox::clicked,this,[](bool allowed){
-            QSettings prefs(QLatin1String("TIHULU"),
-                            QLatin1String("KaffeineRadio"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),
+                            QLatin1String("KaffeineStandaloneRadio"));
             prefs.setValue(QLatin1String("lyricsOnlineOptIn"),allowed);
         });
         connect(quickTranslate_,&QCheckBox::toggled,this,[this](bool enabled){
-            QSettings prefs(QLatin1String("TIHULU"),
-                            QLatin1String("KaffeineRadio"));
+            QSettings prefs(QLatin1String("TIHULUStandalone"),
+                            QLatin1String("KaffeineStandaloneRadio"));
             prefs.setValue(QLatin1String("radioTranslationOptIn"),enabled);
             quickTranslate_->setText(enabled?
                 tr("Radio translate · ON"):tr("Radio translate · OFF"));
@@ -2575,8 +2575,8 @@ public:
 		connect(quickAi_,&QCheckBox::toggled,this,[this](bool enabled){
             quickAi_->setText(enabled?tr("AI captions · ON"):tr("AI captions · OFF"));
             if(enabled) {
-                QSettings prefs(QLatin1String("TIHULU"),
-                                QLatin1String("KaffeineRadio"));
+                QSettings prefs(QLatin1String("TIHULUStandalone"),
+                                QLatin1String("KaffeineStandaloneRadio"));
                 if(prefs.value(QLatin1String("radioAiAutoTranslate"),true).toBool())
                     quickTranslate_->setChecked(true);
                 // Starting AI captions NEVER toggles Auto Size or Extra
@@ -2734,12 +2734,12 @@ public:
 				lyricText_->setText(tr("Cannot import: private runtime directory missing."));
 				return;
 			}
-			lyricPath_=runtime+QLatin1String("/tihulu-radio-lyrics-")+
+			lyricPath_=runtime+QLatin1String("/tihulu-standalone-radio-lyrics-")+
 				QString::number(QCoreApplication::applicationPid())+QLatin1String(".json");
 			QFile::remove(lyricPath_);
 			lyricsEnabled_=true;
 			lyricLoaded_=false;
-			lyricsProcess_.start(QLatin1String("tihulu-media-cli"),{
+			lyricsProcess_.start(QLatin1String("tihulu-media-standalone-cli"),{
 				QLatin1String("lyrics-import"),QLatin1String("--file"),path,
 				QLatin1String("--output"),lyricPath_});
 			if(!lyricsProcess_.waitForStarted(900)) {
@@ -2833,11 +2833,11 @@ public:
 			else rfTick_.stop();
 		});
 		connect(&tick_, &QTimer::timeout, this, [this](){pollMux();});
-        QSettings uiSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+        QSettings uiSettings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
         modes_->setCurrentIndex(qBound(0,uiSettings.value(
             QLatin1String("radioModeTab"),0).toInt(),modes_->count()-1));
         connect(modes_,&QTabWidget::currentChanged,this,[](int tab){
-            QSettings config(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+            QSettings config(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
             config.setValue(QLatin1String("radioModeTab"),tab);
         });
 		loadStations();
@@ -2857,7 +2857,7 @@ public:
 		}
 		if(!webCatalogRequested_) {
 			webCatalogRequested_=true;
-			QSettings saved(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+			QSettings saved(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 			const QString preference=saved.value(QLatin1String("webCountry")).toString();
 			const int index=webCountry_->findData(preference);
 			webCountry_->setCurrentIndex(index>=0?index:0);
@@ -2991,12 +2991,12 @@ private:
 		return QLatin1String("http://127.0.0.1:") + QString::number(port_);
 	}
 	QString binaryPath() const {
-		return QDir::homePath() + QLatin1String("/.local/opt/tihulu-media-center-welle/bin/welle-cli");
+		return QDir::homePath() + QLatin1String("/.local/opt/tihulu-media-standalone-welle/bin/welle-cli");
 	}
 	bool prepared() const {
 		return QFile::exists(binaryPath()) &&
 			QFile::exists(QDir::homePath() +
-			  QLatin1String("/.local/opt/tihulu-media-center-welle/.tihulu-loopback-welle-revision"));
+			  QLatin1String("/.local/opt/tihulu-media-standalone-welle/.tihulu-loopback-welle-revision"));
 	}
 	bool active() const { return backend_.state() == QProcess::Running; }
 
@@ -3015,7 +3015,7 @@ private:
 		if (internetFavorites_.contains(url)) internetFavorites_.remove(url);
 		else internetFavorites_.insert(url);
 		item->setText(0,internetFavorites_.contains(url)?QStringLiteral("★"):QStringLiteral("☆"));
-		QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		QSettings settings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 		settings.setValue(QLatin1String("internetFavorites"),QStringList(internetFavorites_.values()));
 		filterInternetStations();
 	}
@@ -3150,8 +3150,8 @@ private:
         // No hidden legacy checkboxes or duplicated language paths.
         QStringList codes;
         if(installedTargets_->count()==0) {
-            QSettings preferences(QLatin1String("TIHULU"),
-                                 QLatin1String("KaffeineRadio"));
+            QSettings preferences(QLatin1String("TIHULUStandalone"),
+                                 QLatin1String("KaffeineStandaloneRadio"));
             codes=preferences.value(QLatin1String("radioOutputs"),
                 QStringList{QLatin1String("en"),QLatin1String("de"),
                             QLatin1String("tr")}).toStringList();
@@ -3178,7 +3178,7 @@ private:
 	void refreshLanguagePacks() {
 		if(languagePackWorker_.state()!=QProcess::NotRunning) return;
 		refreshTargets_->setEnabled(false);
-		languagePackWorker_.start(QLatin1String("tihulu-media-cli"),
+		languagePackWorker_.start(QLatin1String("tihulu-media-standalone-cli"),
 			{QLatin1String("ai-radio-languages")});
 		if(!languagePackWorker_.waitForStarted(1000)) {
 			refreshTargets_->setEnabled(true);
@@ -3463,7 +3463,7 @@ private:
 		if (!prepared()) {
 			QMessageBox::information(this,tr("Optional local DAB+ receiver"),
 				tr("Install the pinned loopback-only welle-cli backend first:\n"
-				   "bash ~/.local/share/tihulu-media-center/native/install_welle.sh\n"
+				   "bash ~/.local/opt/tihulu-media-standalone/current/aux/install_welle.sh\n"
 				   "Or run the documented TIHULU install_welle.sh from the repo.\n\n"
 				   "A DAB-capable RTL-SDR/SoapySDR device is required."));
 			return;
@@ -3930,7 +3930,7 @@ private:
 				.arg(ch).arg(stations_->topLevelItemCount()));
 	}
     void loadStationLists() {
-        QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+        QSettings settings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
         const QByteArray raw=settings.value(QLatin1String("dabNamedLists")).toByteArray();
         if(raw.size()>100000) return; // reject unbounded corrupt preferences
         const QJsonDocument stored=QJsonDocument::fromJson(raw);
@@ -3961,7 +3961,7 @@ private:
                     entries.append(key);
             stored.insert(it.key(),entries);
         }
-        QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+        QSettings settings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
         settings.setValue(QLatin1String("dabNamedLists"),
             QJsonDocument(stored).toJson(QJsonDocument::Compact));
     }
@@ -4064,7 +4064,7 @@ private:
 		filterStations();
 	}
 	void loadStations() {
-		QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		QSettings settings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 		favorites_ = QSet<QString>::fromList(
 			settings.value(QLatin1String("dabFavorites")).toStringList());
 		const QByteArray raw=settings.value(QLatin1String("dabStationCache")).toByteArray();
@@ -4102,7 +4102,7 @@ private:
 			obj[QLatin1String("name")]=item->text(1);
 			list.append(obj);
 		}
-		QSettings settings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		QSettings settings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 		settings.setValue(QLatin1String("dabStationCache"),
 			QJsonDocument(list).toJson(QJsonDocument::Compact));
 		settings.setValue(QLatin1String("dabFavorites"),
@@ -4410,8 +4410,8 @@ private:
 				lastSlideHash_.clear();
 				slideIndex_=0;
 				activePlaybackCacheMs_=requestedPlaybackBufferMs();
-                QSettings playback(QLatin1String("TIHULU"),
-                                   QLatin1String("KaffeineRadio"));
+                QSettings playback(QLatin1String("TIHULUStandalone"),
+                                   QLatin1String("KaffeineStandaloneRadio"));
                 playback.setValue(QLatin1String("playbackBufferMs"),
                                   activePlaybackCacheMs_);
                 playback.setValue(QLatin1String("radioBufferDesiredMs"),
@@ -4608,7 +4608,7 @@ private:
 			QLatin1String("--source"),QLatin1String("auto"),
 			QLatin1String("--targets"),targets.join(QLatin1Char(','))};
 		if(music_->isChecked()) args<<QLatin1String("--music");
-		recordAi_.start(QLatin1String("tihulu-media-cli"),args);
+		recordAi_.start(QLatin1String("tihulu-media-standalone-cli"),args);
 		if(!recordAi_.waitForStarted(850))
 			state_->setText(tr("Recording saved; could not launch offline caption worker."));
 		else state_->setText(tr("Recording saved. Creating accurate offline SRT before MKV mux…"));
@@ -4959,7 +4959,7 @@ private:
             qBound(0,(bounded+500)/1000,60):bounded);
     }
     void applyRadioBuffer() {
-		QSettings radioSettings(QLatin1String("TIHULU"),QLatin1String("KaffeineRadio"));
+		QSettings radioSettings(QLatin1String("TIHULUStandalone"),QLatin1String("KaffeineStandaloneRadio"));
 		const int desired=requestedPlaybackBufferMs();
         radioSettings.setValue(QLatin1String("radioBufferDesiredMs"),selectedBufferMs());
         radioSettings.setValue(QLatin1String("radioBufferEnabled"),
@@ -5126,7 +5126,7 @@ private:
 		options<<QLatin1String("--output")<<captionPath_
                <<QLatin1String("--controls")<<captionControlsPath_;
 		QFile::remove(captionPath_);
-		captionProcess_.start(QLatin1String("tihulu-media-cli"),options);
+		captionProcess_.start(QLatin1String("tihulu-media-standalone-cli"),options);
         if (!captionProcess_.waitForStarted(1200)) {
             radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
             captionProgress_->setVisible(false);
@@ -5159,7 +5159,7 @@ private:
         const QString runtime=QStandardPaths::writableLocation(
             QStandardPaths::RuntimeLocation);
         if(runtime.isEmpty()) return QString();
-        return runtime+QLatin1String("/tihulu-radio-lyrics-")+
+        return runtime+QLatin1String("/tihulu-standalone-radio-lyrics-")+
             QString::number(QCoreApplication::applicationPid())+
             QLatin1String(".json");
     }
@@ -5912,7 +5912,7 @@ private:
                     QLatin1String("-export"),
                 QLatin1String("--formats"),formats.join(QLatin1Char(',')),
                 QLatin1String("--timestamps")};
-            liveCaptionFormatsProcess_.start(QLatin1String("tihulu-media-cli"),args);
+            liveCaptionFormatsProcess_.start(QLatin1String("tihulu-media-standalone-cli"),args);
         }
         if(liveCaptionRecord_)
             liveCaptionRecord_->setText(tr("Save live AI subtitles"));
@@ -6909,7 +6909,7 @@ private:
         lyricsRefreshSongKey_=lastSongMetadataKey_;
         lyricsRefreshStationTicket_=stationRequestId_;
         lyricsRefreshStartedMs_=QDateTime::currentMSecsSinceEpoch();
-        lyricsRefreshPath_=runtime+QLatin1String("/tihulu-radio-lyrics-refresh-")+
+        lyricsRefreshPath_=runtime+QLatin1String("/tihulu-standalone-radio-lyrics-refresh-")+
             QString::number(QCoreApplication::applicationPid())+
             QLatin1Char('-')+QString::number(++lyricsLookupGeneration_)+
             QLatin1String(".json");
@@ -6918,7 +6918,7 @@ private:
         lyricsRefresh_->setEnabled(false);
         // Independent worker/file: do not unset lyricLoaded_, reset the
         // preview song clock, clear word anchors, or restart SDR/Whisper.
-        lyricsRefreshProcess_.start(QLatin1String("tihulu-media-cli"),
+        lyricsRefreshProcess_.start(QLatin1String("tihulu-media-standalone-cli"),
             {QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
              QLatin1String("--track"),title,QLatin1String("--output"),
              lyricsRefreshPath_,QLatin1String("--source"),sourceCode,
@@ -7108,7 +7108,7 @@ private:
             lyricText_->setText(tr("Private runtime directory unavailable; lyrics search cancelled."));
             return;
         }
-		lyricPath_=runtime+QLatin1String("/tihulu-radio-lyrics-")+
+		lyricPath_=runtime+QLatin1String("/tihulu-standalone-radio-lyrics-")+
             QString::number(QCoreApplication::applicationPid())+
             QLatin1Char('-')+QString::number(++lyricsLookupGeneration_)+
             QLatin1String(".json");
@@ -7168,7 +7168,7 @@ private:
                 return;
             }
         }
-		lyricsProcess_.start(QLatin1String("tihulu-media-cli"),
+		lyricsProcess_.start(QLatin1String("tihulu-media-standalone-cli"),
 			{QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
 			 QLatin1String("--track"),title,QLatin1String("--output"),lyricPath_,
 			 QLatin1String("--source"),sourceCode,

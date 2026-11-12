@@ -16,8 +16,8 @@ sudo apt-get install -y --no-install-recommends \
   libfaad-dev libmpg123-dev libfftw3-dev librtlsdr-dev \
   libusb-1.0-0-dev libmp3lame-dev libflac++-dev \
   libsoapysdr-dev libairspy-dev libasound2-dev
-ROOT="$HOME/.local/share/tihulu-media-center/welle"
-PREFIX="$HOME/.local/opt/tihulu-media-center-welle"
+ROOT="$HOME/.local/share/tihulu-media-standalone/welle"
+PREFIX="$HOME/.local/opt/tihulu-media-standalone-welle"
 mkdir -p "$ROOT" "$PREFIX"
 TEMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEMPDIR"' EXIT
