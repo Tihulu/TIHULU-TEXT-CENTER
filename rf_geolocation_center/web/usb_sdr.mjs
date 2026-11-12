@@ -38,7 +38,7 @@ export function initUsbSDR(report, {driverFactory} = {}){
      lines.push("Browser permission/policy blocked WebUSB. Use a supported browser on HTTPS and check device permission settings.");
    else if(atStage==="USB interface claim / device open"||/Could not connect|busy|claim|access|LIBUSB_ERROR|device is open/i.test(original)){
      lines.push("A USB device was selected, but opening/claiming its interface failed. This often means readsb/Gqrx, the Linux DVB kernel driver, udev access rules, or browser sandbox permissions.");
-     lines.push("Linux: run the repository's read-only USB check, then its explicit --release action if appropriate. The website cannot run systemctl or unbind kernel drivers.");
+     lines.push("Linux: run the repository's read-only USB check, then its explicit --release action if appropriate. The website cannot stop host services or unbind kernel drivers.");
    }else if(atStage==="WebUSB driver module import")
      lines.push("Driver could not load from esm.sh. First visit online; CDN or CSP may block its JavaScript import.");
    else if(atStage==="RF tuner initialization")
