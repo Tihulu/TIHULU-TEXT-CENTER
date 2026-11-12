@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase4_three_of_six_source_review_reports_verified_ci_green_three_pending",
+  "stage": "phase4_four_of_six_complete_qa_evidence_only_satellite_pending",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Three of six Phase4 read-only worker reviews committed and passed source-scope/CI checks; WS03 Satellite, WS04 Geo, WS06 QA still without new Phase4 heads. Wider functionality/hardware/release validation and migrations remain incomplete (17 gates open). ETA unknown.",
+    "reason": "Four full Phase4 audit reviews source-verified; QA EVIDENCE-only partial update, Satellite no Phase4 commit. Scope and hardware/acceptance remain open; 17 regression gates, no releases/migrations and ETA unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -541,7 +541,7 @@
   },
   "phase4_parallel_review": {
     "as_of_date": "2026-11-12",
-    "state": "THREE_PHASE4_WORKER_DOC_REVIEWS_VERIFIED_THREE_REMAIN_PENDING",
+    "state": "FOUR_OF_SIX_PHASE4_REPORTS_VERIFIED_QA_EVIDENCE_ONLY_SATELLITE_PENDING",
     "planning_document": "apps/_coordination/PHASE_4_PARALLEL_WORK_DIVISION.md",
     "workstreams": [
       {
@@ -599,7 +599,8 @@
           "apps/_coordination/workstreams/03/EVIDENCE.json"
         ],
         "focus": "Satellite 8-asset Pages parity, capture gaps, 1.024/2.048MSPS, zero-CADU and synthetic decode acceptance",
-        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE"
+        "status": "HANDOFF_POSTED_NO_PHASE4_COMMIT_VISIBLE",
+        "last_verified_head": "284944e1dc167f6b60bf762889a3c75bf28f47e2"
       },
       {
         "ws": "04",
@@ -611,7 +612,17 @@
           "apps/_coordination/workstreams/04/EVIDENCE.json"
         ],
         "focus": "Scientific RF receiver location claims, 3/4 independent ICAOs, timestamps, provenance, hard-stop with external readsb",
-        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE"
+        "status": "PHASE4_DOC_REVIEW_COMMITTED_SOURCE_AND_SCOPE_VERIFIED",
+        "previous_head": "b62ba58287ef9e76d42ca807829b26da68177e18",
+        "new_head": "c70fe6bbf86571147f4b835a7004997101c9b490",
+        "ahead_commits": 3,
+        "changed_paths_verified": [
+          "apps/_coordination/workstreams/04/REPORT.md",
+          "apps/_coordination/workstreams/04/EVIDENCE.json"
+        ],
+        "ci_run": 43137017118,
+        "ci_conclusion": "success",
+        "findings_summary": "29 P4-GEO synthetic proposed (not executed) scenarios, from original PR #16 versus Flight source/PR #14, provenance/methodology and shared service risk. RF location/GPS/MLAT and REG-03/04/05 remain unverified."
       },
       {
         "ws": "05",
@@ -645,11 +656,20 @@
           "apps/_coordination/workstreams/06/EVIDENCE.json"
         ],
         "focus": "Original #65-67 and #72-74 history, branding hashes, locale and URL/Pages/installer rollback release gates",
-        "status": "HANDOFF_POSTED_AWAIT_USER_MESSAGE_AND_NEW_WORKER_EVIDENCE"
+        "status": "PHASE4_EVIDENCE_UPDATED_REPORT_NOT_YET_COMMITTED",
+        "previous_head": "e69c2b6eac7deeca313925bf99af31f8c9434f34",
+        "partial_head": "cd19c6b19b9dbc61e2bb56763e70033b6a09f7f1",
+        "partial_changed_paths_verified": [
+          "apps/_coordination/workstreams/06/EVIDENCE.json"
+        ],
+        "ahead_commits": 1,
+        "ci_run": 43137068261,
+        "ci_conclusion": "success",
+        "findings_summary": "EVIDENCE.json extended with 12 QA gates reviewed, zero closed, original history/branding/locale/PWA/installer acceptance open. Phase 4 REPORT.md still unchanged from initial audit."
       }
     ],
     "workers_expected": 6,
-    "workers_with_new_phase4_evidence": 3,
+    "workers_with_new_phase4_evidence": 4,
     "coordinator_responsibility": "3/6 reviewed; validate future WS03/04/06 only after actual GitHub commit; 17 global gates remain open.",
     "permissions": "read-only/source-backed worker audit updates in assigned audit documents only; previously authorized isolated test-only PRs remain separate; no runtime source changes, hardware, workflow modifications, merges, migrations or releases.",
     "existing_seventeen_gates_open": 17,
@@ -689,6 +709,7 @@
         "detail": "Reviewed Text PR89's two passing canonical-main tests; 13 SI test plans extended and 6 positive/negative import oracles for archived Text and reverse Media CUDA dependencies. Negative controls not executed."
       }
     },
-    "last_status_verified_date": "2026-11-12"
+    "last_status_verified_date": "2026-11-12",
+    "workers_with_partial_phase4_evidence": 1
   }
 }
