@@ -99,6 +99,12 @@ class RecordingTranscriber:
         with self._lock:
             if self._closed:
                 raise PostProcessError("Transcription worker is stopping or has quit")
+            if self._thread is not None and self._thread.is_alive():
+                raise PostProcessError("Previous recording worker still stopping")
+            if self._asr_process is not None and self._asr_process.poll() is None:
+                raise PostProcessError("Previous Whisper child still running")
+            if self._process is not None and self._process.poll() is None:
+                raise PostProcessError("Previous FFmpeg child still running")
             if self._state["active"]:
                 raise PostProcessError("A saved-recording transcription is already running")
             session=uuid.uuid4().hex
