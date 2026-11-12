@@ -1002,7 +1002,10 @@ class Station:
         if type(gap_seconds) is not int or not 21 <= gap_seconds <= 60:
             raise ValueError("Native chunks require 21–60 seconds reserved between captures")
         with self.lock:
-            if self.closed.is_set():
+            # Legacy synthetic chain tests construct Station via __new__;
+            # real Stations always initialize closed in __init__.
+            closed_event = getattr(self, "closed", None)
+            if closed_event is not None and closed_event.is_set():
                 raise RuntimeError("Satellite Center is quitting; no new capture segments")
             event = self.predicted.get(pass_id)
             if not event:
