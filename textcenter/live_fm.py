@@ -276,7 +276,8 @@ class LiveFM:
         with self.mutex:
             unfinished_process=any(proc is not None and proc.poll() is None
                 for proc in (self.receiver,self.encoder))
-            if self.state["active"] or unfinished_process or self.record_file is not None or self.lock_fd is not None:
+            if (self.state["active"] or self.receiver is not None or self.encoder is not None
+                    or self.record_file is not None or self.lock_fd is not None):
                 self._shutdown("stopped")
             elif self.speech is not None:
                 result=self.speech.stop(wait=True)
