@@ -13,7 +13,7 @@ from tv_center.pi_hailo import (
     parse_architecture, model_files_ready, readiness, environment)
 from tv_center.ai_profiles import hardware_issue, selection_patch
 from tv_center.ai_settings import AISettings
-from textcenter.speech import transcribe_pcm, SpeechError
+from tv_center.media_backend.speech import transcribe_pcm, SpeechError
 
 
 def pi_hardware(*, arch="HAILO10H", ram=7900, with_hat=True):
@@ -116,13 +116,13 @@ class RaspberryPiModeTests(unittest.TestCase):
         profile={"speech":{"model_path":"/model/ggml-tiny.bin",
                            "executable":"/usr/local/bin/whisper-cli"}}
         with patch.dict(os.environ,{"TIHULU_PI_CPU_THREADS":"3"}):
-            with patch("textcenter.speech.subprocess.run",side_effect=fake_run):
+            with patch("tv_center.media_backend.speech.subprocess.run",side_effect=fake_run):
                 answer=transcribe_pcm(bytes(64000),"de","cpu",profile)
         self.assertEqual(answer,"Guten Tag")
         self.assertEqual(commands[0][-2:],["-t","3"])
         commands.clear()
         with patch.dict(os.environ,{"TIHULU_PI_CPU_THREADS":""}):
-            with patch("textcenter.speech.subprocess.run",side_effect=fake_run):
+            with patch("tv_center.media_backend.speech.subprocess.run",side_effect=fake_run):
                 transcribe_pcm(bytes(64000),"de","cpu",profile)
         self.assertNotIn("-t",commands[0])
 
@@ -145,9 +145,9 @@ class RaspberryPiModeTests(unittest.TestCase):
                   patch("tv_center.captions._run",
                         return_value=SimpleNamespace(returncode=0,
                                                      stdout=bytes(64000))),
-                  patch("textcenter.compute.detect_devices",return_value=dummy),
-                  patch("textcenter.compute.choose_backend",side_effect=backend),
-                  patch("textcenter.speech.transcribe_pcm",side_effect=speech),
+                  patch("tv_center.media_backend.compute.detect_devices",return_value=dummy),
+                  patch("tv_center.media_backend.compute.choose_backend",side_effect=backend),
+                  patch("tv_center.media_backend.speech.transcribe_pcm",side_effect=speech),
                   patch("tv_center.ai_settings.AISettings") as ai):
                 ai.return_value.values={
                     "active_profile":"pi5_hat2","hailo_cpu_fallback":True}
