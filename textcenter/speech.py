@@ -217,16 +217,25 @@ class SpeechPipeline:
         with self._gate:
             if self.stopping.is_set():
                 return False
-            self.buffer.extend(pcm)
-            while len(self.buffer)>=WINDOW_BYTES:
-                chunk=bytes(self.buffer[:WINDOW_BYTES])
-                del self.buffer[:WINDOW_BYTES]
-                begin=self.samples/SAMPLE_RATE
-                self.samples+=WINDOW_SECONDS*SAMPLE_RATE
-                try:
-                    self.queue.put_nowait((chunk,begin,begin+WINDOW_SECONDS))
-                except queue.Full:
-                    self.dropped+=1
+            # Do not duplicate arbitrarily large caller PCM into the owned
+            # bytearray. Keep at most one window of pending mutable audio.
+            view=memoryview(pcm)
+            offset=0
+            while offset<len(view):
+                if self.stopping.is_set():
+                    return False
+                count=min(WINDOW_BYTES-len(self.buffer),len(view)-offset)
+                self.buffer.extend(view[offset:offset+count])
+                offset+=count
+                if len(self.buffer)==WINDOW_BYTES:
+                    chunk=bytes(self.buffer)
+                    self.buffer.clear()
+                    begin=self.samples/SAMPLE_RATE
+                    self.samples+=WINDOW_SECONDS*SAMPLE_RATE
+                    try:
+                        self.queue.put_nowait((chunk,begin,begin+WINDOW_SECONDS))
+                    except queue.Full:
+                        self.dropped+=1
             return True
 
     def _register_child(self,proc):
@@ -304,8 +313,9 @@ class SpeechPipeline:
         return STOP_FAILED_PARTIAL while it is alive, never fake a free.
         Never touch model files or external inference services.
         """
+        # Signal immediately even when a large feed call holds the gate.
+        self.stopping.set()
         with self._gate:
-            self.stopping.set()
             self.lifecycle="STOPPING" if self.thread.is_alive() else "STOPPED"
             self.buffer.clear()
             child=self._active_child
