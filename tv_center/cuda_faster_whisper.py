@@ -192,20 +192,23 @@ class _PersistentCUDAWorker:
         self.path = None
 
     def _stop(self):
+        """Terminate/reap only the held Popen child with bounded deadlines.
+
+        Keep a failed child handle for a later explicit Quit retry; losing the
+        handle before a successful reap would incorrectly imply STOPPED.
+        """
         with self._reap_lock:
-            """Terminate and reap ONLY this worker's Popen child, with deadlines."""
             with self._state_lock:
                 p = self.process
-                self.process = None
-                self.path = None
             if p is None:
                 return
+            reaped = False
             try:
                 if p.poll() is None:
                     try:
                         p.terminate()
                     except ProcessLookupError:
-                        pass  # It exited between poll and terminate.
+                        pass  # Exited between poll and terminate.
                     try:
                         p.wait(timeout=3)
                     except subprocess.TimeoutExpired:
@@ -215,13 +218,14 @@ class _PersistentCUDAWorker:
                             except ProcessLookupError:
                                 pass
                         try:
-                            p.wait(timeout=2)  # Reap even after forced kill.
+                            p.wait(timeout=2)  # Always reap after kill.
                         except subprocess.TimeoutExpired as exc:
                             raise RuntimeError(
                                 "App-owned CUDA worker did not exit after kill"
                             ) from exc
                 else:
-                    p.wait(timeout=0.25)  # Reap a child that already exited.
+                    p.wait(timeout=0.25)  # Reap already-exited children.
+                reaped = True
             finally:
                 for stream in (p.stdin, p.stdout):
                     if stream is not None:
@@ -229,6 +233,15 @@ class _PersistentCUDAWorker:
                             stream.close()
                         except (OSError, ValueError):
                             pass
+                if reaped:
+                    with self._state_lock:
+                        if self.process is p:
+                            self.process = None
+                            self.path = None
+                else:
+                    # A failed reap is NOT a completed shutdown. No new
+                    # inference can reuse a possibly live owned child.
+                    self._closing.set()
 
     def close(self):
         """Permanently reject inference, interrupt and reap the owned child."""
