@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "as_of_utc": "2026-11-12",
-  "stage": "phase6_exit01_five_source_branches_three_draft_prs_ci_mixed_18_release_gates_pending",
+  "stage": "phase6_exit01_four_of_five_draft_PRs_QA_matrix_15_cases_zero_hardware_acceptance",
   "requirements": {
     "registered": 97,
     "code_source_audited": 97,
@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "5/5 EXIT-01 implementation branches have new code; 3/5 separate Draft PRs open. A1 software CI green; A2 Flight Pi green and 4-OS underway; A3 runtimes green but known Pages parity 8-file mismatch red. A4/A5 source branches not yet Draft PRs. None merged or hardware-accepted. Original 17 gates plus EXIT-01 pending. No reliable date.",
+    "reason": "Five distinct app source branches active, four new Draft PRs #91 Media/#92 Satellite/#93 Text/#16 Flight, fifth RFGeo in branch-only state. Media, Text and Flight synthetic CI green; Satellite new CI running and 8-file Pages parity issue known. Separate 15-case QA matrix authored, 0/15 actual resource acceptance, 17 old gates + EXIT01 P0 open; no merges or hardware tests; release ETA unknown.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -885,7 +885,7 @@
   },
   "exit01_six_agent_execution": {
     "as_of": "2026-11-12",
-    "status": "FIVE_EXIT01_SOURCE_BRANCHES_VISIBLE_THREE_DRAFT_PRS_TWO_BRANCH_ONLY_ONE_QA_SCOPE",
+    "status": "EXIT01_FOUR_OF_FIVE_DRAFT_PRS_FIVE_BRANCHES_QA_MATRIX_15_CASES_CREATED",
     "owner_requirement": "RQ-098",
     "new_proposed_p0_gate": "EXIT-01",
     "assignment_document": "apps/_coordination/EXIT01_SIX_PARALLEL_IMPLEMENTATION_ASSIGNMENTS.md",
@@ -900,11 +900,11 @@
         "new_branch": "fix/exit01-media-model-unload-2026-11-12",
         "handoff_issue": 76,
         "comment_id": 6813718607,
-        "status": "NEW_STACKED_DRAFT_PR_CREATED_CI_GREEN",
+        "status": "DRAFT_PR_OPEN_SOFTWARE_CI_ALL_4_WORKFLOWS_SUCCESS",
         "new_pr": 91,
         "head_sha": "9186ba3330c0a051f6172d4065687d9e3e059faa",
         "base_sha": "4e62e21cd5252df8a04f9ceadc429f4b116412ce",
-        "ci": "four workflows SUCCESS; mock only",
+        "ci": "4 CI workflows completed SUCCESS; app-owned CUDA/Whisper and captions synthetic coverage",
         "changed_files": 3
       },
       {
@@ -916,11 +916,11 @@
         "new_branch": "fix/exit01-flight-clean-exit-2026-11-12",
         "handoff_issue": 77,
         "comment_id": 6813719331,
-        "status": "NEW_STACKED_DRAFT_PR_CREATED_CI_PARTIAL_PASS_RUNNING",
+        "status": "DRAFT_PR_OPEN_SOFTWARE_CI_FOUR_OS_AND_PI_SUCCESS",
         "new_pr": 16,
         "head_sha": "7ae8b9b82b622b1d1e3f9914c89326af29da9784",
         "base_sha": "ae8cad04a7061ebfa9112147e7bc5fab25779313",
-        "ci": "Pi ARM64 preview SUCCESS; main four-OS CI in progress, Ubuntu job success",
+        "ci": "4 OS jobs (Ubuntu Debian macOS Windows) SUCCESS run 43151459770; Pi ARM64 SUCCESS run 43151459689",
         "changed_files": 6
       },
       {
@@ -932,11 +932,11 @@
         "new_branch": "fix/exit01-satellite-lease-release-2026-11-12",
         "handoff_issue": 78,
         "comment_id": 6813720095,
-        "status": "NEW_STACKED_DRAFT_PR_CREATED_CI_PAGES_PARITY_FAIL",
+        "status": "DRAFT_PR_OPEN_LATEST_CI_IN_PROGRESS_PAGES_PARITY_KNOWN_BLOCKER",
         "new_pr": 92,
-        "head_sha": "597773f8aa41b11a9f4762907a46166726f2d1dd",
+        "head_sha": "5ba72b575abd89ce716b5b51033a3df11167267d",
         "base_sha": "670e0ddcf029c8fcc9b0cef403bf76cf37613fcb",
-        "ci": "Text tests, Debian native, portable runtimes Linux x64/ARM, Windows and macOS SUCCESS; 8 preexisting source-versus-gh-pages discrepancies make portable workflow FAIL",
+        "ci": "Latest Text test success 43152107009; portable 43152107002 and Debian 43152106975 in progress. Prior portable CI failed Pages/source parity across 8 assets.",
         "changed_files": 4
       },
       {
@@ -948,11 +948,12 @@
         "new_branch": "fix/exit01-rfgeo-stop-workers-2026-11-12",
         "handoff_issue": 79,
         "comment_id": 6813720769,
-        "status": "NEW_SOURCE_BRANCH_WITH_CODE_NOT_YET_DRAFT_PR",
+        "status": "SOURCE_BRANCH_ACTIVE_WITH_CODE_DRAFT_PR_NOT_YET_VERIFIED",
         "new_pr": null,
         "compared_ahead": 9,
-        "changed_files": 8,
-        "ci": "not verified"
+        "changed_files": 12,
+        "ci": "not verified on a dedicated PR",
+        "source_branch_ahead_at_checkpoint": 16
       },
       {
         "id": "A5",
@@ -963,11 +964,13 @@
         "new_branch": "fix/exit01-text-asr-quit-2026-11-12",
         "handoff_issue": 80,
         "comment_id": 6813721489,
-        "status": "NEW_SOURCE_BRANCH_WITH_CODE_NOT_YET_DRAFT_PR",
-        "new_pr": null,
+        "status": "DRAFT_PR_OPEN_PYTHON_CI_3_VERSIONS_SUCCESS",
+        "new_pr": 93,
         "compared_ahead": 10,
-        "changed_files": 10,
-        "ci": "not verified"
+        "changed_files": 11,
+        "ci": "Text Center tests Python 3.11 3.12 3.13 all success; run 43151850363",
+        "head_sha": "063975fe9d4492b874c6084d58869ca09d082f92",
+        "base_sha": "1fffb711bfbb7c4abaf55299fa9240e5db3e1cde"
       },
       {
         "id": "A6",
@@ -977,14 +980,17 @@
         "source_sha": null,
         "new_branch": null,
         "comment_id": null,
-        "status": "QA_COORDINATOR_HANDOFF_NO_INDEPENDENT_NEW_ACCEPTANCE",
+        "status": "COORDINATOR_QA_MATRIX_COMMITTED_SOURCE_EVIDENCE_ONLY",
         "handoff_issue": 81,
         "scope": "Read-only coordination; compare A1-A5 Draft PRs, 15 EXIT-01 acceptance matrix, no source edits to owner-managed AI Tools or Survival Kit, no new implementation branch",
-        "new_pr": null
+        "new_pr": null,
+        "qa_matrix": "apps/_coordination/EXIT01_QA_ACCEPTANCE_MATRIX.md",
+        "qa_cases_total": 15,
+        "qa_cases_fully_accepted": 0
       }
     ],
-    "new_draft_prs_created": 3,
-    "new_ci_executed": "A1 four workflows passed; A2 Pi passed and main CI in progress; A3 portable parity red with all tested runtimes green",
+    "new_draft_prs_created": 4,
+    "new_ci_executed": "A1 four source CI workflows green, A2 4 OS and Pi green, A3 latest partial CI and prior Pages parity red, A5 Python matrix green, A4 no verified PR CI",
     "source_code_modified_by_coordinator": false,
     "preexisting_original_gates_open": 17,
     "additional_exit01_gate_open": true,
@@ -997,14 +1003,16 @@
     "no_AI_Tools_or_Survival_Kit_duplicate_development": true,
     "no_new_source_PR_on_AI_Tools_or_Survival_Kit": true,
     "implementation_branches_confirmed": 5,
-    "implementation_draft_prs_confirmed": 3,
+    "implementation_draft_prs_confirmed": 4,
     "verified_source_progress_as_of_date": "2026-11-12",
     "hardware_release_accepted": false,
     "remaining_critical_failures": [
-      "A3 Satellite eight Pages/source parity mismatches",
-      "A2 Flight four-OS CI not yet finished",
-      "A4 RFGeo / A5 Text new Draft PR and exact mocked CI not verified",
-      "Full owned RAM/VRAM/NPU/SDR release on installed devices not yet measured"
-    ]
+      "A3 satellite source-versus-published Pages parity eight files; current rerun outcome not yet verified",
+      "A4 RFGeo Draft PR and deterministic CI not yet verified",
+      "Actual RAM/VRAM/NPU/SDR owned-process post-Quit measurements absent across all apps",
+      "Stacked Draft PR integrations, old source preservation, rollback and installed UX still need acceptance"
+    ],
+    "qa_documented_cases": 15,
+    "qa_fully_accepted_cases": 0
   }
 }
