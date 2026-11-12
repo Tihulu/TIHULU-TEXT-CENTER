@@ -277,7 +277,7 @@
     "hours": null,
     "minutes": null,
     "confidence": "insufficient_evidence",
-    "reason": "Latest RF Geo source fix PR97 89/89 JS tests and Linux/macOS/Windows launchers green plus Text CI green. Media sidecar PR96 green; Flight, Media EXIT, Text green; Satellite browser and native runtime tests green except published gh-pages eight-file parity. Still 0/15 real installed resource acceptance, 17 original gates open, no merge, deployment or reliable ETA.",
+    "reason": "Standalone application contract now explicitly requires 12 independent run/install/optional integration acceptance cases and they are 0/12 verified; existing 3 empty migration destinations 0/3 transferred. Current green synthetic EXIT01 PRs are not installed standalone acceptance; Satellite pages parity remains open, 17 broad gates and 0/15 physical EXIT resource acceptance remain open. No reliable ETA.",
     "format_on_update": "HH hours MM minutes once computed; otherwise say unknown rather than make up a countdown",
     "estimation_criteria": [
       "audited outstanding task list",
@@ -1095,5 +1095,42 @@
     "new_draft_pr": 95,
     "latest_checked_head": "f2be8f210ce10e0c1462cc2a3edaba854d424311",
     "changed_file_count_at_first_pr": 13
+  },
+  "standalone_application_acceptance": {
+    "owner_request": "All five applications must install, open, run their own core features and quit without another TIHULU application installed; optional cross-app APIs only.",
+    "priority": "P0",
+    "status": "MANDATORY_CONTRACT_DOCUMENTED_NOT_IMPLEMENTED_OR_INSTALLED_ACCEPTED",
+    "contract": "apps/_coordination/STANDALONE_APPLICATION_ACCEPTANCE.md",
+    "case_ids": [
+      "STAND-01",
+      "STAND-02",
+      "STAND-03",
+      "STAND-04",
+      "STAND-05",
+      "STAND-06",
+      "STAND-07",
+      "STAND-08",
+      "STAND-09",
+      "STAND-10",
+      "STAND-11",
+      "STAND-12"
+    ],
+    "accepted_cases": 0,
+    "total_cases": 12,
+    "original_general_gate_count_unchanged": 17,
+    "existing_general_gates": [
+      "REG-14",
+      "REG-03",
+      "REG-02",
+      "REG-12",
+      "EXIT-01"
+    ],
+    "text_center_retained_in_original_repo": true,
+    "flight_radar_already_independent_repo": true,
+    "destination_repositories_created_empty": 3,
+    "destination_migrations_completed": 0,
+    "first_commit_or_cutover_authorized": false,
+    "native_hardware_and_installed_acceptance_not_verified": true,
+    "note": "Separate GitHub repos do not certify standalone runtime. Optional integration cannot require other app. Exclusive SDR hardware must show BUSY and protect foreign sessions."
   }
 }
