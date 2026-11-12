@@ -587,7 +587,7 @@ QAbstractButton *StartTab::addShortcut''')
 		dialog->show();
 		diagnostics->start(QLatin1String("/bin/bash"),
 			QStringList() << QDir::homePath() +
-				QLatin1String("/.local/share/tihulu-kaffeine/dvb_diagnostics.sh"));
+				QLatin1String("/.local/share/tihulu-media-center/native/dvb_diagnostics.sh"));
 	});
 	QAction *webTvAction = dvbMenu->addAction(i18n("Web TV / Internet channels..."));
 	connect(webTvAction, &QAction::triggered, this, [this]() {
