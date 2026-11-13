@@ -38,6 +38,11 @@ if (( !DRY )) && [[ -z "${TIHULU_MEDIA_TRANSACTION_FD:-}" ]]; then
   exec /usr/bin/python3 "$GUARD" guarded-script --source "$SOURCE_DIR" \
     --sha "$REVIEWED_SHA" --script "$SOURCE_DIR/kaffeine_next/media_standalone_install.sh" -- "$@"
 fi
+# Validate the inherited lock in the actual Bash child before any
+# build, rollback or recovery even if a caller forged the environment flag.
+if (( !DRY )); then
+  /usr/bin/python3 "$GUARD" verify-lock --sha "$REVIEWED_SHA" >/dev/null
+fi
 if (( DRY )); then
   OPT=()
   if (( WITH_AI )); then OPT+=(--with-ai); fi
