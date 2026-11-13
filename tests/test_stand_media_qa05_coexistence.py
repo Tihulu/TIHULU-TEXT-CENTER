@@ -149,8 +149,11 @@ class CoexistenceTests(IndependentHomeFixture):
         pending.parent.mkdir(parents=True)
         (pending / "setup").mkdir(parents=True)
         (pending / "setup/icon").write_bytes(b"<svg/>")
+        st = pending.lstat()
         journal = {"owner": guard.APP, "sha": self.rev, "phase": "prepared",
-                   "prior": None, "new": proposed, "pending": str(pending)}
+                   "prior": None, "new": proposed, "pending": str(pending),
+                   "pending_identity": {"dev": st.st_dev, "ino": st.st_ino,
+                                        "uid": st.st_uid}}
         guard.write_journal(self.home, self.rev, journal)
         plan = guard.validate_rollback(self.home, self.rev)
         self.assertEqual(plan["package_action"], "none")
@@ -163,9 +166,12 @@ class CoexistenceTests(IndependentHomeFixture):
         pending = guard.layout(self.home)["releases"] / (".pending-" + self.rev[:12])
         pending.mkdir(parents=True)
         (pending / "foreign").write_bytes(b"DO NOT DELETE")
+        st = pending.lstat()
         guard.write_journal(self.home, self.rev, {"owner": guard.APP,
             "sha": self.rev, "phase": "prepared", "prior": None,
-            "new": proposed, "pending": str(pending)})
+            "new": proposed, "pending": str(pending),
+            "pending_identity": {"dev": st.st_dev, "ino": st.st_ino,
+                                 "uid": st.st_uid}})
         with self.assertRaisesRegex(guard.Hold, "Pending copy modified"):
             guard.rollback(self.home, self.rev)
         self.assertEqual((pending / "foreign").read_bytes(), b"DO NOT DELETE")
