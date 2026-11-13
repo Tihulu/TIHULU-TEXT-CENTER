@@ -162,7 +162,7 @@ class SourceAndProcessContracts(unittest.TestCase):
             self.assertIn(fragment, source)
         guard_header = (ROOT / "kaffeine_next/tihulu_owned_fifo_cleanup.h").read_text()
         for fragment in ("::fstat(", "::lstat(", "::unlink(encoded.constData())",
-                         "pathStat.st_ino != ownedIno", "S_ISFIFO(", "pathStat.st_nlink != 1"):
+                         "static_cast<quint64>(pathStat.st_ino) != ownedIno", "S_ISFIFO(", "pathStat.st_nlink != 1"):
             self.assertIn(fragment, guard_header)
         self.assertIn("Refuse even a UUID collision", source)
 
