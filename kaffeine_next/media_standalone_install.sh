@@ -153,6 +153,7 @@ AI_ENV="$HOME/.local/share/tihulu-media-standalone/ai-runtime"
 if [ -f "$AI_ENV/.tihulu-owned-ai-runtime" ] && [ -x "$AI_ENV/bin/python3" ]; then
   PYTHON="$AI_ENV/bin/python3"
 fi
+cd "$BASE/share" || { echo "MEDIA_STANDALONE_HOLD: missing owned Python release" >&2; exit 2; }
 exec "$PYTHON" -m tv_center "$@"
 CLI
 cat > "$ARTIFACT/setup/desktop" <<DESKTOP
