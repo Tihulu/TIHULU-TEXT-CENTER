@@ -95,6 +95,14 @@ class FullGuardForgery(IndependentHomeFixture):
         self._must_hold()
         self.assertTrue((pending / "setup/icon").is_file())
 
+    def test_14_symlinked_releases_ancestor_never_traversed(self):
+        releases = guard.layout(self.home)["releases"]
+        parked = self.root / "protected-releases"
+        releases.rename(parked)
+        releases.symlink_to(parked, target_is_directory=True)
+        self._must_hold()
+        self.assertTrue((parked / self.rev[:12]).is_dir())
+
     def test_06_forged_matching_canonical_inode_without_receipt_is_rejected(self):
         pending = guard.layout(self.home)["releases"] / (".pending-" + self.rev[:12])
         pending.mkdir()
