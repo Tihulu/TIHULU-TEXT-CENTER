@@ -178,6 +178,20 @@ jobs:
           test "$stable_windows" -ge 1
           test "$standalone_windows" -ge 1
           echo "Two actual native Qt GUI instances alive in one synthetic HOME"
+          # ACTUAL native QAction: Alt+T opens the Television menu and Return
+          # selects its first installed "Receiver / tuner diagnostics" entry.
+          # Do not substitute a CLI-only invocation for menu acceptance.
+          native_window="$(xdotool search --pid "$standalone" --onlyvisible | head -1)"
+          xdotool windowfocus --sync "$native_window"
+          xdotool key --clearmodifiers Alt+t
+          sleep 0.5
+          xdotool key Return
+          sleep 2
+          if ! xdotool search --name 'DVB tuner ownership and scan setup' >/dev/null; then
+            echo "INSTALLED MENU HOLD: actual diagnostic dialog did not open" >&2
+            exit 11
+          fi
+          echo "ACTUAL NATIVE MENU: receiver diagnostics dialog was opened"
           dbus-send --session --dest=org.freedesktop.DBus \
             --type=method_call --print-reply \
             /org/freedesktop/DBus org.freedesktop.DBus.ListNames \
