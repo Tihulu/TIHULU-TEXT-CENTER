@@ -57,7 +57,7 @@ def transform(files):
     # on deliberate Radio -> Start; no second Qt/WebUSB player window.
     main = "src/mainwindow.cpp"
     change(main, '#include "playlist/playlisttab.h"\n',
-           '#include "playlist/playlisttab.h"\n#include "tihulu_radio_tab.h"\n')
+           '#include "playlist/playlisttab.h"\n#include "tihulu_radio_tab.h"\n#include "tihulu_companion_path.h"\n')
     change(main, '''#endif /* HAVE_DVB == 1 */
 	tabBar->setShape(QTabBar::RoundedWest);''',
            '''#endif /* HAVE_DVB == 1 */
@@ -685,7 +685,7 @@ QAbstractButton *StartTab::addShortcut''')
 		if(folder.isEmpty()) return;
 		hubProcess->setProperty("pinShown",false);
 		hubProcess->setProperty("partial",QByteArray());
-		hubProcess->start(QLatin1String("tihulu-media-standalone-cli"),
+		hubProcess->start(tihuluCompanionCliPath(),
 			{QLatin1String("remote-hub"),QLatin1String("--media-root"),folder,
 			 QLatin1String("--bind"),QLatin1String("127.0.0.1"),
 			 QLatin1String("--native-pid"),
@@ -735,10 +735,14 @@ QAbstractButton *StartTab::addShortcut''')
            '\tQList<QByteArray> buffers;\n'
            '\tQString tihuluCaptionSocketPath;\n\tint tihuluCaptionFd;\n')
 
+    # The FIFO identity is anchored to this native object's open descriptor.
+    change(hdr, '\tint tihuluCaptionFd;\n',
+           '\tint tihuluCaptionFd;\n\tquint64 tihuluOwnedFifoDev = 0;\n'
+           '\tquint64 tihuluOwnedFifoIno = 0;\n')
     live = "src/dvb/dvbliveview.cpp"
     change(live, '#include <QDir>\n',
            '#include <QDir>\n#include <QCoreApplication>\n#include <QUuid>\n'
-           '#include <QSaveFile>\n'
+           '#include <QSaveFile>\n#include "../tihulu_owned_fifo_cleanup.h"\n'
            '#include <sys/socket.h>\n#include <sys/un.h>\n')
     change(live, '\treadFd(-1), writeFd(-1), notifier(NULL)\n{',
            '\treadFd(-1), writeFd(-1), notifier(NULL), tihuluCaptionFd(-1)\n{')
@@ -751,6 +755,45 @@ QAbstractButton *StartTab::addShortcut''')
     change(live, 'DvbLiveViewInternal::~DvbLiveViewInternal()\n{\n',
            'DvbLiveViewInternal::~DvbLiveViewInternal()\n{\n'
            '\tif (tihuluCaptionFd >= 0)\n\t\t::close(tihuluCaptionFd);\n\tif (!tihuluEffectiveDelayFile.isEmpty())\n\t\tQFile::remove(tihuluEffectiveDelayFile);\n')
+    # Never delete a previous/foreign FIFO at constructor startup. The
+    # per-instance path is exclusive; EEXIST must refuse to open it.
+    change(live, '\tQFile::remove(fileName);\n\n\tupdateUrl();',
+           '\t// Refuse even a UUID collision: no pre-mkfifo unlink.\n\tupdateUrl();')
+    change(live, '\treadFd = open(QFile::encodeName(fileName).constData(), O_RDONLY | O_NONBLOCK);',
+           '''\tstruct stat tihuluOwnedFifoStat;
+\tif (::lstat(QFile::encodeName(fileName).constData(), &tihuluOwnedFifoStat) != 0 ||
+\t    !S_ISFIFO(tihuluOwnedFifoStat.st_mode) ||
+\t    tihuluOwnedFifoStat.st_uid != ::geteuid() ||
+\t    tihuluOwnedFifoStat.st_nlink != 1 ||
+\t    (tihuluOwnedFifoStat.st_mode & 0022)) {
+\t\tqCWarning(logDvb, "Foreign or replaced DVB FIFO; refusing");
+\t\treturn;
+\t}
+\ttihuluOwnedFifoDev = static_cast<quint64>(tihuluOwnedFifoStat.st_dev);
+\ttihuluOwnedFifoIno = static_cast<quint64>(tihuluOwnedFifoStat.st_ino);
+\treadFd = open(QFile::encodeName(fileName).constData(), O_RDONLY | O_NONBLOCK | O_NOFOLLOW);''')
+    change(live, '\twriteFd = open(QFile::encodeName(fileName).constData(), O_WRONLY | O_NONBLOCK);',
+           '''\tstruct stat tihuluOpenedRead;
+\tif (::fstat(readFd, &tihuluOpenedRead) != 0 ||
+\t    !S_ISFIFO(tihuluOpenedRead.st_mode) ||
+\t    static_cast<quint64>(tihuluOpenedRead.st_dev) != tihuluOwnedFifoDev ||
+\t    static_cast<quint64>(tihuluOpenedRead.st_ino) != tihuluOwnedFifoIno) {
+\t\tqCWarning(logDvb, "DVB FIFO read descriptor does not own the path");
+\t\treturn;
+\t}
+\twriteFd = open(QFile::encodeName(fileName).constData(), O_WRONLY | O_NONBLOCK | O_NOFOLLOW);''')
+    change(live, '''\tif (tihuluCaptionFd >= 0)
+\t\t::close(tihuluCaptionFd);
+\tif (!tihuluEffectiveDelayFile.isEmpty())
+\t\tQFile::remove(tihuluEffectiveDelayFile);
+''', '''\tif (tihuluCaptionFd >= 0)
+\t\t::close(tihuluCaptionFd);
+\tif (!tihuluEffectiveDelayFile.isEmpty())
+\t\tQFile::remove(tihuluEffectiveDelayFile);
+\t// Exact same owner/inode cleanup function used in standalone C++ tests.
+\t(void)tihuluUnlinkOwnedFifo(fileName, readFd,
+\t\ttihuluOwnedFifoDev, tihuluOwnedFifoIno);
+''')
     change(live, '''	if (!timeShiftFile.isOpen()) {
 		if (writeFd >= 0) {
 			buffers.append(buffer);
@@ -2063,6 +2106,21 @@ def apply(root: Path):
     for path in PATHS:
         (root / path).write_text(new[path], encoding="utf-8")
         print("Patched upstream Kaffeine:", path)
+    # Install the single native absolute CLI resolver into the pinned build.
+    companion = Path(__file__).with_name("tihulu_companion_path.h")
+    if not companion.is_file():
+        raise RuntimeError("Native companion path guard missing")
+    companion_dest = root / "src/tihulu_companion_path.h"
+    if companion_dest.exists() and companion_dest.read_bytes() != companion.read_bytes():
+        raise RuntimeError("Refusing to overwrite unrelated companion guard")
+    companion_dest.write_bytes(companion.read_bytes())
+    fifo_header = Path(__file__).with_name("tihulu_owned_fifo_cleanup.h")
+    if not fifo_header.is_file():
+        raise RuntimeError("Native owner-inode FIFO cleanup guard missing")
+    fifo_dest = root / "src/tihulu_owned_fifo_cleanup.h"
+    if fifo_dest.exists() and fifo_dest.read_bytes() != fifo_header.read_bytes():
+        raise RuntimeError("Refusing to overwrite foreign FIFO cleanup guard")
+    fifo_dest.write_bytes(fifo_header.read_bytes())
     # Header is original TIHULU Qt integration, not copied from welle.io.
     # Rebuilds use a detached clean upstream Kaffeine worktree.
     widget = Path(__file__).with_name("native_radio_tab.h")

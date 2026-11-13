@@ -507,7 +507,7 @@ def _activate_locked(home, source, rev, stage):
             raise Hold("Historical release changed before reactivation")
         next_state = previous_record["new"]
     r = {"owner": APP, "sha": rev, "phase": "prepared",
-         "prior": old, "new": next_state, "pending": ""}
+         "prior": old, "new": next_state, "pending": "", "pending_identity": None}
     if previous_record:
         write_journal(home, rev, r, reuse=True)
     else:
@@ -517,12 +517,19 @@ def _activate_locked(home, source, rev, stage):
     safe_parent(pending, home)
     if pending.exists() or pending.is_symlink():
         raise Hold("Pending release path occupied")
+    p["releases"].mkdir(parents=True, exist_ok=True, mode=0o700)
+    # Own the exact staging inode BEFORE recursive copy. If killed between
+    # mkdir and the durable identity receipt, recovery deliberately HOLDS.
+    os.mkdir(pending, 0o700)
+    st = pending.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid():
+        raise Hold("New pending directory is not an owned inode")
     r["pending"] = str(pending)
+    r["pending_identity"] = {"dev": st.st_dev, "ino": st.st_ino, "uid": st.st_uid}
     write_journal(home, rev, r)
-    p["releases"].mkdir(parents=True, exist_ok=True)
     try:
         if not reuse_release:
-            shutil.copytree(stage, pending, symlinks=True)
+            shutil.copytree(stage, pending, symlinks=True, dirs_exist_ok=True)
             if items(pending) != next_state["release"]:
                 raise Hold("Staged release altered during copy")
         r["phase"] = "activating"
@@ -549,6 +556,99 @@ def _activate_locked(home, source, rev, stage):
         return {"owner": APP, "sha": rev, "phase": "active", "repeat": False}
     except Exception:
         # Do not delete unknown user content. Journal supports validated recovery.
+        raise
+
+
+def _pinned_pending_parent(home):
+    """Pin every canonical owner path before even considering scratch deletion.
+
+    This remains a same-owner cooperative boundary, not an authentication
+    mechanism against a malicious process already running with our UID.
+    """
+    home = Path(home).absolute()
+    parent = home
+    for element in (None, ".local", "opt", APP, "releases"):
+        if element is not None:
+            parent = parent / element
+        st = parent.lstat()
+        if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid()
+                or st.st_mode & 0o022):
+            raise Hold("Unsafe owner staging ancestor: " + str(parent))
+    fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    pinned = os.fstat(fd)
+    visible = parent.lstat()
+    if (pinned.st_dev, pinned.st_ino) != (visible.st_dev, visible.st_ino):
+        os.close(fd)
+        raise Hold("Owned release parent replaced during validation")
+    return fd
+
+
+def _validated_pending(home, rev, record):
+    """Return (canonical path, pinned-parent fd, inode receipt) or None.
+
+    Never trust the journal's pending string as a filesystem operation target.
+    A missing identity from older journals cannot authorize *any* deletion.
+    """
+    raw = record.get("pending")
+    marker = record.get("pending_identity")
+    if raw in ("", None):
+        if marker is not None:
+            raise Hold("Pending identity without a staging path")
+        return None
+    if not isinstance(raw, str) or not SHA40.fullmatch(rev):
+        raise Hold("Invalid pending transaction path")
+    expected = layout(home)["releases"] / (".pending-" + rev[:12])
+    if raw != str(expected):
+        raise Hold("Noncanonical or foreign journal pending path")
+    next_receipt = record.get("new")
+    if (record.get("owner") != APP or record.get("sha") != rev
+            or not isinstance(next_receipt, dict)
+            or next_receipt.get("owner") != APP
+            or next_receipt.get("sha") != rev
+            or not isinstance(next_receipt.get("release"), dict)
+            or next_receipt.get("public", {}).get("current") !=
+            {"type": "link", "target": str(release_path(home, rev))}):
+        raise Hold("Pending does not belong to reviewed release receipt")
+    if (not isinstance(marker, dict) or set(marker) != {"dev", "ino", "uid"}
+            or any(not isinstance(marker[x], int) or isinstance(marker[x], bool)
+                   or marker[x] < 0 for x in marker)
+            or marker["uid"] != os.geteuid()):
+        raise Hold("Missing verified installer-created pending inode receipt")
+    fd = _pinned_pending_parent(home)
+    try:
+        # stat with NOFOLLOW under the pinned releases directory; reject a
+        # symlink even if is_dir() might otherwise follow it.
+        try:
+            st = os.stat(expected.name, dir_fd=fd, follow_symlinks=False)
+        except FileNotFoundError:
+            st = None
+        if st is None:
+            # A successfully renamed pending tree has the SAME inode under
+            # the owned version directory. It needs no recursive deletion.
+            release = release_path(home, rev)
+            safe_parent(release, home)
+            if not release.is_symlink() and release.is_dir():
+                completed = release.lstat()
+                if (completed.st_dev == marker["dev"]
+                        and completed.st_ino == marker["ino"]
+                        and completed.st_uid == marker["uid"]
+                        and stat.S_ISDIR(completed.st_mode)
+                        and items(release) == next_receipt["release"]):
+                    os.close(fd)
+                    return None
+            raise Hold("Owned pending inode vanished without verified publication")
+        if (not stat.S_ISDIR(st.st_mode) or st.st_uid != marker["uid"]
+                or st.st_dev != marker["dev"] or st.st_ino != marker["ino"]
+                or st.st_mode & 0o022):
+            raise Hold("Pending staging inode replaced or not owned")
+        # The directory may contain only whole/partial expected release
+        # entries, never unrecognized files or special nodes.
+        partial = items(expected)
+        if any(next_receipt["release"].get(k) != v for k, v in partial.items()):
+            raise Hold("Pending copy modified; refusing cleanup")
+        return expected, fd, marker
+    except Exception:
+        os.close(fd)
         raise
 
 
@@ -579,14 +679,11 @@ def validate_rollback(home, rev):
     if newroot.exists() or newroot.is_symlink():
         if items(newroot) != after["release"]:
             raise Hold("New release modified; refusing rollback")
-    pending = Path(r["pending"]) if r.get("pending") else None
-    if pending and (pending.exists() or pending.is_symlink()):
-        # A full pending copy is known; partial copies may only contain exact known objects.
-        if pending.is_symlink() or not pending.is_dir():
-            raise Hold("Foreign pending path")
-        partial = items(pending)
-        if any(after["release"].get(k) != v for k, v in partial.items()):
-            raise Hold("Pending copy modified; refusing cleanup")
+    # This validates the path *and* exact owner inode even if the journal
+    # is syntactically valid and a foreign directory contains matching bytes.
+    pending_proof = _validated_pending(home, rev, r)
+    if pending_proof:
+        os.close(pending_proof[1])
     return {"owner": APP, "sha": rev, "phase": r["phase"],
             "package_action": "none", "prevalidated": True}
 
@@ -621,11 +718,24 @@ def _rollback_locked(home, rev):
         if public_receipt(home, "current") == after["public"]["current"]:
             p["current"].unlink()
         p["active"].unlink(missing_ok=True)
-    # Keep verified historical releases for forensic recovery/previous rollback.
-    # Only remove a complete and known scratch tree; never follow links.
-    pending = Path(r["pending"]) if r.get("pending") else None
-    if pending and pending.is_dir() and not pending.is_symlink():
-        shutil.rmtree(pending)
+    # A journal string is NEVER sufficient deletion authority. Revalidate
+    # the owned staging inode after all public writes and unlink by name
+    # relative to the pinned releases directory (fd-safe rmtree on Linux).
+    proof = _validated_pending(home, rev, r)
+    if proof is not None:
+        pending, parent_fd, identity = proof
+        try:
+            st = os.stat(pending.name, dir_fd=parent_fd, follow_symlinks=False)
+            if (not stat.S_ISDIR(st.st_mode) or
+                    st.st_dev != identity["dev"] or
+                    st.st_ino != identity["ino"] or
+                    st.st_uid != identity["uid"] or st.st_mode & 0o022):
+                raise Hold("Pending inode changed before scratch removal")
+            if not shutil.rmtree.avoids_symlink_attacks:
+                raise Hold("FD-safe recursive removal not available")
+            shutil.rmtree(pending.name, dir_fd=parent_fd)
+        finally:
+            os.close(parent_fd)
     r["phase"] = "rolled_back"
     write_journal(home, rev, r)
     return {"owner": APP, "sha": rev, "phase": "rolled_back", "package_action": "none"}
