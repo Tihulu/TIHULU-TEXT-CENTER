@@ -57,7 +57,7 @@ def transform(files):
     # on deliberate Radio -> Start; no second Qt/WebUSB player window.
     main = "src/mainwindow.cpp"
     change(main, '#include "playlist/playlisttab.h"\n',
-           '#include "playlist/playlisttab.h"\n#include "tihulu_radio_tab.h"\n')
+           '#include "playlist/playlisttab.h"\n#include "tihulu_radio_tab.h"\n#include "tihulu_companion_path.h"\n')
     change(main, '''#endif /* HAVE_DVB == 1 */
 	tabBar->setShape(QTabBar::RoundedWest);''',
            '''#endif /* HAVE_DVB == 1 */
@@ -685,7 +685,7 @@ QAbstractButton *StartTab::addShortcut''')
 		if(folder.isEmpty()) return;
 		hubProcess->setProperty("pinShown",false);
 		hubProcess->setProperty("partial",QByteArray());
-		hubProcess->start(QLatin1String("tihulu-media-standalone-cli"),
+		hubProcess->start(tihuluCompanionCliPath(),
 			{QLatin1String("remote-hub"),QLatin1String("--media-root"),folder,
 			 QLatin1String("--bind"),QLatin1String("127.0.0.1"),
 			 QLatin1String("--native-pid"),
@@ -2063,6 +2063,14 @@ def apply(root: Path):
     for path in PATHS:
         (root / path).write_text(new[path], encoding="utf-8")
         print("Patched upstream Kaffeine:", path)
+    # Install the single native absolute CLI resolver into the pinned build.
+    companion = Path(__file__).with_name("tihulu_companion_path.h")
+    if not companion.is_file():
+        raise RuntimeError("Native companion path guard missing")
+    companion_dest = root / "src/tihulu_companion_path.h"
+    if companion_dest.exists() and companion_dest.read_bytes() != companion.read_bytes():
+        raise RuntimeError("Refusing to overwrite unrelated companion guard")
+    companion_dest.write_bytes(companion.read_bytes())
     # Header is original TIHULU Qt integration, not copied from welle.io.
     # Rebuilds use a detached clean upstream Kaffeine worktree.
     widget = Path(__file__).with_name("native_radio_tab.h")
