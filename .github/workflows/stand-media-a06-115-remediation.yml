@@ -35,6 +35,7 @@ jobs:
           allow={
             "kaffeine_next/media_standalone_guard.py",
             "kaffeine_next/tihulu_companion_path.h",
+            "kaffeine_next/tihulu_owned_fifo_cleanup.h",
             "kaffeine_next/native_media_panel.h",
             "tests/test_stand_media_a06_115_remediation.py",
             "tests/test_stand_media_qa05_coexistence.py",
