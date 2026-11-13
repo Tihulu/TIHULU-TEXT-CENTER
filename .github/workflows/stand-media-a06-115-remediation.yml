@@ -1,0 +1,233 @@
+name: STAND-MEDIA Agent06-115 exact-head P1/P2 remediation QA
+on:
+  pull_request:
+    branches: [fix/stand-media-pr114-p1p2-remediation-20261113]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  remediation-process-and-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert pinned PR115 ancestry and original strict tests unchanged
+        env:
+          EXACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          FROZEN=efb2beea4f73bb81f4dd67f4bb41753fed29185b
+          git merge-base --is-ancestor "$FROZEN" HEAD
+          git diff --exit-code "$FROZEN" HEAD -- \
+            tests/test_stand_media_qa05_coexistence.py \
+            tests/test_stand_media_qa03_remediation.py \
+            tests/test_stand_media_pr114_remediation_26.py \
+            source apps tv_center textcenter LICENSE NOTICE
+          python3 - <<'PY'
+          import subprocess
+          ancestor="efb2beea4f73bb81f4dd67f4bb41753fed29185b"
+          changed=set(subprocess.check_output(
+              ["git","diff","--name-only",ancestor,"HEAD"],text=True).splitlines())
+          allow={
+            "kaffeine_next/media_standalone_guard.py",
+            "kaffeine_next/tihulu_companion_path.h",
+            "kaffeine_next/native_media_panel.h",
+            "tests/test_stand_media_a06_115_remediation.py",
+            ".github/workflows/stand-media-a06-115-remediation.yml",
+            "docs/stand_media_a06_115_remediation.md",
+            "kaffeine_next/media_standalone_install.sh",
+            "kaffeine_next/patch_upstream.py",
+            "kaffeine_next/native_radio_tab.h",
+            "kaffeine_next/install_welle.sh",
+            "tests/test_stand_media_pr114_remediation_26.py",
+            ".github/workflows/stand-media-pr114-remediation-26.yml",
+            "docs/stand_media_pr114_p1p2_remediation_26.md",
+          }
+          assert changed <= allow,changed-allow
+          print("EXACT HEAD / FROZEN PR115 / PERMITTED DIFF PASS", sorted(changed))
+          PY
+      - name: Check syntax and run actual process isolation and recovery probes
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          python3 -m py_compile \
+            kaffeine_next/media_standalone_guard.py \
+            kaffeine_next/patch_upstream.py \
+            tests/test_stand_media_pr114_remediation_26.py \
+            tests/test_stand_media_a06_115_remediation.py
+          bash -n kaffeine_next/media_standalone_install.sh
+          bash -n kaffeine_next/install_welle.sh
+          python3 -m unittest discover -s tests \
+            -p 'test_stand_media_pr114_remediation_26.py' -v
+          python3 -m unittest discover -s tests \
+            -p 'test_stand_media_a06_115_remediation.py' -v
+      - name: Preserve and rerun original unedited standalone QA tests
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests \
+            -p 'test_stand_media_qa05_coexistence.py' -v
+          python3 -m unittest discover -s tests \
+            -p 'test_stand_media_qa03_remediation.py' -v
+          echo 'HOLD: real installed GUI dual instances, physical DVB, AI model inference, hostile same-UID, power failure and public release'
+
+  native-installed-disposable-same-home:
+    name: Actual disposable native standalone install and startup (stable-custom parity HOLD)
+    needs: [remediation-process-and-regression]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Provision CI runner only, never a user machine
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git cmake g++ make pkg-config extra-cmake-modules ffmpeg \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev \
+            libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev \
+            libkf5solid-dev libkf5widgetsaddons-dev libkf5windowsystem-dev \
+            libkf5xmlgui-dev libvlc-dev libx11-dev libxss-dev \
+            libdvbv5-dev libudev-dev libqt5sql5-sqlite \
+            kaffeine xvfb xauth dbus-x11 xdotool
+      - name: Run actual native user-only install and rollback/reinstall lifecycle
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          export HOME="$RUNNER_TEMP/stand-media-native-isolated-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          export TIHULU_MEDIA_SOURCE_DIR="$GITHUB_WORKSPACE"
+          export TIHULU_MEDIA_SOURCE_SHA="$EXPECTED_HEAD"
+          mkdir -p "$HOME/.config/TIHULU" "$HOME/Recordings" "$HOME/external-SSD"
+          printf 'STABLE KCONFIG PRIVATE\n' > "$HOME/.config/TIHULU/KaffeineRadio.conf"
+          printf 'STABLE RECORDING PRIVATE\n' > "$HOME/Recordings/owner-recording.ts"
+          printf 'STABLE MODEL PRIVATE\n' > "$HOME/external-SSD/model-placeholder.bin"
+          sha256sum "$HOME/.config/TIHULU/KaffeineRadio.conf" \
+            "$HOME/Recordings/owner-recording.ts" \
+            "$HOME/external-SSD/model-placeholder.bin" > "$RUNNER_TEMP/private-before.sha256"
+          bash kaffeine_next/media_standalone_install.sh --no-ai
+          ROOT="$HOME/.local/opt/tihulu-media-standalone"
+          test -x "$ROOT/current/bin/tihulu-media-standalone"
+          test -x "$HOME/.local/bin/tihulu-media-standalone"
+          test -x "$HOME/.local/bin/tihulu-media-standalone-cli"
+          test -f "$ROOT/current/aux/dvb_diagnostics.sh"
+          test -f "$ROOT/current/aux/install_welle.sh"
+          # This invokes the installed public diagnostic route, not merely
+          # the source script. It never tunes or opens an RF device.
+          env -i HOME="$HOME" PATH=/usr/bin:/bin \
+            /bin/sh "$HOME/.local/bin/tihulu-media-standalone" \
+            --diagnose-tuner > "$RUNNER_TEMP/installed-diagnostics.txt"
+          grep -Fq 'DVB frontend diagnostics' "$RUNNER_TEMP/installed-diagnostics.txt"
+          bash kaffeine_next/media_standalone_install.sh --rollback
+          test ! -e "$ROOT/current"
+          bash kaffeine_next/media_standalone_install.sh --recover
+          bash kaffeine_next/media_standalone_install.sh --no-ai
+          test -x "$ROOT/current/bin/tihulu-media-standalone"
+          (cd "$HOME" && sha256sum -c "$RUNNER_TEMP/private-before.sha256")
+          echo "ACTUAL INSTALLED NATIVE: first install -> rollback -> recover -> reinstall PASS"
+          echo "STABLE PRIVATE sentinel bytes preserved; app-only/no-APT installer"
+      - name: Launch actual standalone GUI, verify companion under minimum PATH, and observe FIFO
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/stand-media-native-isolated-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/stand-media-a06-xdg-runtime"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          # Exercise the EXACT installed app-owned path validator and Qt
+          # QProcess under PATH without ~/.local/bin. This is NOT per-action GUI.
+          cat > "$RUNNER_TEMP/companion-path-smoke.cpp" <<'CPP'
+          #include "tihulu_companion_path.h"
+          #include <QCoreApplication>
+          #include <QProcess>
+          #include <QDebug>
+          int main(int argc, char **argv) {
+            QCoreApplication app(argc, argv);
+            const QString cli=tihuluCompanionCliPath();
+            if(cli.isEmpty()) return 41;
+            QProcess p;
+            p.start(cli, QStringList() << QLatin1String("--help"));
+            if(!p.waitForStarted(6000)) return 42;
+            p.kill();
+            p.waitForFinished(5000);
+            qInfo() << "NATIVE COMPANION ABSOLUTE START PASS" << cli;
+            return 0;
+          }
+          CPP
+          g++ -std=c++14 -fPIC -I"$GITHUB_WORKSPACE/kaffeine_next" \
+            "$RUNNER_TEMP/companion-path-smoke.cpp" -o "$RUNNER_TEMP/companion-path-smoke" \
+            $(pkg-config --cflags --libs Qt5Core)
+          env -i HOME="$HOME" PATH=/usr/bin:/bin \
+            "$RUNNER_TEMP/companion-path-smoke"
+          cat > "$RUNNER_TEMP/one-native-gui.sh" <<'BASH'
+          #!/bin/bash
+          set -euo pipefail
+          "$HOME/.local/bin/tihulu-media-standalone" > "$HOME/standalone-gui.log" 2>&1 &
+          app=$!
+          cleanup() { kill "$app" 2>/dev/null || true; wait "$app" 2>/dev/null || true; }
+          trap cleanup EXIT
+          sleep 7
+          kill -0 "$app"
+          window="$(xdotool search --pid "$app" --onlyvisible | head -1)"
+          test -n "$window"
+          echo "ACTUAL STANDALONE QT GUI PASS"
+          find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'tihulu-standalone-dvbpipe-*.m2t' -print > "$HOME/ci-fifo-before.txt"
+          # Native destructor must run on graceful UI exit. No RF tuning.
+          xdotool windowfocus --sync "$window"
+          xdotool key --clearmodifiers Alt+F4
+          for i in $(seq 1 15); do
+            if ! kill -0 "$app" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if kill -0 "$app" 2>/dev/null; then
+            echo "HOLD: native GUI did not exit gracefully" >&2
+            exit 13
+          fi
+          if test -s "$HOME/ci-fifo-before.txt"; then
+            while IFS= read -r fifo; do
+              test ! -e "$fifo" || { echo "FIFO LIFECYCLE HOLD: $fifo" >&2; exit 14; }
+            done < "$HOME/ci-fifo-before.txt"
+            echo "OWN NATIVE FIFO NORMAL CLEANUP PASS"
+          else
+            echo "HOLD: no DVB FIFO instantiated in tuner-free GUI; runtime FIFO not proven"
+          fi
+          BASH
+          chmod 700 "$RUNNER_TEMP/one-native-gui.sh"
+          timeout 55 dbus-run-session -- xvfb-run -a /bin/bash "$RUNNER_TEMP/one-native-gui.sh"
+          (cd "$HOME" && sha256sum -c "$RUNNER_TEMP/private-before.sha256")
+          echo 'AUTHENTIC CUSTOM TIHULU STABLE BINARY: NOT PROVIDED, NOT EXECUTED — HOLD'
+          echo 'No stock /usr/bin/kaffeine substituted; MPRIS/KConfig/recording parity and RF HOLD'
