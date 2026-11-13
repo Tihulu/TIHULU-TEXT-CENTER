@@ -742,7 +742,7 @@ QAbstractButton *StartTab::addShortcut''')
     live = "src/dvb/dvbliveview.cpp"
     change(live, '#include <QDir>\n',
            '#include <QDir>\n#include <QCoreApplication>\n#include <QUuid>\n'
-           '#include <QSaveFile>\n'
+           '#include <QSaveFile>\n#include "../tihulu_owned_fifo_cleanup.h"\n'
            '#include <sys/socket.h>\n#include <sys/un.h>\n')
     change(live, '\treadFd(-1), writeFd(-1), notifier(NULL)\n{',
            '\treadFd(-1), writeFd(-1), notifier(NULL), tihuluCaptionFd(-1)\n{')
@@ -790,18 +790,9 @@ QAbstractButton *StartTab::addShortcut''')
 \t\t::close(tihuluCaptionFd);
 \tif (!tihuluEffectiveDelayFile.isEmpty())
 \t\tQFile::remove(tihuluEffectiveDelayFile);
-\t// Never unlink a foreign FIFO/socket or an inode replaced during playback.
-\tstruct stat tihuluLastPath, tihuluLastRead;
-\tif (readFd >= 0 && tihuluOwnedFifoIno != 0 &&
-\t    ::fstat(readFd, &tihuluLastRead) == 0 &&
-\t    ::lstat(QFile::encodeName(fileName).constData(), &tihuluLastPath) == 0 &&
-\t    S_ISFIFO(tihuluLastPath.st_mode) &&
-\t    tihuluLastPath.st_uid == ::geteuid() && tihuluLastPath.st_nlink == 1 &&
-\t    static_cast<quint64>(tihuluLastPath.st_dev) == tihuluOwnedFifoDev &&
-\t    static_cast<quint64>(tihuluLastPath.st_ino) == tihuluOwnedFifoIno &&
-\t    tihuluLastRead.st_dev == tihuluLastPath.st_dev &&
-\t    tihuluLastRead.st_ino == tihuluLastPath.st_ino)
-\t\t::unlink(QFile::encodeName(fileName).constData());
+\t// Exact same owner/inode cleanup function used in standalone C++ tests.
+\t(void)tihuluUnlinkOwnedFifo(fileName, readFd,
+\t\ttihuluOwnedFifoDev, tihuluOwnedFifoIno);
 ''')
     change(live, '''	if (!timeShiftFile.isOpen()) {
 		if (writeFd >= 0) {
@@ -2123,6 +2114,13 @@ def apply(root: Path):
     if companion_dest.exists() and companion_dest.read_bytes() != companion.read_bytes():
         raise RuntimeError("Refusing to overwrite unrelated companion guard")
     companion_dest.write_bytes(companion.read_bytes())
+    fifo_header = Path(__file__).with_name("tihulu_owned_fifo_cleanup.h")
+    if not fifo_header.is_file():
+        raise RuntimeError("Native owner-inode FIFO cleanup guard missing")
+    fifo_dest = root / "src/tihulu_owned_fifo_cleanup.h"
+    if fifo_dest.exists() and fifo_dest.read_bytes() != fifo_header.read_bytes():
+        raise RuntimeError("Refusing to overwrite foreign FIFO cleanup guard")
+    fifo_dest.write_bytes(fifo_header.read_bytes())
     # Header is original TIHULU Qt integration, not copied from welle.io.
     # Rebuilds use a detached clean upstream Kaffeine worktree.
     widget = Path(__file__).with_name("native_radio_tab.h")
