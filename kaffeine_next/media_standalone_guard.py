@@ -8,6 +8,8 @@ are checked again at activation and before any rollback mutation.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -21,6 +23,7 @@ import tempfile
 
 APP = "tihulu-media-standalone"
 NAMES = ("launcher", "desktop", "cli", "icon")
+LOCK_NAME = ".tihulu-media-standalone-transaction.lock"
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 
 
@@ -167,6 +170,56 @@ def release_path(home, rev):
     if not SHA40.fullmatch(rev):
         raise Hold("Invalid release SHA")
     return layout(home)["releases"] / rev[:12]
+
+
+@contextlib.contextmanager
+def owner_transaction_lock(home):
+    """Cooperative full-transaction serial lock; hostile same-UID attacks HOLD."""
+    home = Path(home).absolute()
+    parent = home / ".local/opt"
+    lock = parent / LOCK_NAME
+    safe_parent(lock, home)
+    if os.geteuid() == 0:
+        raise Hold("Refusing root transaction")
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if (parent.is_symlink() or parent.stat().st_uid != os.geteuid()
+            or parent.stat().st_mode & 0o022):
+        raise Hold("Insecure owner lock parent")
+    parentfd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    borrowed = os.environ.get("TIHULU_MEDIA_TRANSACTION_FD")
+    fd = -1
+    try:
+        if borrowed:
+            try:
+                fd = int(borrowed)
+                if fd < 3:
+                    raise ValueError("bad fd")
+                pinned = os.fstat(fd)
+            except (ValueError, OSError):
+                raise Hold("Missing inherited transaction lock descriptor")
+        else:
+            fd = os.open(LOCK_NAME, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+                         0o600, dir_fd=parentfd)
+            pinned = os.fstat(fd)
+        visible = os.stat(LOCK_NAME, dir_fd=parentfd, follow_symlinks=False)
+        parent_st = os.fstat(parentfd)
+        current_parent = parent.lstat()
+        if ((parent_st.st_dev, parent_st.st_ino) !=
+                (current_parent.st_dev, current_parent.st_ino)
+                or (pinned.st_dev, pinned.st_ino) != (visible.st_dev, visible.st_ino)
+                or pinned.st_uid != os.geteuid()
+                or not stat.S_ISREG(pinned.st_mode) or pinned.st_nlink != 1
+                or stat.S_IMODE(pinned.st_mode) != 0o600):
+            raise Hold("Unsafe or replaced transaction lock")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Hold("Competing standalone transaction is active")
+        yield fd
+    finally:
+        if not borrowed and fd >= 0:
+            os.close(fd)
+        os.close(parentfd)
 
 
 def current_state(home):
