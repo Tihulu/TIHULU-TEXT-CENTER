@@ -82,3 +82,8 @@ Inspect the exact-head PR/CI, reproduce negative history and external-FD
 lock scenarios, verify Qt native menu click and two app instances with the
 same synthetic HOME where CI permits, and report P0/P1/P2 with scoped
 PASS/HOLD to PR, Media #76, QA #81 and Coordinator #75.
+
+Packaged source copies inside the standalone release also auto-detect
+their installed path and override an unset/false standalone flag.
+The historical pinned welle source CI outside an installed release
+retains its existing test behavior; installed release cannot enter APT.
