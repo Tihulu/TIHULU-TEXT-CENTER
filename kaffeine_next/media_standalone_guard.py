@@ -567,16 +567,20 @@ def _pinned_pending_parent(home):
     """
     home = Path(home).absolute()
     parent = home
-    for element in (".local", "opt", APP, "releases"):
-        if element == "opt":
-            # the opt dir is beneath .local (the layout's fixed location)
-            pass
-        parent = parent / element
+    for element in (None, ".local", "opt", APP, "releases"):
+        if element is not None:
+            parent = parent / element
         st = parent.lstat()
         if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid()
                 or st.st_mode & 0o022):
             raise Hold("Unsafe owner staging ancestor: " + str(parent))
-    return os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    pinned = os.fstat(fd)
+    visible = parent.lstat()
+    if (pinned.st_dev, pinned.st_ino) != (visible.st_dev, visible.st_ino):
+        os.close(fd)
+        raise Hold("Owned release parent replaced during validation")
+    return fd
 
 
 def _validated_pending(home, rev, record):
