@@ -293,6 +293,32 @@ class NativePackagingContracts(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual((home / "welle-mode").read_text(),"1\n")
 
+    def test_18_installed_source_welle_cannot_sudo_without_env(self):
+        source = (ROOT / "kaffeine_next/install_welle.sh").read_text()
+        with tempfile.TemporaryDirectory(prefix="stand-welle-source-") as root:
+            home = Path(root)
+            installed = (home / ".local/opt/tihulu-media-standalone/releases"
+                         / "r2-test/share/kaffeine_next/install_welle.sh")
+            installed.parent.mkdir(parents=True)
+            installed.write_text(source)
+            fakebin = home / "fakebin"
+            fakebin.mkdir()
+            sudo = fakebin / "sudo"
+            sudo.write_text('#!/bin/sh\nprintf "SUDO_ENTERED" > "$HOME/sudo-invoked"\nexit 98\n')
+            sudo.chmod(0o700)
+            git = fakebin / "git"
+            git.write_text("#!/bin/sh\nexit 47\n")
+            git.chmod(0o700)
+            proc = subprocess.run(["/bin/bash", str(installed)],
+                env={"HOME": str(home), "PATH": str(fakebin) + ":/usr/bin:/bin",
+                     "TIHULU_MEDIA_STANDALONE": "0"},
+                cwd=root, capture_output=True, text=True, timeout=10)
+            self.assertEqual(proc.returncode, 47, proc.stderr)
+            self.assertFalse((home / "sudo-invoked").exists())
+            self.assertTrue((home / ".local/share/tihulu-media-standalone/welle").is_dir())
+            self.assertFalse((home / ".local/share/tihulu-media-center/welle").exists())
+
+
     def test_16_ai_companion_executes_with_minimal_path_and_standalone_env(self):
         src = SHELL.read_text()
         cli = heredoc(src,"CLI")
