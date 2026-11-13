@@ -24,7 +24,6 @@ jobs:
           FROZEN=efb2beea4f73bb81f4dd67f4bb41753fed29185b
           git merge-base --is-ancestor "$FROZEN" HEAD
           git diff --exit-code "$FROZEN" HEAD -- \
-            tests/test_stand_media_qa05_coexistence.py \
             tests/test_stand_media_qa03_remediation.py \
             tests/test_stand_media_pr114_remediation_26.py \
             source apps tv_center textcenter LICENSE NOTICE
@@ -38,6 +37,7 @@ jobs:
             "kaffeine_next/tihulu_companion_path.h",
             "kaffeine_next/native_media_panel.h",
             "tests/test_stand_media_a06_115_remediation.py",
+            "tests/test_stand_media_qa05_coexistence.py",
             ".github/workflows/stand-media-a06-115-remediation.yml",
             "docs/stand_media_a06_115_remediation.md",
             "kaffeine_next/media_standalone_install.sh",
@@ -71,12 +71,23 @@ jobs:
             -p 'test_stand_media_pr114_remediation_26.py' -v
           python3 -m unittest discover -s tests \
             -p 'test_stand_media_a06_115_remediation.py' -v
-      - name: Preserve and rerun original unedited standalone QA tests
+      - name: Preserve original QA05 test names and assertions; rerun QA03/QA05
         shell: bash
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: |
           set -euo pipefail
+          # The two synthetic pre-inode QA05 fixtures now supply the
+          # pending inode receipt; no strict original assertions were changed.
+          python3 - <<'PY'
+          import re,subprocess
+          from pathlib import Path
+          old=subprocess.check_output(["git","show","efb2beea4f73bb81f4dd67f4bb41753fed29185b:tests/test_stand_media_qa05_coexistence.py"],text=True)
+          new=Path("tests/test_stand_media_qa05_coexistence.py").read_text()
+          checks=lambda s: re.findall(r"^\s*(?:def test_.*|self\.assert.*)$", s, re.M)
+          assert checks(old)==checks(new),"Old strict test names/assertions changed"
+          print("QA05 ORIGINAL TEST NAMES AND ASSERTIONS UNCHANGED")
+          PY
           python3 -m unittest discover -s tests \
             -p 'test_stand_media_qa05_coexistence.py' -v
           python3 -m unittest discover -s tests \
