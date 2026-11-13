@@ -641,7 +641,7 @@ def _validated_pending(home, rev, record):
         # entries, never unrecognized files or special nodes.
         partial = items(expected)
         if any(next_receipt["release"].get(k) != v for k, v in partial.items()):
-            raise Hold("Pending staging contains foreign or changed bytes")
+            raise Hold("Pending copy modified; refusing cleanup")
         return expected, fd, marker
     except Exception:
         os.close(fd)
