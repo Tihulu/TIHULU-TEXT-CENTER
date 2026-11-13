@@ -163,6 +163,94 @@ jobs:
           (cd "$HOME" && sha256sum -c "$RUNNER_TEMP/private-before.sha256")
           echo "ACTUAL INSTALLED NATIVE: first install -> rollback -> recover -> reinstall PASS"
           echo "STABLE PRIVATE sentinel bytes preserved; app-only/no-APT installer"
+      - name: Execute actual native FIFO cleanup against concurrent, replaced and foreign inodes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/owned-fifo-attack.cpp" <<'CPP'
+          #include "tihulu_owned_fifo_cleanup.h"
+          #include <QCoreApplication>
+          #include <QTemporaryDir>
+          #include <QFile>
+          #include <sys/stat.h>
+          #include <sys/socket.h>
+          #include <sys/un.h>
+          #include <sys/wait.h>
+          #include <fcntl.h>
+          #include <signal.h>
+          #include <unistd.h>
+          #include <cstring>
+          #include <cstdio>
+          int main(int argc, char **argv) {
+            QCoreApplication app(argc,argv);
+            QTemporaryDir temp("/tmp/tihulu-a06-fifo-XXXXXX");
+            if(!temp.isValid()) return 50;
+            const QString a=temp.path()+"/owner.m2t", other=temp.path()+"/other.m2t";
+            const QString saved=temp.path()+"/original.m2t";
+            const QString link=temp.path()+"/linked.m2t", socketPath=temp.path()+"/socket";
+            const QByteArray aa=QFile::encodeName(a), oo=QFile::encodeName(other);
+            const QByteArray ss=QFile::encodeName(saved), ll=QFile::encodeName(link);
+            const QByteArray sp=QFile::encodeName(socketPath);
+            if(::mkfifo(aa.constData(),0600)) return 51;
+            const int fd=::open(aa.constData(),O_RDONLY|O_NONBLOCK|O_NOFOLLOW);
+            struct stat st,visible;
+            if(fd<0 || ::fstat(fd,&st)) return 52;
+            // Independent concurrent child creates an unrelated FIFO.
+            const pid_t child=::fork();
+            if(child<0) return 53;
+            if(child==0) _exit(::mkfifo(oo.constData(),0600)==0?0:54);
+            int status=0;
+            if(::waitpid(child,&status,0)!=child || !WIFEXITED(status) ||
+               WEXITSTATUS(status)!=0) return 55;
+            if(tihuluUnlinkOwnedFifo(other,fd,st.st_dev,st.st_ino)) return 56;
+            if(::lstat(oo.constData(),&visible) || !S_ISFIFO(visible.st_mode)) return 57;
+            // A foreign symbolic link may point to our opened FIFO.
+            if(::symlink(aa.constData(),ll.constData())) return 58;
+            if(tihuluUnlinkOwnedFifo(link,fd,st.st_dev,st.st_ino) ||
+               ::lstat(ll.constData(),&visible) || !S_ISLNK(visible.st_mode)) return 59;
+            // A foreign Unix socket is never removed even if the caller lies.
+            const int socketFd=::socket(AF_UNIX,SOCK_STREAM,0);
+            if(socketFd<0) return 60;
+            sockaddr_un addr={};
+            addr.sun_family=AF_UNIX;
+            if(sp.size()>=static_cast<int>(sizeof(addr.sun_path))) return 61;
+            std::strncpy(addr.sun_path,sp.constData(),sizeof(addr.sun_path)-1);
+            if(::bind(socketFd,reinterpret_cast<sockaddr*>(&addr),sizeof(addr))) return 62;
+            if(tihuluUnlinkOwnedFifo(socketPath,fd,st.st_dev,st.st_ino) ||
+               ::lstat(sp.constData(),&visible) || !S_ISSOCK(visible.st_mode)) return 63;
+            ::close(socketFd);
+            // A replaced pathname is NOT the inode still held in fd.
+            if(::rename(aa.constData(),ss.constData()) ||
+               ::mkfifo(aa.constData(),0600)) return 64;
+            if(tihuluUnlinkOwnedFifo(a,fd,st.st_dev,st.st_ino) ||
+               ::lstat(aa.constData(),&visible) || !S_ISFIFO(visible.st_mode)) return 65;
+            // The original owner inode can be unlinked at its new path.
+            if(!tihuluUnlinkOwnedFifo(saved,fd,st.st_dev,st.st_ino) ||
+               ::lstat(ss.constData(),&visible)==0) return 66;
+            ::close(fd);
+            // SIGKILL cannot invoke a destructor: keep crash orphan, no sweep.
+            const QString crash=temp.path()+"/crash-orphan.m2t";
+            const QByteArray cc=QFile::encodeName(crash);
+            const pid_t victim=::fork();
+            if(victim<0) return 67;
+            if(victim==0) {
+              if(::mkfifo(cc.constData(),0600)) _exit(68);
+              ::kill(::getpid(),SIGKILL);
+              _exit(69);
+            }
+            if(::waitpid(victim,&status,0)!=victim ||
+               !WIFSIGNALED(status) || WTERMSIG(status)!=SIGKILL ||
+               ::lstat(cc.constData(),&visible) || !S_ISFIFO(visible.st_mode))
+              return 70;
+            std::puts("ACTUAL SHARED C++ FIFO: owner cleanup, sibling process, socket, symlink, replacement and SIGKILL PASS");
+            return 0;
+          }
+          CPP
+          g++ -std=c++14 -fPIC -I"$GITHUB_WORKSPACE/kaffeine_next" \
+            "$RUNNER_TEMP/owned-fifo-attack.cpp" -o "$RUNNER_TEMP/owned-fifo-attack" \
+            $(pkg-config --cflags --libs Qt5Core)
+          "$RUNNER_TEMP/owned-fifo-attack"
+
       - name: Launch actual standalone GUI, verify companion under minimum PATH, and observe FIFO
         shell: bash
         env:
