@@ -1,0 +1,72 @@
+name: STAND-MEDIA PR114 P1-P2 exact-head remediation QA
+on:
+  pull_request:
+    branches: [fix/stand-media-qa05-coexistence-txn-06]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  remediation-process-and-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Assert pinned PR114 ancestry and protected original sources
+        env:
+          EXACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          FROZEN=d91bd2a4a679b37902c2ced284a864b18d046c80
+          git merge-base --is-ancestor "$FROZEN" HEAD
+          git diff --exit-code "$FROZEN" HEAD -- \
+            tests/test_stand_media_qa05_coexistence.py \
+            source apps tv_center textcenter LICENSE NOTICE
+          python3 - <<'PY'
+          import subprocess
+          ancestor="d91bd2a4a679b37902c2ced284a864b18d046c80"
+          changed=set(subprocess.check_output(
+              ["git","diff","--name-only",ancestor,"HEAD"],text=True).splitlines())
+          allow={
+            "kaffeine_next/media_standalone_guard.py",
+            "kaffeine_next/media_standalone_install.sh",
+            "kaffeine_next/patch_upstream.py",
+            "kaffeine_next/native_radio_tab.h",
+            "tests/test_stand_media_pr114_remediation_26.py",
+            ".github/workflows/stand-media-pr114-remediation-26.yml",
+            "docs/stand_media_pr114_p1p2_remediation_26.md",
+          }
+          assert changed <= allow,changed-allow
+          print("EXACT HEAD / FROZEN PR114 / PERMITTED DIFF PASS", sorted(changed))
+          PY
+      - name: Check syntax and run actual process isolation and recovery probes
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          python3 -m py_compile \
+            kaffeine_next/media_standalone_guard.py \
+            kaffeine_next/patch_upstream.py \
+            tests/test_stand_media_pr114_remediation_26.py
+          bash -n kaffeine_next/media_standalone_install.sh
+          python3 -m unittest discover -s tests \
+            -p 'test_stand_media_pr114_remediation_26.py' -v
+      - name: Preserve and rerun original unedited standalone QA tests
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests \
+            -p 'test_stand_media_qa05_coexistence.py' -v
+          python3 -m unittest discover -s tests \
+            -p 'test_stand_media_qa03_remediation.py' -v
+          echo 'HOLD: real installed GUI dual instances, physical DVB, AI model inference, hostile same-UID, power failure and public release'
