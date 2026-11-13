@@ -192,6 +192,49 @@ class RemediationGuard(IndependentHomeFixture):
         self.stable_same()
 
 
+    def test_17_real_outer_guard_holds_fd_through_shell_and_python_child(self):
+        # Two exec boundaries: Python guard -> Bash -> nested Python.
+        script = self.source / "kaffeine_next/media_standalone_install.sh"
+        script.write_text(
+            "#!/bin/bash\nset -eu\n/usr/bin/python3 - <<'END_PY'\n"
+            "import os,sys,time\n"
+            "from pathlib import Path\n"
+            "sys.path.insert(0, " + repr(str(ROOT)) + ")\n"
+            "from kaffeine_next import media_standalone_guard as g\n"
+            "with g.owner_transaction_lock(Path.home()) as fd:\n"
+            "    assert fd == int(os.environ['TIHULU_MEDIA_TRANSACTION_FD'])\n"
+            "    print('INHERITED_LOCK_OK',flush=True)\n"
+            "    time.sleep(1.2)\n"
+            "END_PY\n")
+        from test_stand_media_qa05_coexistence import git
+        git(self.source, "add", ".")
+        git(self.source, "commit", "-qm", "Explicit disposable guarded installer")
+        self.rev = git(self.source, "rev-parse", "HEAD")
+        command = [sys.executable, str(ROOT / "kaffeine_next/media_standalone_guard.py"),
+                   "guarded-script", "--source", str(self.source),
+                   "--sha", self.rev, "--script", str(script)]
+        child = subprocess.Popen(command,
+                                 env={**os.environ, "HOME": str(self.home),
+                                      "PYTHONPATH": str(ROOT),
+                                      "PYTHONDONTWRITEBYTECODE": "1"},
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 text=True)
+        try:
+            self.assertEqual(child.stdout.readline().strip(), "INHERITED_LOCK_OK")
+            with self.assertRaisesRegex(guard.Hold, "Competing"):
+                with guard.owner_transaction_lock(self.home):
+                    pass
+            out, err = child.communicate(timeout=8)
+            self.assertEqual(child.returncode, 0, err)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.communicate(timeout=5)
+        with guard.owner_transaction_lock(self.home):
+            pass
+        self.stable_same()
+
+
 class NativePackagingContracts(unittest.TestCase):
     def test_12_native_diagnostics_menu_invokes_real_installed_public_wrapper(self):
         patcher = PATCHER.read_text()
