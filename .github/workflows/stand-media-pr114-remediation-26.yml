@@ -70,3 +70,126 @@ jobs:
           python3 -m unittest discover -s tests \
             -p 'test_stand_media_qa03_remediation.py' -v
           echo 'HOLD: real installed GUI dual instances, physical DVB, AI model inference, hostile same-UID, power failure and public release'
+
+  native-installed-disposable-same-home:
+    name: Actual standalone native install, rollback, reinstall and dual GUI
+    needs: [remediation-process-and-regression]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Provision CI runner only, never a user machine
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git cmake g++ make pkg-config extra-cmake-modules ffmpeg \
+            qtbase5-dev libqt5x11extras5-dev libkf5coreaddons-dev \
+            libkf5dbusaddons-dev libkf5i18n-dev libkf5kio-dev \
+            libkf5solid-dev libkf5widgetsaddons-dev libkf5windowsystem-dev \
+            libkf5xmlgui-dev libvlc-dev libx11-dev libxss-dev \
+            libdvbv5-dev libudev-dev libqt5sql5-sqlite \
+            kaffeine xvfb xauth dbus-x11 xdotool
+      - name: Run actual native user-only install and rollback/reinstall lifecycle
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          export HOME="$RUNNER_TEMP/stand-media-native-isolated-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          export TIHULU_MEDIA_SOURCE_DIR="$GITHUB_WORKSPACE"
+          export TIHULU_MEDIA_SOURCE_SHA="$EXPECTED_HEAD"
+          mkdir -p "$HOME/.config/TIHULU" "$HOME/Recordings" "$HOME/external-SSD"
+          printf 'STABLE KCONFIG PRIVATE\n' > "$HOME/.config/TIHULU/KaffeineRadio.conf"
+          printf 'STABLE RECORDING PRIVATE\n' > "$HOME/Recordings/owner-recording.ts"
+          printf 'STABLE MODEL PRIVATE\n' > "$HOME/external-SSD/model-placeholder.bin"
+          sha256sum "$HOME/.config/TIHULU/KaffeineRadio.conf" \
+            "$HOME/Recordings/owner-recording.ts" \
+            "$HOME/external-SSD/model-placeholder.bin" > "$RUNNER_TEMP/private-before.sha256"
+          bash kaffeine_next/media_standalone_install.sh --no-ai
+          ROOT="$HOME/.local/opt/tihulu-media-standalone"
+          test -x "$ROOT/current/bin/tihulu-media-standalone"
+          test -x "$HOME/.local/bin/tihulu-media-standalone"
+          test -x "$HOME/.local/bin/tihulu-media-standalone-cli"
+          test -f "$ROOT/current/aux/dvb_diagnostics.sh"
+          test -f "$ROOT/current/aux/install_welle.sh"
+          # This invokes the installed public diagnostic route, not merely
+          # the source script. It never tunes or opens an RF device.
+          env -i HOME="$HOME" PATH=/usr/bin:/bin \
+            /bin/sh "$HOME/.local/bin/tihulu-media-standalone" \
+            --diagnose-tuner > "$RUNNER_TEMP/installed-diagnostics.txt"
+          grep -Fq 'DVB frontend diagnostics' "$RUNNER_TEMP/installed-diagnostics.txt"
+          bash kaffeine_next/media_standalone_install.sh --rollback
+          test ! -e "$ROOT/current"
+          bash kaffeine_next/media_standalone_install.sh --recover
+          bash kaffeine_next/media_standalone_install.sh --no-ai
+          test -x "$ROOT/current/bin/tihulu-media-standalone"
+          (cd "$HOME" && sha256sum -c "$RUNNER_TEMP/private-before.sha256")
+          echo "ACTUAL INSTALLED NATIVE: first install -> rollback -> recover -> reinstall PASS"
+          echo "STABLE PRIVATE sentinel bytes preserved; app-only/no-APT installer"
+      - name: Launch distro stable and installed standalone GUI concurrently without RF
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/stand-media-native-isolated-home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/stand-media-xdg-runtime"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          cat > "$RUNNER_TEMP/dual-native-gui.sh" <<'BASH'
+          #!/bin/bash
+          set -euo pipefail
+          /usr/bin/kaffeine > "$HOME/stable-gui.log" 2>&1 &
+          stable=$!
+          "$HOME/.local/bin/tihulu-media-standalone" > "$HOME/standalone-gui.log" 2>&1 &
+          standalone=$!
+          cleanup() {
+            kill "$standalone" "$stable" 2>/dev/null || true
+            wait "$standalone" "$stable" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sleep 7
+          kill -0 "$stable" || { cat "$HOME/stable-gui.log"; exit 3; }
+          kill -0 "$standalone" || { cat "$HOME/standalone-gui.log"; exit 4; }
+          stable_windows=$(xdotool search --pid "$stable" --onlyvisible | wc -l)
+          standalone_windows=$(xdotool search --pid "$standalone" --onlyvisible | wc -l)
+          test "$stable_windows" -ge 1
+          test "$standalone_windows" -ge 1
+          echo "Two actual native Qt GUI instances alive in one synthetic HOME"
+          dbus-send --session --dest=org.freedesktop.DBus \
+            --type=method_call --print-reply \
+            /org/freedesktop/DBus org.freedesktop.DBus.ListNames \
+            > "$HOME/ci-session-dbus-names.txt"
+          # Only this process is stopped. The unrelated stable instance must
+          # survive and its native window must remain present.
+          kill "$standalone"
+          wait "$standalone" 2>/dev/null || true
+          kill -0 "$stable"
+          test "$(xdotool search --pid "$stable" --onlyvisible | wc -l)" -ge 1
+          echo "Standalone exit does not terminate stable native GUI"
+          BASH
+          chmod 700 "$RUNNER_TEMP/dual-native-gui.sh"
+          timeout 55 dbus-run-session -- xvfb-run -a /bin/bash \
+            "$RUNNER_TEMP/dual-native-gui.sh"
+          (cd "$HOME" && sha256sum -c "$RUNNER_TEMP/private-before.sha256")
+          echo "MPRIS/real RF/model inference/hardware and hostile same-UID remain HOLD"
