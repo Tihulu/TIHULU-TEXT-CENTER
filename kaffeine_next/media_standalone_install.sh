@@ -31,6 +31,13 @@ done
 (( DRY + ROLLBACK + RECOVER <= 1 )) || {
   echo "MEDIA_STANDALONE_HOLD: conflicting transaction modes" >&2; exit 2;
 }
+# A single non-root guard owns an inode-checked flock across source
+# verification, full native build, activation, rollback or recovery. The child
+# inherits the SAME held FD. Dry-run remains completely read-only.
+if (( !DRY )) && [[ -z "${TIHULU_MEDIA_TRANSACTION_FD:-}" ]]; then
+  exec /usr/bin/python3 "$GUARD" guarded-script --source "$SOURCE_DIR" \
+    --sha "$REVIEWED_SHA" --script "$SOURCE_DIR/kaffeine_next/media_standalone_install.sh" -- "$@"
+fi
 if (( DRY )); then
   OPT=()
   if (( WITH_AI )); then OPT+=(--with-ai); fi
