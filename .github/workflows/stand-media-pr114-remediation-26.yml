@@ -36,6 +36,7 @@ jobs:
             "kaffeine_next/media_standalone_install.sh",
             "kaffeine_next/patch_upstream.py",
             "kaffeine_next/native_radio_tab.h",
+            "kaffeine_next/install_welle.sh",
             "tests/test_stand_media_pr114_remediation_26.py",
             ".github/workflows/stand-media-pr114-remediation-26.yml",
             "docs/stand_media_pr114_p1p2_remediation_26.md",
@@ -57,6 +58,7 @@ jobs:
             kaffeine_next/patch_upstream.py \
             tests/test_stand_media_pr114_remediation_26.py
           bash -n kaffeine_next/media_standalone_install.sh
+          bash -n kaffeine_next/install_welle.sh
           python3 -m unittest discover -s tests \
             -p 'test_stand_media_pr114_remediation_26.py' -v
       - name: Preserve and rerun original unedited standalone QA tests
