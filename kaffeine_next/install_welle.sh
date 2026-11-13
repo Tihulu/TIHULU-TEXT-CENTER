@@ -6,6 +6,16 @@ set -Eeuo pipefail
 if [[ "$(uname -s)" != Linux ]] || (( EUID == 0 )); then
   echo "Run as an ordinary Linux desktop user, not root." >&2; exit 1
 fi
+# A source copy inside an installed standalone release MUST NEVER fall
+# through to the historical sudo/APT branch, even if called directly, from
+# an unrelated working directory, or with a misleading environment variable.
+# The pinned legacy source-repository CI still uses its historical path.
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+case "$script_dir" in
+  "$HOME/.local/opt/tihulu-media-standalone/releases/"*/share/kaffeine_next|\
+  "$HOME/.local/opt/tihulu-media-standalone/current/share/kaffeine_next")
+    export TIHULU_MEDIA_STANDALONE=1 ;;
+esac
 if ! command -v apt-get >/dev/null 2>&1; then
   echo "Optional receiver build requires Debian/Ubuntu/Pop!_OS." >&2; exit 1
 fi
