@@ -12,8 +12,7 @@ fi
 # The pinned legacy source-repository CI still uses its historical path.
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 case "$script_dir" in
-  "$HOME/.local/opt/tihulu-media-standalone/releases/"*/share/kaffeine_next|\
-  "$HOME/.local/opt/tihulu-media-standalone/current/share/kaffeine_next")
+  "$HOME/.local/opt/tihulu-media-standalone/releases/"*/share/kaffeine_next|"$HOME/.local/opt/tihulu-media-standalone/current/share/kaffeine_next")
     export TIHULU_MEDIA_STANDALONE=1 ;;
 esac
 if ! command -v apt-get >/dev/null 2>&1; then
