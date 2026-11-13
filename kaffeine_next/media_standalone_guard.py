@@ -385,6 +385,11 @@ def write_link(path, target, home, expected=None):
 
 
 def activate(home, source, rev, stage):
+    with owner_transaction_lock(home):
+        return _activate_locked(home, source, rev, stage)
+
+
+def _activate_locked(home, source, rev, stage):
     plan = preflight(home, source, rev)
     if plan["already_active"]:
         return {"owner": APP, "sha": rev, "phase": "active", "repeat": True}
@@ -470,6 +475,11 @@ def validate_rollback(home, rev):
 
 
 def rollback(home, rev):
+    with owner_transaction_lock(home):
+        return _rollback_locked(home, rev)
+
+
+def _rollback_locked(home, rev):
     plan = validate_rollback(home, rev)  # ALL paths before FIRST write
     if plan["phase"] == "rolled_back":
         return plan
@@ -507,15 +517,32 @@ def rollback(home, rev):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("preflight", "dry-run", "activate",
-                                            "rollback-plan", "rollback", "recover"))
+                                            "rollback-plan", "rollback", "recover",
+                                            "guarded-script"))
     parser.add_argument("--sha", required=True)
     parser.add_argument("--source")
     parser.add_argument("--artifact")
+    parser.add_argument("--script")
     parser.add_argument("--with-dab", action="store_true")
     parser.add_argument("--with-ai", action="store_true")
-    args = parser.parse_args(argv)
+    args, trailing = parser.parse_known_args(argv)
+    if trailing and args.command != "guarded-script":
+        parser.error("Unexpected command arguments")
     try:
         home = Path.home()
+        if args.command == "guarded-script":
+            source = Path(args.source).absolute()
+            script = Path(args.script).absolute()
+            if script != source / "kaffeine_next/media_standalone_install.sh" or script.is_symlink():
+                raise Hold("Refusing arbitrary installer child script")
+            verify_source(source, args.sha)
+            with owner_transaction_lock(home) as fd:
+                env = dict(os.environ)
+                env["TIHULU_MEDIA_TRANSACTION_FD"] = str(fd)
+                child_args = trailing[1:] if trailing and trailing[0] == "--" else trailing
+                return subprocess.run(
+                    ["/bin/bash", str(script), *child_args], env=env,
+                    pass_fds=(fd,), check=False).returncode
         if args.command in ("preflight", "dry-run"):
             value = preflight(home, args.source, args.sha, ai=args.with_ai, dab=args.with_dab)
         elif args.command == "activate":
