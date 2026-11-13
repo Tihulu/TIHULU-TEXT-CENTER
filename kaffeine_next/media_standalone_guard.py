@@ -630,6 +630,7 @@ def _validated_pending(home, rev, record):
                         and completed.st_uid == marker["uid"]
                         and stat.S_ISDIR(completed.st_mode)
                         and items(release) == next_receipt["release"]):
+                    os.close(fd)
                     return None
             raise Hold("Owned pending inode vanished without verified publication")
         if (not stat.S_ISDIR(st.st_mode) or st.st_uid != marker["uid"]
