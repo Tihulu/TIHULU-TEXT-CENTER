@@ -10,6 +10,7 @@
 
 #include "tabbase.h"
 #include "mediawidget.h"
+#include "tihulu_companion_path.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -2740,7 +2741,7 @@ public:
 			QFile::remove(lyricPath_);
 			lyricsEnabled_=true;
 			lyricLoaded_=false;
-			lyricsProcess_.start(QLatin1String("tihulu-media-standalone-cli"),{
+			lyricsProcess_.start(tihuluCompanionCliPath(),{
 				QLatin1String("lyrics-import"),QLatin1String("--file"),path,
 				QLatin1String("--output"),lyricPath_});
 			if(!lyricsProcess_.waitForStarted(900)) {
@@ -3179,7 +3180,7 @@ private:
 	void refreshLanguagePacks() {
 		if(languagePackWorker_.state()!=QProcess::NotRunning) return;
 		refreshTargets_->setEnabled(false);
-		languagePackWorker_.start(QLatin1String("tihulu-media-standalone-cli"),
+		languagePackWorker_.start(tihuluCompanionCliPath(),
 			{QLatin1String("ai-radio-languages")});
 		if(!languagePackWorker_.waitForStarted(1000)) {
 			refreshTargets_->setEnabled(true);
@@ -4609,7 +4610,7 @@ private:
 			QLatin1String("--source"),QLatin1String("auto"),
 			QLatin1String("--targets"),targets.join(QLatin1Char(','))};
 		if(music_->isChecked()) args<<QLatin1String("--music");
-		recordAi_.start(QLatin1String("tihulu-media-standalone-cli"),args);
+		recordAi_.start(tihuluCompanionCliPath(),args);
 		if(!recordAi_.waitForStarted(850))
 			state_->setText(tr("Recording saved; could not launch offline caption worker."));
 		else state_->setText(tr("Recording saved. Creating accurate offline SRT before MKV mux…"));
@@ -5127,7 +5128,7 @@ private:
 		options<<QLatin1String("--output")<<captionPath_
                <<QLatin1String("--controls")<<captionControlsPath_;
 		QFile::remove(captionPath_);
-		captionProcess_.start(QLatin1String("tihulu-media-standalone-cli"),options);
+		captionProcess_.start(tihuluCompanionCliPath(),options);
         if (!captionProcess_.waitForStarted(1200)) {
             radioCaption_->setText(tr("Offline radio AI sidecar could not start."));
             captionProgress_->setVisible(false);
@@ -5913,7 +5914,7 @@ private:
                     QLatin1String("-export"),
                 QLatin1String("--formats"),formats.join(QLatin1Char(',')),
                 QLatin1String("--timestamps")};
-            liveCaptionFormatsProcess_.start(QLatin1String("tihulu-media-standalone-cli"),args);
+            liveCaptionFormatsProcess_.start(tihuluCompanionCliPath(),args);
         }
         if(liveCaptionRecord_)
             liveCaptionRecord_->setText(tr("Save live AI subtitles"));
@@ -6919,7 +6920,7 @@ private:
         lyricsRefresh_->setEnabled(false);
         // Independent worker/file: do not unset lyricLoaded_, reset the
         // preview song clock, clear word anchors, or restart SDR/Whisper.
-        lyricsRefreshProcess_.start(QLatin1String("tihulu-media-standalone-cli"),
+        lyricsRefreshProcess_.start(tihuluCompanionCliPath(),
             {QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
              QLatin1String("--track"),title,QLatin1String("--output"),
              lyricsRefreshPath_,QLatin1String("--source"),sourceCode,
@@ -7169,7 +7170,7 @@ private:
                 return;
             }
         }
-		lyricsProcess_.start(QLatin1String("tihulu-media-standalone-cli"),
+		lyricsProcess_.start(tihuluCompanionCliPath(),
 			{QLatin1String("lyrics-lookup"),QLatin1String("--artist"),artist,
 			 QLatin1String("--track"),title,QLatin1String("--output"),lyricPath_,
 			 QLatin1String("--source"),sourceCode,
