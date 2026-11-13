@@ -497,9 +497,18 @@ def _activate_locked(home, source, rev, stage):
         raise Hold("Refusing invalid build staging")
     next_state = proposed(home, rev, stage)
     old = current_state(home)
+    previous_record = journal_for_reentry(home, rev) if plan["historical_reentry"] else None
+    new_release = release_path(home, rev)
+    reuse_release = bool(previous_record and new_release.is_dir())
+    if reuse_release:
+        # Reuse original hash-verified native bits. Same-source rebuilt native
+        # binaries are not assumed reproducible or safe to replace.
+        if items(new_release) != previous_record["new"]["release"]:
+            raise Hold("Historical release changed before reactivation")
+        next_state = previous_record["new"]
     r = {"owner": APP, "sha": rev, "phase": "prepared",
          "prior": old, "new": next_state, "pending": ""}
-    write_journal(home, rev, r)  # BEFORE any managed release/file write
+    write_journal(home, rev, r, reuse=bool(previous_record))
     p = layout(home)
     pending = p["releases"] / (".pending-" + rev[:12])
     safe_parent(pending, home)
@@ -509,15 +518,19 @@ def _activate_locked(home, source, rev, stage):
     write_journal(home, rev, r)
     p["releases"].mkdir(parents=True, exist_ok=True)
     try:
-        shutil.copytree(stage, pending, symlinks=True)
-        if items(pending) != next_state["release"]:
-            raise Hold("Staged release altered during copy")
+        if not reuse_release:
+            shutil.copytree(stage, pending, symlinks=True)
+            if items(pending) != next_state["release"]:
+                raise Hold("Staged release altered during copy")
         r["phase"] = "activating"
         write_journal(home, rev, r)
-        new_release = release_path(home, rev)
-        if new_release.exists() or new_release.is_symlink():
-            raise Hold("Foreign release appeared after preflight")
-        pending.rename(new_release)
+        if reuse_release:
+            if items(new_release) != next_state["release"]:
+                raise Hold("Previously owned release modified before activation")
+        else:
+            if new_release.exists() or new_release.is_symlink():
+                raise Hold("Foreign release appeared after preflight")
+            pending.rename(new_release)
         for key in NAMES:
             src = new_release / "setup" / key
             expected = old["public"][key] if old else None
