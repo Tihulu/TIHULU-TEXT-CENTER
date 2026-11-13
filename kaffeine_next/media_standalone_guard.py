@@ -222,6 +222,102 @@ def owner_transaction_lock(home):
         os.close(parentfd)
 
 
+def historical_state(home):
+    """Read-only historical ownership check; never adopt unverified state.
+
+    A rolled-back first install can retain a genuine release and transaction
+    without active.json. Every known path and hash must be accounted for.
+    This is an integrity gate, NOT cryptographic same-UID authentication.
+    """
+    p = layout(home)
+    root, state = p["root"], p["state"]
+    if not any(x.exists() or x.is_symlink() for x in (root, state)):
+        return {}
+    if state.is_symlink() or not state.is_dir():
+        raise Hold("Unowned standalone install/state directory")
+    for x in (state,):
+        st = x.lstat()
+        if st.st_uid != os.geteuid() or st.st_mode & 0o022:
+            raise Hold("Foreign historical state ownership or permissions")
+    if root.exists() or root.is_symlink():
+        st = root.lstat()
+        if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid()
+                or st.st_mode & 0o022):
+            raise Hold("Unowned standalone install/state directory")
+        if {x.name for x in root.iterdir()} - {"releases"}:
+            raise Hold("Unexpected standalone root entries after rollback")
+    if {x.name for x in state.iterdir()} != {"transactions"}:
+        raise Hold("Unexpected standalone state/history directory")
+    txns = state / "transactions"
+    st = txns.lstat()
+    if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid()
+            or st.st_mode & 0o022):
+        raise Hold("Untrusted historical journal directory")
+    known = {}
+    for folder in txns.iterdir():
+        if (not SHA40.fullmatch(folder.name) or folder.is_symlink() or
+                not folder.is_dir() or
+                {x.name for x in folder.iterdir()} != {"journal.json"}):
+            raise Hold("Unknown/unsealed historical transaction directory")
+        record = journal(home, folder.name)
+        pending = record.get("pending")
+        expected_pending = str(p["releases"] / (".pending-" + folder.name[:12]))
+        if (record.get("phase") != "rolled_back" or
+                pending not in ("", None, expected_pending) or
+                pending == expected_pending and Path(pending).exists()):
+            raise Hold("Incomplete or foreign historical transaction")
+        new_receipt = record.get("new")
+        if (not isinstance(new_receipt, dict) or
+                new_receipt.get("owner") != APP or
+                new_receipt.get("sha") != folder.name or
+                not isinstance(new_receipt.get("release"), dict) or
+                new_receipt.get("public", {}).get("current") !=
+                {"type": "link", "target": str(release_path(home, folder.name))}):
+            raise Hold("Historical release identity mismatch")
+        for key in NAMES:
+            if new_receipt["public"].get(key) != new_receipt["release"].get("setup/" + key):
+                raise Hold("Historical launcher/receipt mismatch")
+        if folder.name[:12] in known:
+            raise Hold("Ambiguous historical release SHA prefix")
+        known[folder.name[:12]] = new_receipt
+    if not known:
+        raise Hold("Missing installer-owned historical journal")
+    releases = p["releases"]
+    if releases.exists() or releases.is_symlink():
+        if releases.is_symlink() or not releases.is_dir():
+            raise Hold("Replaced historical releases root")
+        for entry in releases.iterdir():
+            if entry.name not in known or entry.is_symlink() or not entry.is_dir():
+                raise Hold("Unknown previous release: " + entry.name)
+            if items(entry) != known[entry.name]["release"]:
+                raise Hold("Historical native release hash mismatch")
+    for key in (*NAMES, "current"):
+        if public_receipt(home, key)["type"] != "absent":
+            raise Hold("Unowned standalone destination after rollback: " + key)
+    return known
+
+
+def journal_for_reentry(home, rev):
+    path = journal_path(home, rev)
+    if not (path.exists() or path.is_symlink()):
+        return None
+    record = journal(home, rev)
+    if record.get("phase") != "rolled_back":
+        return None
+    receipt = record.get("new")
+    expected_pending = str(layout(home)["releases"] / (".pending-" + rev[:12]))
+    pending = record.get("pending")
+    if (not isinstance(receipt, dict) or receipt.get("owner") != APP or
+            receipt.get("sha") != rev or
+            receipt.get("public", {}).get("current") !=
+            {"type": "link", "target": str(release_path(home, rev))} or
+            pending not in ("", None, expected_pending)):
+        raise Hold("Untrusted historical journal")
+    if pending == expected_pending and (Path(pending).exists() or Path(pending).is_symlink()):
+        raise Hold("Unresolved pending historical stage")
+    return record
+
+
 def current_state(home):
     p = layout(home)
     if not p["active"].exists() and not p["active"].is_symlink():
@@ -246,29 +342,32 @@ def preflight(home, source, rev, **optional):
     for key in (*NAMES, "current", "active", "root", "state", "releases"):
         safe_parent(p[key], home)
     active = current_state(home)
+    history = historical_state(home) if active is None else {}
     if active is None:
-        # Do not silently adopt another application's or a failed preview's
-        # user-owned config/data/transaction tree, even when it has no pointer.
-        for key in ("root", "state"):
-            if p[key].exists() or p[key].is_symlink():
-                raise Hold("Unowned standalone install/state directory: " + str(p[key]))
         for key in (*NAMES, "current"):
             if public_receipt(home, key)["type"] != "absent":
                 raise Hold("Existing unowned/legacy destination: " + str(p[key]))
-    # Never adopt a release from the old project or another installer.
     dest = release_path(home, rev)
     already = bool(active and active["sha"] == rev)
+    journal_file = journal_path(home, rev)
+    safe_parent(journal_file, home)
+    reenter = False
+    if journal_file.exists() or journal_file.is_symlink():
+        old_record = journal_for_reentry(home, rev)
+        reenter = old_record is not None
+        if not reenter and not already:
+            raise Hold("Incomplete owned transaction: run --recover or --rollback")
     if dest.exists() or dest.is_symlink():
-        if not already:
+        if not (already or reenter):
             raise Hold("Release path already occupied: " + str(dest))
-    journal = p["state"] / "transactions" / rev / "journal.json"
-    safe_parent(journal, home)
-    if journal.parent.exists() or journal.parent.is_symlink():
-        if not already:
-            raise Hold("Foreign/incomplete transaction directory; run --recover or --rollback")
+        if reenter and items(dest) != old_record["new"]["release"]:
+            raise Hold("Historical native release no longer verifies")
+    if active is None and dest.exists() and rev[:12] not in history:
+        raise Hold("Previously installed release is not historically verified")
     return {
         "owner": APP, "source_sha": rev, "dry_run": True,
-        "already_active": already, "new_release": str(dest),
+        "already_active": already, "historical_reentry": reenter,
+        "new_release": str(dest),
         "managed": {key: str(p[key]) for key in (*NAMES, "current", "active")},
         "system_package_operations": [],
         "legacy_import": False, "automatic_model_install": False,
@@ -292,12 +391,12 @@ def journal(home, rev):
     return r
 
 
-def write_journal(home, rev, record):
+def write_journal(home, rev, record, *, reuse=False):
     # First durable receipt is no-clobber; all later writes update only this
     # transaction's known journal. Never overwrite an unexpectedly new file.
     atomic_json(journal_path(home, rev), home, record,
                 no_replace=(record["phase"] == "prepared" and
-                            not record.get("pending")))
+                            not record.get("pending") and not reuse))
 
 
 def proposed(home, rev, stage):
