@@ -635,7 +635,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("preflight", "dry-run", "activate",
                                             "rollback-plan", "rollback", "recover",
-                                            "guarded-script"))
+                                            "guarded-script", "verify-lock"))
     parser.add_argument("--sha", required=True)
     parser.add_argument("--source")
     parser.add_argument("--artifact")
@@ -647,7 +647,10 @@ def main(argv=None):
         parser.error("Unexpected command arguments")
     try:
         home = Path.home()
-        if args.command == "guarded-script":
+        if args.command == "verify-lock":
+            with owner_transaction_lock(home):
+                value = {"owner": APP, "lock_valid": True}
+        elif args.command == "guarded-script":
             source = Path(args.source).absolute()
             script = Path(args.script).absolute()
             if script != source / "kaffeine_next/media_standalone_install.sh" or script.is_symlink():
@@ -660,7 +663,7 @@ def main(argv=None):
                 return subprocess.run(
                     ["/bin/bash", str(script), *child_args], env=env,
                     pass_fds=(fd,), check=False).returncode
-        if args.command in ("preflight", "dry-run"):
+        elif args.command in ("preflight", "dry-run"):
             value = preflight(home, args.source, args.sha, ai=args.with_ai, dab=args.with_dab)
         elif args.command == "activate":
             value = activate(home, args.source, args.sha, args.artifact)
