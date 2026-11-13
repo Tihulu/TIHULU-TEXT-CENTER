@@ -1341,7 +1341,8 @@ public:
             "Open the same Whisper / translator manager used by TV. "
             "Refresh this radio catalog after applying another model."));
         connect(openModelMarket,&QPushButton::clicked,this,[this](){
-            if(!QProcess::startDetached(QLatin1String("tihulu-media-standalone-cli"),
+            if(!QProcess::startDetached(QDir::homePath() +
+                QLatin1String("/.local/bin/tihulu-media-standalone-cli"),
                 {QLatin1String("ai-market")}))
                 translationStatus_->setText(tr(
                     "Could not open Model Market; use the TIHULU AI menu."));

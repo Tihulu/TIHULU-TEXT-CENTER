@@ -31,6 +31,18 @@ done
 (( DRY + ROLLBACK + RECOVER <= 1 )) || {
   echo "MEDIA_STANDALONE_HOLD: conflicting transaction modes" >&2; exit 2;
 }
+# A single non-root guard owns an inode-checked flock across source
+# verification, full native build, activation, rollback or recovery. The child
+# inherits the SAME held FD. Dry-run remains completely read-only.
+if (( !DRY )) && [[ -z "${TIHULU_MEDIA_TRANSACTION_FD:-}" ]]; then
+  exec /usr/bin/python3 "$GUARD" guarded-script --source "$SOURCE_DIR" \
+    --sha "$REVIEWED_SHA" --script "$SOURCE_DIR/kaffeine_next/media_standalone_install.sh" -- "$@"
+fi
+# Validate the inherited lock in the actual Bash child before any
+# build, rollback or recovery even if a caller forged the environment flag.
+if (( !DRY )); then
+  /usr/bin/python3 "$GUARD" verify-lock --sha "$REVIEWED_SHA" >/dev/null
+fi
 if (( DRY )); then
   OPT=()
   if (( WITH_AI )); then OPT+=(--with-ai); fi
@@ -98,7 +110,15 @@ SYSTEM_ENV=(env -i "HOME=$HOME" "USER=$(id -un)" \
 }
 ln -s kaffeine "$ARTIFACT/bin/tihulu-media-standalone"
 cp -a "$SOURCE_DIR/tv_center" "$SOURCE_DIR/kaffeine_next" "$ARTIFACT/share/"
-cp "$SOURCE_DIR/kaffeine_next/install_welle.sh" "$ARTIFACT/aux/install_welle.sh"
+# The SHIPPED auxiliary is forced into no-APT standalone mode even when
+# launched directly from a desktop/menu without any inherited environment.
+# Keep the legacy source script untouched for historical CI compatibility.
+cat > "$ARTIFACT/aux/install_welle.sh" <<'SAFE_WELLE'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+export TIHULU_MEDIA_STANDALONE=1
+exec /bin/bash "$HOME/.local/opt/tihulu-media-standalone/current/share/kaffeine_next/install_welle.sh" "$@"
+SAFE_WELLE
 cp "$SOURCE_DIR/kaffeine_next/dvb_diagnostics.sh" "$ARTIFACT/aux/dvb_diagnostics.sh"
 chmod 755 "$ARTIFACT/aux/"*.sh
 cp "$SOURCE_DIR/kaffeine_next/assets/tihulu-media-center.svg" "$ARTIFACT/setup/icon"
@@ -123,7 +143,7 @@ export TIHULU_VLC_PROFILE
 if [ "$#" -eq 0 ] && [ "${TIHULU_AUTOPLAY_LAST_CHANNEL:-0}" = 1 ]; then
   set -- --lastchannel
 fi
-exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
+exec /usr/bin/env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
   "$HOME/.local/opt/tihulu-media-standalone/current/bin/tihulu-media-standalone" "$@"
 LAUNCH
@@ -133,11 +153,12 @@ export TIHULU_MEDIA_STANDALONE=1
 BASE="$HOME/.local/opt/tihulu-media-standalone/current"
 export PYTHONPATH="$BASE/share${PYTHONPATH:+:$PYTHONPATH}"
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then export QT_QPA_PLATFORM=xcb; fi
-PYTHON=python3
+PYTHON=/usr/bin/python3
 AI_ENV="$HOME/.local/share/tihulu-media-standalone/ai-runtime"
 if [ -f "$AI_ENV/.tihulu-owned-ai-runtime" ] && [ -x "$AI_ENV/bin/python3" ]; then
   PYTHON="$AI_ENV/bin/python3"
 fi
+cd "$BASE/share" || { echo "MEDIA_STANDALONE_HOLD: missing owned Python release" >&2; exit 2; }
 exec "$PYTHON" -m tv_center "$@"
 CLI
 cat > "$ARTIFACT/setup/desktop" <<DESKTOP

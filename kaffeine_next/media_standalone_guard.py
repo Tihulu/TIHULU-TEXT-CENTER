@@ -8,6 +8,8 @@ are checked again at activation and before any rollback mutation.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -21,6 +23,7 @@ import tempfile
 
 APP = "tihulu-media-standalone"
 NAMES = ("launcher", "desktop", "cli", "icon")
+LOCK_NAME = ".tihulu-media-standalone-transaction.lock"
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 
 
@@ -169,6 +172,152 @@ def release_path(home, rev):
     return layout(home)["releases"] / rev[:12]
 
 
+@contextlib.contextmanager
+def owner_transaction_lock(home):
+    """Cooperative full-transaction serial lock; hostile same-UID attacks HOLD."""
+    home = Path(home).absolute()
+    parent = home / ".local/opt"
+    lock = parent / LOCK_NAME
+    safe_parent(lock, home)
+    if os.geteuid() == 0:
+        raise Hold("Refusing root transaction")
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if (parent.is_symlink() or parent.stat().st_uid != os.geteuid()
+            or parent.stat().st_mode & 0o022):
+        raise Hold("Insecure owner lock parent")
+    parentfd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    borrowed = os.environ.get("TIHULU_MEDIA_TRANSACTION_FD")
+    fd = -1
+    try:
+        if borrowed:
+            try:
+                fd = int(borrowed)
+                if fd < 3:
+                    raise ValueError("bad fd")
+                pinned = os.fstat(fd)
+            except (ValueError, OSError):
+                raise Hold("Missing inherited transaction lock descriptor")
+        else:
+            fd = os.open(LOCK_NAME, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+                         0o600, dir_fd=parentfd)
+            pinned = os.fstat(fd)
+        visible = os.stat(LOCK_NAME, dir_fd=parentfd, follow_symlinks=False)
+        parent_st = os.fstat(parentfd)
+        current_parent = parent.lstat()
+        if ((parent_st.st_dev, parent_st.st_ino) !=
+                (current_parent.st_dev, current_parent.st_ino)
+                or (pinned.st_dev, pinned.st_ino) != (visible.st_dev, visible.st_ino)
+                or pinned.st_uid != os.geteuid()
+                or not stat.S_ISREG(pinned.st_mode) or pinned.st_nlink != 1
+                or stat.S_IMODE(pinned.st_mode) != 0o600):
+            raise Hold("Unsafe or replaced transaction lock")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Hold("Competing standalone transaction is active")
+        yield fd
+    finally:
+        if not borrowed and fd >= 0:
+            os.close(fd)
+        os.close(parentfd)
+
+
+def historical_state(home):
+    """Read-only historical ownership check; never adopt unverified state.
+
+    A rolled-back first install can retain a genuine release and transaction
+    without active.json. Every known path and hash must be accounted for.
+    This is an integrity gate, NOT cryptographic same-UID authentication.
+    """
+    p = layout(home)
+    root, state = p["root"], p["state"]
+    if not any(x.exists() or x.is_symlink() for x in (root, state)):
+        return {}
+    if state.is_symlink() or not state.is_dir():
+        raise Hold("Unowned standalone install/state directory")
+    for x in (state,):
+        st = x.lstat()
+        if st.st_uid != os.geteuid() or st.st_mode & 0o022:
+            raise Hold("Foreign historical state ownership or permissions")
+    if root.exists() or root.is_symlink():
+        st = root.lstat()
+        if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid()
+                or st.st_mode & 0o022):
+            raise Hold("Unowned standalone install/state directory")
+        if {x.name for x in root.iterdir()} - {"releases"}:
+            raise Hold("Unexpected standalone root entries after rollback")
+    if {x.name for x in state.iterdir()} != {"transactions"}:
+        raise Hold("Unowned standalone state/history directory")
+    txns = state / "transactions"
+    st = txns.lstat()
+    if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid()
+            or st.st_mode & 0o022):
+        raise Hold("Untrusted historical journal directory")
+    known = {}
+    for folder in txns.iterdir():
+        if (not SHA40.fullmatch(folder.name) or folder.is_symlink() or
+                not folder.is_dir() or
+                {x.name for x in folder.iterdir()} != {"journal.json"}):
+            raise Hold("Unknown/unsealed historical transaction directory")
+        record = journal(home, folder.name)
+        pending = record.get("pending")
+        expected_pending = str(p["releases"] / (".pending-" + folder.name[:12]))
+        if (record.get("phase") != "rolled_back" or
+                pending not in ("", None, expected_pending) or
+                pending == expected_pending and (Path(pending).exists() or Path(pending).is_symlink())):
+            raise Hold("Incomplete or foreign historical transaction")
+        new_receipt = record.get("new")
+        if (not isinstance(new_receipt, dict) or
+                new_receipt.get("owner") != APP or
+                new_receipt.get("sha") != folder.name or
+                not isinstance(new_receipt.get("release"), dict) or
+                new_receipt.get("public", {}).get("current") !=
+                {"type": "link", "target": str(release_path(home, folder.name))}):
+            raise Hold("Historical release identity mismatch")
+        for key in NAMES:
+            if new_receipt["public"].get(key) != new_receipt["release"].get("setup/" + key):
+                raise Hold("Historical launcher/receipt mismatch")
+        if folder.name[:12] in known:
+            raise Hold("Ambiguous historical release SHA prefix")
+        known[folder.name[:12]] = new_receipt
+    if not known:
+        raise Hold("Missing installer-owned historical journal")
+    releases = p["releases"]
+    if releases.exists() or releases.is_symlink():
+        if releases.is_symlink() or not releases.is_dir():
+            raise Hold("Replaced historical releases root")
+        for entry in releases.iterdir():
+            if entry.name not in known or entry.is_symlink() or not entry.is_dir():
+                raise Hold("Unknown previous release: " + entry.name)
+            if items(entry) != known[entry.name]["release"]:
+                raise Hold("Historical native release hash mismatch")
+    for key in (*NAMES, "current"):
+        if public_receipt(home, key)["type"] != "absent":
+            raise Hold("Unowned standalone destination after rollback: " + key)
+    return known
+
+
+def journal_for_reentry(home, rev):
+    path = journal_path(home, rev)
+    if not (path.exists() or path.is_symlink()):
+        return None
+    record = journal(home, rev)
+    if record.get("phase") != "rolled_back":
+        return None
+    receipt = record.get("new")
+    expected_pending = str(layout(home)["releases"] / (".pending-" + rev[:12]))
+    pending = record.get("pending")
+    if (not isinstance(receipt, dict) or receipt.get("owner") != APP or
+            receipt.get("sha") != rev or
+            receipt.get("public", {}).get("current") !=
+            {"type": "link", "target": str(release_path(home, rev))} or
+            pending not in ("", None, expected_pending)):
+        raise Hold("Untrusted historical journal")
+    if pending == expected_pending and (Path(pending).exists() or Path(pending).is_symlink()):
+        raise Hold("Unresolved pending historical stage")
+    return record
+
+
 def current_state(home):
     p = layout(home)
     if not p["active"].exists() and not p["active"].is_symlink():
@@ -193,29 +342,32 @@ def preflight(home, source, rev, **optional):
     for key in (*NAMES, "current", "active", "root", "state", "releases"):
         safe_parent(p[key], home)
     active = current_state(home)
+    history = historical_state(home) if active is None else {}
     if active is None:
-        # Do not silently adopt another application's or a failed preview's
-        # user-owned config/data/transaction tree, even when it has no pointer.
-        for key in ("root", "state"):
-            if p[key].exists() or p[key].is_symlink():
-                raise Hold("Unowned standalone install/state directory: " + str(p[key]))
         for key in (*NAMES, "current"):
             if public_receipt(home, key)["type"] != "absent":
                 raise Hold("Existing unowned/legacy destination: " + str(p[key]))
-    # Never adopt a release from the old project or another installer.
     dest = release_path(home, rev)
     already = bool(active and active["sha"] == rev)
+    journal_file = journal_path(home, rev)
+    safe_parent(journal_file, home)
+    reenter = False
+    if journal_file.exists() or journal_file.is_symlink():
+        old_record = journal_for_reentry(home, rev)
+        reenter = old_record is not None
+        if not reenter and not already:
+            raise Hold("Incomplete owned transaction: run --recover or --rollback")
     if dest.exists() or dest.is_symlink():
-        if not already:
+        if not (already or reenter):
             raise Hold("Release path already occupied: " + str(dest))
-    journal = p["state"] / "transactions" / rev / "journal.json"
-    safe_parent(journal, home)
-    if journal.parent.exists() or journal.parent.is_symlink():
-        if not already:
-            raise Hold("Foreign/incomplete transaction directory; run --recover or --rollback")
+        if reenter and items(dest) != old_record["new"]["release"]:
+            raise Hold("Historical native release no longer verifies")
+    if active is None and dest.exists() and rev[:12] not in history:
+        raise Hold("Previously installed release is not historically verified")
     return {
         "owner": APP, "source_sha": rev, "dry_run": True,
-        "already_active": already, "new_release": str(dest),
+        "already_active": already, "historical_reentry": reenter,
+        "new_release": str(dest),
         "managed": {key: str(p[key]) for key in (*NAMES, "current", "active")},
         "system_package_operations": [],
         "legacy_import": False, "automatic_model_install": False,
@@ -239,12 +391,12 @@ def journal(home, rev):
     return r
 
 
-def write_journal(home, rev, record):
+def write_journal(home, rev, record, *, reuse=False):
     # First durable receipt is no-clobber; all later writes update only this
     # transaction's known journal. Never overwrite an unexpectedly new file.
     atomic_json(journal_path(home, rev), home, record,
                 no_replace=(record["phase"] == "prepared" and
-                            not record.get("pending")))
+                            not record.get("pending") and not reuse))
 
 
 def proposed(home, rev, stage):
@@ -332,6 +484,11 @@ def write_link(path, target, home, expected=None):
 
 
 def activate(home, source, rev, stage):
+    with owner_transaction_lock(home):
+        return _activate_locked(home, source, rev, stage)
+
+
+def _activate_locked(home, source, rev, stage):
     plan = preflight(home, source, rev)
     if plan["already_active"]:
         return {"owner": APP, "sha": rev, "phase": "active", "repeat": True}
@@ -340,9 +497,21 @@ def activate(home, source, rev, stage):
         raise Hold("Refusing invalid build staging")
     next_state = proposed(home, rev, stage)
     old = current_state(home)
+    previous_record = journal_for_reentry(home, rev) if plan["historical_reentry"] else None
+    new_release = release_path(home, rev)
+    reuse_release = bool(previous_record and new_release.is_dir())
+    if reuse_release:
+        # Reuse original hash-verified native bits. Same-source rebuilt native
+        # binaries are not assumed reproducible or safe to replace.
+        if items(new_release) != previous_record["new"]["release"]:
+            raise Hold("Historical release changed before reactivation")
+        next_state = previous_record["new"]
     r = {"owner": APP, "sha": rev, "phase": "prepared",
          "prior": old, "new": next_state, "pending": ""}
-    write_journal(home, rev, r)  # BEFORE any managed release/file write
+    if previous_record:
+        write_journal(home, rev, r, reuse=True)
+    else:
+        write_journal(home, rev, r)
     p = layout(home)
     pending = p["releases"] / (".pending-" + rev[:12])
     safe_parent(pending, home)
@@ -352,15 +521,19 @@ def activate(home, source, rev, stage):
     write_journal(home, rev, r)
     p["releases"].mkdir(parents=True, exist_ok=True)
     try:
-        shutil.copytree(stage, pending, symlinks=True)
-        if items(pending) != next_state["release"]:
-            raise Hold("Staged release altered during copy")
+        if not reuse_release:
+            shutil.copytree(stage, pending, symlinks=True)
+            if items(pending) != next_state["release"]:
+                raise Hold("Staged release altered during copy")
         r["phase"] = "activating"
         write_journal(home, rev, r)
-        new_release = release_path(home, rev)
-        if new_release.exists() or new_release.is_symlink():
-            raise Hold("Foreign release appeared after preflight")
-        pending.rename(new_release)
+        if reuse_release:
+            if items(new_release) != next_state["release"]:
+                raise Hold("Previously owned release modified before activation")
+        else:
+            if new_release.exists() or new_release.is_symlink():
+                raise Hold("Foreign release appeared after preflight")
+            pending.rename(new_release)
         for key in NAMES:
             src = new_release / "setup" / key
             expected = old["public"][key] if old else None
@@ -382,6 +555,8 @@ def activate(home, source, rev, stage):
 def validate_rollback(home, rev):
     r = journal(home, rev)
     if r["phase"] == "rolled_back":
+        if current_state(home) is None:
+            historical_state(home)
         return {"owner": APP, "sha": rev, "phase": "rolled_back", "repeat": True}
     if r["phase"] not in ("prepared", "activating", "active"):
         raise Hold("Transaction state requires manual inspection")
@@ -417,6 +592,11 @@ def validate_rollback(home, rev):
 
 
 def rollback(home, rev):
+    with owner_transaction_lock(home):
+        return _rollback_locked(home, rev)
+
+
+def _rollback_locked(home, rev):
     plan = validate_rollback(home, rev)  # ALL paths before FIRST write
     if plan["phase"] == "rolled_back":
         return plan
@@ -454,16 +634,36 @@ def rollback(home, rev):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("preflight", "dry-run", "activate",
-                                            "rollback-plan", "rollback", "recover"))
+                                            "rollback-plan", "rollback", "recover",
+                                            "guarded-script", "verify-lock"))
     parser.add_argument("--sha", required=True)
     parser.add_argument("--source")
     parser.add_argument("--artifact")
+    parser.add_argument("--script")
     parser.add_argument("--with-dab", action="store_true")
     parser.add_argument("--with-ai", action="store_true")
-    args = parser.parse_args(argv)
+    args, trailing = parser.parse_known_args(argv)
+    if trailing and args.command != "guarded-script":
+        parser.error("Unexpected command arguments")
     try:
         home = Path.home()
-        if args.command in ("preflight", "dry-run"):
+        if args.command == "verify-lock":
+            with owner_transaction_lock(home):
+                value = {"owner": APP, "lock_valid": True}
+        elif args.command == "guarded-script":
+            source = Path(args.source).absolute()
+            script = Path(args.script).absolute()
+            if script != source / "kaffeine_next/media_standalone_install.sh" or script.is_symlink():
+                raise Hold("Refusing arbitrary installer child script")
+            verify_source(source, args.sha)
+            with owner_transaction_lock(home) as fd:
+                env = dict(os.environ)
+                env["TIHULU_MEDIA_TRANSACTION_FD"] = str(fd)
+                child_args = trailing[1:] if trailing and trailing[0] == "--" else trailing
+                return subprocess.run(
+                    ["/bin/bash", str(script), *child_args], env=env,
+                    pass_fds=(fd,), check=False).returncode
+        elif args.command in ("preflight", "dry-run"):
             value = preflight(home, args.source, args.sha, ai=args.with_ai, dab=args.with_dab)
         elif args.command == "activate":
             value = activate(home, args.source, args.sha, args.artifact)
