@@ -130,7 +130,7 @@ export TIHULU_VLC_PROFILE
 if [ "$#" -eq 0 ] && [ "${TIHULU_AUTOPLAY_LAST_CHANNEL:-0}" = 1 ]; then
   set -- --lastchannel
 fi
-exec env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
+exec /usr/bin/env -u LD_LIBRARY_PATH -u LD_PRELOAD -u QT_PLUGIN_PATH \
   -u QT_QPA_PLATFORM_PLUGIN_PATH -u QML2_IMPORT_PATH -u QML_IMPORT_PATH \
   "$HOME/.local/opt/tihulu-media-standalone/current/bin/tihulu-media-standalone" "$@"
 LAUNCH
@@ -140,7 +140,7 @@ export TIHULU_MEDIA_STANDALONE=1
 BASE="$HOME/.local/opt/tihulu-media-standalone/current"
 export PYTHONPATH="$BASE/share${PYTHONPATH:+:$PYTHONPATH}"
 if [ -n "${WAYLAND_DISPLAY:-}" ]; then export QT_QPA_PLATFORM=xcb; fi
-PYTHON=python3
+PYTHON=/usr/bin/python3
 AI_ENV="$HOME/.local/share/tihulu-media-standalone/ai-runtime"
 if [ -f "$AI_ENV/.tihulu-owned-ai-runtime" ] && [ -x "$AI_ENV/bin/python3" ]; then
   PYTHON="$AI_ENV/bin/python3"
