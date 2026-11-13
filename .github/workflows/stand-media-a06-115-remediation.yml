@@ -306,16 +306,24 @@ jobs:
           test -n "$window"
           echo "ACTUAL STANDALONE QT GUI PASS"
           find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'tihulu-standalone-dvbpipe-*.m2t' -print > "$HOME/ci-fifo-before.txt"
-          # Native destructor must run on graceful UI exit. No RF tuning.
-          # xvfb-run has no desktop window manager to interpret Alt+F4.
-          # Deliver WM_DELETE_WINDOW to the actual native top-level window.
-          xdotool windowclose "$window"
+          # Native destructor must run on the actual KStandardAction::quit
+          # (Ctrl+Q -> MainWindow::close()), not a WM-specific Alt+F4.
+          xdotool windowfocus --sync "$window"
+          xdotool key --clearmodifiers ctrl+q
           for i in $(seq 1 15); do
-            if ! kill -0 "$app" 2>/dev/null; then break; fi
+            state="$(ps -o stat= -p "$app" 2>/dev/null || true)"
+            if test -z "$state" || [[ "$state" == Z* ]]; then
+              wait "$app" 2>/dev/null || true
+              break
+            fi
             sleep 1
           done
           if kill -0 "$app" 2>/dev/null; then
-            echo "HOLD: native GUI did not exit gracefully" >&2
+            echo "HOLD: native GUI did not exit via its own Quit action" >&2
+            ps -o pid,ppid,stat,comm -p "$app" || true
+            xdotool search --pid "$app" --onlyvisible | while read -r w; do
+              xdotool getwindowname "$w" || true
+            done
             exit 13
           fi
           if test -s "$HOME/ci-fifo-before.txt"; then
