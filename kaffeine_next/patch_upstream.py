@@ -586,9 +586,9 @@ QAbstractButton *StartTab::addShortcut''')
 				console->appendPlainText(QStringLiteral("\\nCompleted (exit %1).").arg(code));
 			});
 		dialog->show();
-		diagnostics->start(QLatin1String("/bin/bash"),
-			QStringList() << QDir::homePath() +
-				QLatin1String("/.local/share/tihulu-media-standalone/native/dvb_diagnostics.sh"));
+		diagnostics->start(QDir::homePath() +
+			QLatin1String("/.local/bin/tihulu-media-standalone"),
+			QStringList() << QLatin1String("--diagnose-tuner"));
 	});
 	QAction *webTvAction = dvbMenu->addAction(i18n("Web TV / Internet channels..."));
 	connect(webTvAction, &QAction::triggered, this, [this]() {
@@ -601,7 +601,8 @@ QAbstractButton *StartTab::addShortcut''')
 	menuBar->addMenu(aiMenu);
 	QAction *marketAction = aiMenu->addAction(i18n("Whisper + Translator Market"));
 	connect(marketAction, &QAction::triggered, this, [this]() {
-		if (!QProcess::startDetached(QLatin1String("tihulu-media-standalone-cli"),
+		if (!QProcess::startDetached(QDir::homePath() +
+			QLatin1String("/.local/bin/tihulu-media-standalone-cli"),
 			QStringList() << QLatin1String("ai-market")))
 			QMessageBox::warning(this, i18n("Whisper Market"),
 				i18n("Install the TIHULU offline AI companion first."));
@@ -627,7 +628,8 @@ QAbstractButton *StartTab::addShortcut''')
 		const QString name = runtime + QLatin1String("/tihulu-standalone-dvb-")
 			+ QString::number(QCoreApplication::applicationPid())
 			+ QLatin1String(".sock");
-		if (!QProcess::startDetached(QLatin1String("tihulu-media-standalone-cli"),
+		if (!QProcess::startDetached(QDir::homePath() +
+			QLatin1String("/.local/bin/tihulu-media-standalone-cli"),
 			QStringList() << QLatin1String("kaffeine-captions")
 				<< QLatin1String("--socket") << name))
 			QMessageBox::warning(this, i18n("Live captions"),
@@ -735,7 +737,7 @@ QAbstractButton *StartTab::addShortcut''')
 
     live = "src/dvb/dvbliveview.cpp"
     change(live, '#include <QDir>\n',
-           '#include <QDir>\n#include <QCoreApplication>\n'
+           '#include <QDir>\n#include <QCoreApplication>\n#include <QUuid>\n'
            '#include <QSaveFile>\n'
            '#include <sys/socket.h>\n#include <sys/un.h>\n')
     change(live, '\treadFd(-1), writeFd(-1), notifier(NULL)\n{',
@@ -970,7 +972,7 @@ void DvbLiveView::replay()
 \t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".txt");
 \ttihuluEffectiveDelayFile = runtime + QLatin1String("/tihulu-standalone-playback-effective-")
 \t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String(".txt");
-\tfileName = runtime + QLatin1String("/dvbpipe.m2t");''')
+\tfileName = runtime + QLatin1String("/tihulu-standalone-dvbpipe-")\n\t\t+ QString::number(QCoreApplication::applicationPid()) + QLatin1String("-")\n\t\t+ QUuid::createUuid().toString(QUuid::WithoutBraces) + QLatin1String(".m2t");''')
     change(live, '''\tretryCounter = 0;
 \tnotifier->setEnabled(false);''',
            '''\tretryCounter = 0;
