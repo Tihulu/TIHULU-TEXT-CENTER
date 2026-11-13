@@ -105,7 +105,15 @@ SYSTEM_ENV=(env -i "HOME=$HOME" "USER=$(id -un)" \
 }
 ln -s kaffeine "$ARTIFACT/bin/tihulu-media-standalone"
 cp -a "$SOURCE_DIR/tv_center" "$SOURCE_DIR/kaffeine_next" "$ARTIFACT/share/"
-cp "$SOURCE_DIR/kaffeine_next/install_welle.sh" "$ARTIFACT/aux/install_welle.sh"
+# The SHIPPED auxiliary is forced into no-APT standalone mode even when
+# launched directly from a desktop/menu without any inherited environment.
+# Keep the legacy source script untouched for historical CI compatibility.
+cat > "$ARTIFACT/aux/install_welle.sh" <<'SAFE_WELLE'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+export TIHULU_MEDIA_STANDALONE=1
+exec /bin/bash "$HOME/.local/opt/tihulu-media-standalone/current/share/kaffeine_next/install_welle.sh" "$@"
+SAFE_WELLE
 cp "$SOURCE_DIR/kaffeine_next/dvb_diagnostics.sh" "$ARTIFACT/aux/dvb_diagnostics.sh"
 chmod 755 "$ARTIFACT/aux/"*.sh
 cp "$SOURCE_DIR/kaffeine_next/assets/tihulu-media-center.svg" "$ARTIFACT/setup/icon"
