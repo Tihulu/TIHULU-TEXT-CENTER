@@ -6,6 +6,7 @@
 #ifndef TIHULU_NATIVE_MEDIA_PANEL_H
 #define TIHULU_NATIVE_MEDIA_PANEL_H
 #include "mediawidget.h"
+#include "tihulu_companion_path.h"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFile>
@@ -402,7 +403,7 @@ private:
         if(mux->isChecked())arguments<<QLatin1String("--mux");
         if(burn->isChecked())arguments<<QLatin1String("--burn-video");
         if(stamps->isChecked())arguments<<QLatin1String("--timestamps");
-        formatExportProcess_.start(QLatin1String("tihulu-media-standalone-cli"),arguments);
+        formatExportProcess_.start(tihuluCompanionCliPath(),arguments);
         if(!formatExportProcess_.waitForStarted(800)) {
             message_->setText(tr("Cannot start offline export tool."));return;
         }
@@ -508,7 +509,7 @@ private:
         cancelledByUser_=false;
         pausedForAi_=beforeOpen || wait_->isChecked();
         if(pausedForAi_) player_->stop();
-        process_.start(QLatin1String("tihulu-media-standalone-cli"),args);
+        process_.start(tihuluCompanionCliPath(),args);
         if(!process_.waitForStarted(800)) {
             if(pausedForAi_ && !beforeOpen)
                 player_->play(QUrl::fromLocalFile(path_));
