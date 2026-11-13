@@ -218,8 +218,9 @@ jobs:
           echo "ACTUAL STANDALONE QT GUI PASS"
           find "$XDG_RUNTIME_DIR" -maxdepth 1 -name 'tihulu-standalone-dvbpipe-*.m2t' -print > "$HOME/ci-fifo-before.txt"
           # Native destructor must run on graceful UI exit. No RF tuning.
-          xdotool windowfocus --sync "$window"
-          xdotool key --clearmodifiers Alt+F4
+          # xvfb-run has no desktop window manager to interpret Alt+F4.
+          # Deliver WM_DELETE_WINDOW to the actual native top-level window.
+          xdotool windowclose "$window"
           for i in $(seq 1 15); do
             if ! kill -0 "$app" 2>/dev/null; then break; fi
             sleep 1
