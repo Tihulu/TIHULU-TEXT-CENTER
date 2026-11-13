@@ -735,6 +735,10 @@ QAbstractButton *StartTab::addShortcut''')
            '\tQList<QByteArray> buffers;\n'
            '\tQString tihuluCaptionSocketPath;\n\tint tihuluCaptionFd;\n')
 
+    # The FIFO identity is anchored to this native object's open descriptor.
+    change(hdr, '\tint tihuluCaptionFd;\n',
+           '\tint tihuluCaptionFd;\n\tquint64 tihuluOwnedFifoDev = 0;\n'
+           '\tquint64 tihuluOwnedFifoIno = 0;\n')
     live = "src/dvb/dvbliveview.cpp"
     change(live, '#include <QDir>\n',
            '#include <QDir>\n#include <QCoreApplication>\n#include <QUuid>\n'
@@ -751,6 +755,54 @@ QAbstractButton *StartTab::addShortcut''')
     change(live, 'DvbLiveViewInternal::~DvbLiveViewInternal()\n{\n',
            'DvbLiveViewInternal::~DvbLiveViewInternal()\n{\n'
            '\tif (tihuluCaptionFd >= 0)\n\t\t::close(tihuluCaptionFd);\n\tif (!tihuluEffectiveDelayFile.isEmpty())\n\t\tQFile::remove(tihuluEffectiveDelayFile);\n')
+    # Never delete a previous/foreign FIFO at constructor startup. The
+    # per-instance path is exclusive; EEXIST must refuse to open it.
+    change(live, '\tQFile::remove(fileName);\n\n\tupdateUrl();',
+           '\t// Refuse even a UUID collision: no pre-mkfifo unlink.\n\tupdateUrl();')
+    change(live, '\treadFd = open(QFile::encodeName(fileName).constData(), O_RDONLY | O_NONBLOCK);',
+           '''\tstruct stat tihuluOwnedFifoStat;
+\tif (::lstat(QFile::encodeName(fileName).constData(), &tihuluOwnedFifoStat) != 0 ||
+\t    !S_ISFIFO(tihuluOwnedFifoStat.st_mode) ||
+\t    tihuluOwnedFifoStat.st_uid != ::geteuid() ||
+\t    tihuluOwnedFifoStat.st_nlink != 1 ||
+\t    (tihuluOwnedFifoStat.st_mode & 0022)) {
+\t\tqCWarning(logDvb, "Foreign or replaced DVB FIFO; refusing");
+\t\treturn;
+\t}
+\ttihuluOwnedFifoDev = static_cast<quint64>(tihuluOwnedFifoStat.st_dev);
+\ttihuluOwnedFifoIno = static_cast<quint64>(tihuluOwnedFifoStat.st_ino);
+\treadFd = open(QFile::encodeName(fileName).constData(), O_RDONLY | O_NONBLOCK | O_NOFOLLOW);''')
+    change(live, '\twriteFd = open(QFile::encodeName(fileName).constData(), O_WRONLY | O_NONBLOCK);',
+           '''\tstruct stat tihuluOpenedRead;
+\tif (::fstat(readFd, &tihuluOpenedRead) != 0 ||
+\t    !S_ISFIFO(tihuluOpenedRead.st_mode) ||
+\t    static_cast<quint64>(tihuluOpenedRead.st_dev) != tihuluOwnedFifoDev ||
+\t    static_cast<quint64>(tihuluOpenedRead.st_ino) != tihuluOwnedFifoIno) {
+\t\tqCWarning(logDvb, "DVB FIFO read descriptor does not own the path");
+\t\treturn;
+\t}
+\twriteFd = open(QFile::encodeName(fileName).constData(), O_WRONLY | O_NONBLOCK | O_NOFOLLOW);''')
+    change(live, '''\tif (tihuluCaptionFd >= 0)
+\t\t::close(tihuluCaptionFd);
+\tif (!tihuluEffectiveDelayFile.isEmpty())
+\t\tQFile::remove(tihuluEffectiveDelayFile);
+''', '''\tif (tihuluCaptionFd >= 0)
+\t\t::close(tihuluCaptionFd);
+\tif (!tihuluEffectiveDelayFile.isEmpty())
+\t\tQFile::remove(tihuluEffectiveDelayFile);
+\t// Never unlink a foreign FIFO/socket or an inode replaced during playback.
+\tstruct stat tihuluLastPath, tihuluLastRead;
+\tif (readFd >= 0 && tihuluOwnedFifoIno != 0 &&
+\t    ::fstat(readFd, &tihuluLastRead) == 0 &&
+\t    ::lstat(QFile::encodeName(fileName).constData(), &tihuluLastPath) == 0 &&
+\t    S_ISFIFO(tihuluLastPath.st_mode) &&
+\t    tihuluLastPath.st_uid == ::geteuid() && tihuluLastPath.st_nlink == 1 &&
+\t    static_cast<quint64>(tihuluLastPath.st_dev) == tihuluOwnedFifoDev &&
+\t    static_cast<quint64>(tihuluLastPath.st_ino) == tihuluOwnedFifoIno &&
+\t    tihuluLastRead.st_dev == tihuluLastPath.st_dev &&
+\t    tihuluLastRead.st_ino == tihuluLastPath.st_ino)
+\t\t::unlink(QFile::encodeName(fileName).constData());
+''')
     change(live, '''	if (!timeShiftFile.isOpen()) {
 		if (writeFd >= 0) {
 			buffers.append(buffer);
