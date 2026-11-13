@@ -508,7 +508,10 @@ def _activate_locked(home, source, rev, stage):
         next_state = previous_record["new"]
     r = {"owner": APP, "sha": rev, "phase": "prepared",
          "prior": old, "new": next_state, "pending": ""}
-    write_journal(home, rev, r, reuse=bool(previous_record))
+    if previous_record:
+        write_journal(home, rev, r, reuse=True)
+    else:
+        write_journal(home, rev, r)
     p = layout(home)
     pending = p["releases"] / (".pending-" + rev[:12])
     safe_parent(pending, home)
