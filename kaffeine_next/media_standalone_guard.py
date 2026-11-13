@@ -247,7 +247,7 @@ def historical_state(home):
         if {x.name for x in root.iterdir()} - {"releases"}:
             raise Hold("Unexpected standalone root entries after rollback")
     if {x.name for x in state.iterdir()} != {"transactions"}:
-        raise Hold("Unexpected standalone state/history directory")
+        raise Hold("Unowned standalone state/history directory")
     txns = state / "transactions"
     st = txns.lstat()
     if (not stat.S_ISDIR(st.st_mode) or st.st_uid != os.geteuid()
@@ -264,7 +264,7 @@ def historical_state(home):
         expected_pending = str(p["releases"] / (".pending-" + folder.name[:12]))
         if (record.get("phase") != "rolled_back" or
                 pending not in ("", None, expected_pending) or
-                pending == expected_pending and Path(pending).exists()):
+                pending == expected_pending and (Path(pending).exists() or Path(pending).is_symlink())):
             raise Hold("Incomplete or foreign historical transaction")
         new_receipt = record.get("new")
         if (not isinstance(new_receipt, dict) or
@@ -552,6 +552,8 @@ def _activate_locked(home, source, rev, stage):
 def validate_rollback(home, rev):
     r = journal(home, rev)
     if r["phase"] == "rolled_back":
+        if current_state(home) is None:
+            historical_state(home)
         return {"owner": APP, "sha": rev, "phase": "rolled_back", "repeat": True}
     if r["phase"] not in ("prepared", "activating", "active"):
         raise Hold("Transaction state requires manual inspection")
