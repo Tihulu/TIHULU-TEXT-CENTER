@@ -7,6 +7,9 @@
  const $=id=>document.getElementById(id);
  const F=TihuluFlightJourney,cache=new Map(),pending=new Map();
  const flightDetails=new Map(),flightPending=new Map();
+ // OpenSky observed times are icao24-exact; cache per hex, 10 minutes.
+ const openskyDetails=new Map(),openskyPending=new Map();
+ const OPENSKY_AGE=10*60*1000;
  let batchSerial=0,radioLoaded=false,radioLoadedAt=0;
  const MAX_AGE=30*60*1000;
  function cached(call){
@@ -18,7 +21,11 @@
   const route=cached(call)?.route||null;
   const detail=flightDetails.get(call);
   const fresh=detail&&Date.now()-detail.at<MAX_AGE?detail.journey:null;
-  return F.combine(fresh,F.combine(provider,route));
+  const opensky=openskyDetails.get(String(a?.hex||"").toLowerCase());
+  const observed=opensky&&Date.now()-opensky.at<OPENSKY_AGE?opensky.journey:null;
+  // Priority: AirLabs configured schedule > OpenSky observed (icao24-exact) >
+  // provider fields > callsign route lookup.
+  return F.combine(fresh,F.combine(observed,F.combine(provider,route)));
  }
  function bestTime(t,phase){
   for(const kind of ["Actual","Estimated","Scheduled"]){
@@ -54,7 +61,9 @@
    ?"Airports / timetable source: "+journey.source+
     ". Route is callsign-based, not proof of this specific flight. Local times follow device settings."+
     (journey.source.includes("adsbdb")?
-     " Route data: David J Taylor (Edinburgh) and Jim Mason (Glasgow), via adsbdb.com. No route-data archive is created.":"")
+     " Route data: David J Taylor (Edinburgh) and Jim Mason (Glasgow), via adsbdb.com. No route-data archive is created.":"")+
+    (journey.source.includes("OpenSky")?
+     " Estimated times observed via the OpenSky flights API (icao24-exact observation windows, not an official schedule).":"")
    :notFound?"Online callsign route unavailable; ADS-B alone cannot supply origin, destination or schedule.":
     call?"Route not yet retrieved. Opening aircraft Info checks the public callsign database on demand.":
     "No verifiable callsign. Ordinary ADS-B does not carry airport route or scheduled flight times.";
@@ -125,6 +134,63 @@
   pending.set(call,task);
   return task;
  }
+ async function loadOpenSkyDetail(a,{force=false}={}){
+  // Free, keyless enrichment: flights-by-aircraft window for the selected ICAO24.
+  // Bridge mode goes through the local bridge (server-side, user network); the
+  // hosted/Pages mode uses the public relay as a best-effort fallback, because
+  // OpenSky allows no cross-origin access and blocks relay datacenter IPs.
+  const hex=String(a?.hex||"").toLowerCase();
+  if(!/^[0-9a-f]{6}$/.test(hex)||navigator.onLine===false)return null;
+  const existing=openskyDetails.get(hex);
+  const fresh=existing&&Date.now()-existing.at<OPENSKY_AGE?existing.journey:null;
+  if(!force&&fresh)return fresh;
+  if(existing&&existing.journey===null&&!force)return null; // known-none, quiet
+  if(openskyPending.has(hex))return openskyPending.get(hex);
+  const RELAY="https://proxy.cors.dev/"; // Third-party public relay; pass nothing sensitive.
+  const work=(async()=>{
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6000);
+   try{
+    const now=Math.floor(Date.now()/1000);
+    let rows=null;
+    if(state.connectionKind==="bridge"&&state.base&&state.token){
+     // Bridge mode: the local bridge fetches server-side from the user's own
+     // network - no relay (OpenSky blocks relay datacenter IPs) and no browser
+     // CORS. The window is chosen by the bridge, not by this client.
+     const payload=await api("/api/flight-times?hex="+hex);
+     rows=Array.isArray(payload?.flights)?payload.flights:null;
+    }else{
+     // Hosted/Pages mode: OpenSky allows no cross-origin access and blocks relay
+     // datacenter IPs, so the public relay stays a best-effort fallback.
+     const upstream="https://opensky-network.org/api/flights/aircraft?icao24="+hex+
+      "&begin="+(now-86400)+"&end="+now;
+     const response=await fetch(RELAY+upstream,{mode:"cors",credentials:"omit",
+      cache:"no-store",signal:controller.signal});
+     if(response.status===404){
+      openskyDetails.set(hex,{journey:null,at:Date.now()});
+      return null; // no flight recorded in the window: not an error
+     }
+     if(!response.ok)throw Error("OpenSky HTTP "+response.status);
+     const raw=await response.text();
+     if(raw.length>65536)throw Error("OpenSky detail too large");
+     rows=JSON.parse(raw);
+    }
+    if(rows===null)return null;
+    const journey=F.fromOpenSky(rows,hex,F.callsign(a));
+    openskyDetails.set(hex,{journey,at:Date.now()});
+    if(openskyDetails.size>128)openskyDetails.delete(openskyDetails.keys().next().value);
+    if(state.selected===hex&&!$("aircraftPopup").hidden){
+     const current=state.data.find(v=>v.hex===state.selected);
+     if(current)render(current);
+    }
+    renderTable();
+    return journey;
+   }catch{
+    return null; // Offline/relay/quota errors never invent observed times.
+   }finally{clearTimeout(timer);openskyPending.delete(hex);}
+  })();
+  openskyPending.set(hex,work);
+  return work;
+ }
  async function loadAirLabsDetail(a,{force=false}={}){
   const call=F.callsign(a);
   if(!call||state.onlineProvider!=="airlabs"||navigator.onLine===false)return null;
@@ -177,6 +243,7 @@
  }
  function selected(a){
   render(a);
+  void loadOpenSkyDetail(a); // free, keyless; icao24-exact window
   if(F.callsign(a))void resolve(a).then(()=>loadAirLabsDetail(a));
  }
  function observe(rows){
