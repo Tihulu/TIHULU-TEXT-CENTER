@@ -11,6 +11,7 @@ import {decodeRobot36WithCompute} from "./compute_backends.mjs";
 import {initComputeSelector} from "./compute_selector.mjs";
 import {initStationLocationUI} from "./location_search.mjs";
 import {localDayKey,shiftCalendarDay,renderSatelliteCalendar} from "./satellite_calendar.mjs?v=20261106-calendar-zip-v2";
+import {TERMINAL_JOB_STATES} from "./job_removal.mjs?v=20261122-job-removal-v1";
 import {createResultsZip} from "./results_zip.mjs";
 
 const $=id=>document.getElementById(id);
@@ -134,6 +135,7 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   const calendarDay=$("auto-calendar-date");
   const calendarGrid=$("auto-calendar-grid");
   let calendarJobs=[];
+  let nativeJobs=[]; // every job the station reports, unfiltered (what a bulk clear removes)
   calendarDay.value=localDayKey(new Date());
   const calendarChoices={
     "25544":[["iss-sstv","ISS SSTV · event only"],["iss-aprs","ISS APRS messages"],["iss-voice","ISS FM voice"]],
@@ -202,7 +204,8 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
       return;
     }
     const status=await nativeApi("/api/status");
-    calendarJobs=(status.jobs||[]).filter(x=>x?.id&&(x.aos||x.run_at));
+    nativeJobs=(status.jobs||[]);
+    calendarJobs=nativeJobs.filter(x=>x?.id&&(x.aos||x.run_at));
     paintCalendar();
   }
   function paintCalendar(){
@@ -215,6 +218,16 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
           message("Cancelled only "+job.satellite+"'s pending capture.");
           await refreshNativeCalendar();
         }catch(e){message("Unable to cancel job: "+e.message);}
+      },
+      onRemove:async job=>{
+        // Finished records may be removed from the calendar; live (pending/running)
+        // schedules are refused by the server, never silently dropped.
+        if(!nativeHost())return;
+        try{
+          await nativeApi("/api/clear-job",{job_id:job.id});
+          message("Removed the finished record for "+job.satellite+".");
+          await refreshNativeCalendar();
+        }catch(e){message("Unable to remove record: "+e.message);}
       }
     });
   }
@@ -228,11 +241,24 @@ export function initAutoReceptionUI({getSelectedFile=()=>null,fileInput=$("local
   $("auto-calendar-refresh").addEventListener("click",()=>{
     void refreshNativeCalendar().catch(e=>message("Calendar refresh unavailable: "+e.message));
   });
+  $("auto-calendar-clear-finished").addEventListener("click",async()=>{
+    if(!nativeHost())return;
+    // Count from the station's full list with the shared vocabulary, so the
+    // confirmation cannot under-report what the server is about to remove.
+    const finished=(nativeJobs||[]).filter(j=>TERMINAL_JOB_STATES.includes(j?.state));
+    if(!finished.length){message("No finished records to clear.");return;}
+    if(!window.confirm("Remove "+finished.length+" finished record(s)? Pending and running schedules stay."))return;
+    try{
+      const result=await nativeApi("/api/clear-finished-jobs",{});
+      message("Cleared "+result.cleared+" finished record(s); "+result.remaining+" schedule(s) remain.");
+      await refreshNativeCalendar();
+    }catch(e){message("Unable to clear finished records: "+e.message);}
+  });
   void refreshNativeCalendar().catch(e=>message("Calendar unavailable: "+e.message));
 
   $("auto-mission-arm").addEventListener("click",async()=>{
     const mode=$("auto-mission-group").value;
-    if(!Object.hasOwn(AUTO_PRESETS,mode))return;
+    if(!Object.prototype.hasOwnProperty.call(AUTO_PRESETS,mode))return;
     const btn=$("auto-mission-arm");btn.disabled=true;
     try{
       const {lat,lon}=station();

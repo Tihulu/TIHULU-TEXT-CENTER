@@ -29,7 +29,7 @@ export const AUTO_PRESETS=Object.freeze({
 });
 export function selectAutomaticPasses(passes,{mode="images",now=Date.now(),maxJobs=6,
   existingJobs=[],goal="full",durationSeconds=60}={}){
-  if(!Object.hasOwn(AUTO_PRESETS,mode))throw Error("Unknown automatic reception category");
+  if(!Object.prototype.hasOwnProperty.call(AUTO_PRESETS,mode))throw Error("Unknown automatic reception category");
   if(!Number.isFinite(now)||!Number.isInteger(maxJobs)||maxJobs<1||maxJobs>12)
     throw Error("Invalid automatic scheduling limits");
   if(!Array.isArray(passes)||!Array.isArray(existingJobs))throw Error("Invalid pass/job data");

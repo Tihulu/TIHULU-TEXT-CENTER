@@ -82,7 +82,7 @@ function dataKinds(job){
  const protocols=protocolsForPass(source);
  return [...new Set(protocols.length?protocols.map(p=>p.kind):protocolCategories(source))];
 }
-export function renderSatelliteCalendar(host,jobs,day,{onEdit=null,onCancel=null}={}){
+export function renderSatelliteCalendar(host,jobs,day,{onEdit=null,onCancel=null,onRemove=null}={}){
  if(!host)throw Error("Calendar host is required");
  const buckets=calendarHourBuckets(jobs,day);
  const events=scheduleForDay(jobs,day);
@@ -148,14 +148,20 @@ export function renderSatelliteCalendar(host,jobs,day,{onEdit=null,onCancel=null
        "Saved recording; satellite source not independently verified")).slice(0,180);
      card.append(note);
     }
-    if(typeof onEdit==="function"&&["pending","armed"].includes(job.state)){
+    if(typeof onEdit==="function"&&["pending","running"].includes(job.state)){
      const edit=document.createElement("button");edit.type="button";edit.className="secondary";
      edit.textContent="Edit time / duration / protocol";
      edit.addEventListener("click",()=>onEdit(job,card));card.append(edit);
     }
-    if(typeof onCancel==="function"&&["pending","armed"].includes(job.state)){
+    if(typeof onCancel==="function"&&["pending","running"].includes(job.state)){
      const cancel=document.createElement("button");cancel.type="button";cancel.className="secondary";
      cancel.textContent="Cancel job";cancel.addEventListener("click",()=>onCancel(job));card.append(cancel);
+    }
+    if(typeof onRemove==="function"&&["completed","cancelled","blocked","interrupted","missed","error"].includes(job.state)){
+     const remove=document.createElement("button");remove.type="button";remove.className="secondary";
+     remove.title="Remove this finished record from the calendar and the armed-jobs list";
+     remove.setAttribute("aria-label","Remove this job from the list and calendar");
+     remove.textContent="Remove record";remove.addEventListener("click",()=>onRemove(job));card.append(remove);
     }
    }
    column.append(card);
