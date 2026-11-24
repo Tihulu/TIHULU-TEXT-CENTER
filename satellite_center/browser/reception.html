@@ -96,12 +96,13 @@
 <div id="auto-mission-jobs" class="mission-job-list" aria-live="polite"></div>
 <section id="auto-calendar" class="sat-calendar-panel" aria-labelledby="auto-calendar-title">
 <h3 id="auto-calendar-title">Reception timeline · local start–end time and duration</h3>
-<p class="hint">Exact start/end hours and planned duration appear in each job. Multi-hour captures continue into subsequent rows. Cancelled jobs disappear from the calendar but stay in historical audit records. Edit time, data type or recording seconds for pending jobs; never outside real pass and receiver limits.</p>
+<p class="hint">Exact start/end hours and planned duration appear in each job. Multi-hour captures continue into subsequent rows. Cancelled jobs disappear from the calendar but stay in historical audit records until you remove them here or in the armed-jobs list; pending and running schedules are never dropped. Edit time, data type or recording seconds for pending jobs; never outside real pass and receiver limits.</p>
 <div class="reception-actions">
 <label for="auto-calendar-date">Date<input type="date" id="auto-calendar-date"></label>
 <button id="auto-calendar-prev" class="secondary" type="button">Previous day</button>
 <button id="auto-calendar-next" class="secondary" type="button">Next day</button>
 <button id="auto-calendar-refresh" class="secondary" type="button">Refresh scheduled jobs</button>
+<button id="auto-calendar-clear-finished" class="secondary" type="button" title="Remove finished records from this calendar and the armed-jobs list. Pending and running schedules are never dropped.">Clear finished records</button>
 </div>
 <div id="auto-calendar-grid" class="sat-calendar-grid" aria-live="polite">No scheduled jobs loaded.</div>
 </section>
