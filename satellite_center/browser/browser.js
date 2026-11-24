@@ -68,7 +68,7 @@ async function nativeRequest(route,payload=null,csrf=null){
  if(!response.ok)throw Error(String(result.error||response.status));
  return result;
 }
-async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw,saveWav=false,outputDir=null}){
+async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRate,saveRaw,saveWav=false,outputDir=null,useDefaultFolder=false}){
  if(!nativeLocal())throw Error("Start the Debian app and open http://127.0.0.1:8791/browser/index.html");
  if(![1024000,2048000].includes(sampleRate))throw Error("Native SDR sample rate must be 1.024 or 2.048 MS/s.");
  if(!Number.isInteger(durationSeconds)||durationSeconds<8||durationSeconds>7200)
@@ -107,6 +107,7 @@ async function nativeScheduledPass(pass,{when,durationSeconds,frequency,sampleRa
    run_at:new Date(when).toISOString(),duration_seconds:durationSeconds,
    sample_rate:sampleRate};
  if(outputDir)payload.output_dir=outputDir;
+ if(useDefaultFolder)payload.use_default_folder=true;
  return nativeRequest(endpoint,payload,state.csrf);
 }
 
@@ -1159,6 +1160,10 @@ function appendPass(pass){
   folder.autocomplete='off';folder.spellcheck=false;
   folder.placeholder='e.g. ISS-SSTV-2026-11';
   folderLabel.append(folder);
+  const defaultFolderLabel=document.createElement('label');
+  defaultFolderLabel.className='schedule-wide';
+  const useDefaultFolder=document.createElement('input');useDefaultFolder.type='checkbox';
+  defaultFolderLabel.append(useDefaultFolder,' Use my saved default folder (set in the desktop app or via the companion page).');
   const folderHint=document.createElement('p');
   folderHint.className='hint schedule-wide';
   folderHint.textContent='Native companion only: optional subdirectory under its captures folder where these recordings are written (for example ISS-SSTV-2026-11). Leave empty for the default captures folder. The installed desktop app can choose any folder.';
@@ -1225,6 +1230,29 @@ function appendPass(pass){
   duration.addEventListener('input',refreshBudget);rate.addEventListener('input',refreshBudget);
   updateNativeFormat();
   refreshBudget();
+  // Default folder controls (only for native companion) — loaded asynchronously
+  if(nativeLocal()){
+    (async ()=>{
+      try{
+        const status=await nativeRequest('/api/status');
+        const defaultFolder=status.default_recording_folder||null;
+        const defLabel=document.createElement('p');defLabel.id='default-folder-label';defLabel.className='hint';
+        defLabel.textContent=defaultFolder?'Default recording folder: '+defaultFolder:'No default recording folder (uses captures/)';
+        const setBtn=document.createElement('button');setBtn.type='button';setBtn.className='secondary';
+        setBtn.textContent='Set current folder as default';
+        const clrBtn=document.createElement('button');clrBtn.type='button';clrBtn.className='secondary';
+        clrBtn.textContent='Clear default folder';
+        setBtn.onclick=()=>{
+          const folder=prompt('Enter absolute path or subdirectory for default recording folder:');
+          if(folder){ nativeRequest('/api/set-default-folder',{folder},status.csrf).then(r=>{window.dispatchEvent(new Event("tihulu-native-schedule-changed"));}); }
+        };
+        clrBtn.onclick=()=>{ nativeRequest('/api/clear-default-folder',{},status.csrf).then(r=>{window.dispatchEvent(new Event("tihulu-native-schedule-changed"));}); };
+        form.append(defLabel,setBtn,clrBtn);
+      }catch(e){
+        console.warn('Failed to load default folder controls:', e);
+      }
+    })();
+  }
   form.append(timeLabel,frequencyLabel,durationLabel,unitLabel,rateLabel,saveLabel,wavLabel,folderLabel,folderHint,budgetLabel,localLink,explanation,alert,planOnly,confirm);
   form.addEventListener('submit',async event=>{
     event.preventDefault();
@@ -1237,7 +1265,8 @@ function appendPass(pass){
         const job=await nativeScheduledPass(pass,{
           when:selectedTime,durationSeconds:seconds,frequency:Number(frequency.value),
           sampleRate:chosenRate,saveRaw:raw.checked,saveWav:wav.checked,
-          outputDir:normalizeOutputDir(folder.value)
+          outputDir:normalizeOutputDir(folder.value),
+          useDefaultFolder:useDefaultFolder.checked
         });
         alert.textContent=job.scheduled_count?
           "Native companion: "+job.scheduled_count+" separate calendar files queued · "+
